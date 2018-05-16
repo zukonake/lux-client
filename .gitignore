@@ -1,0 +1,19 @@
+# Ignore generated folders
+bin
+depend
+build
+
+# Ignore generated files
+callgrind*
+vgcore*
+*~
+*.swp
+
+# Ignore binary files
+*.so
+*.bin
+*.dll
+*.o
+*.exe
+*.out
+rozue
