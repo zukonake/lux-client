@@ -13,7 +13,7 @@ public:
     Client(std::string server_hostname, net::Port port, double tick_rate);
     ~Client();
 private:
-    void connect_to(ENetAddress server_addr);
+    void connect_to(ENetAddress *server_addr);
     void disconnect();
     void run();
     void tick();

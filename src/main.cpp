@@ -1,10 +1,11 @@
-#include <ncurses.h>
+#include <cstdlib>
 //
+#include <net/enet_handle.hpp>
 #include <client.hpp>
 
 int main()
 {
-    initscr();
-    Client client("localhost", 30337, 128.0);
-    endwin();
+    net::ENetHandle enet_handle;
+    Client client("localhost", 31337, 128.0);
+    return 0;
 }

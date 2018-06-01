@@ -1,6 +1,8 @@
 #include <stdexcept>
 #include <ncurses.h>
 //
+#include <util/log.hpp>
+//
 #include "client.hpp"
 
 Client::Client(std::string server_hostname, net::Port port, double tick_rate) :
@@ -16,7 +18,7 @@ Client::Client(std::string server_hostname, net::Port port, double tick_rate) :
     ENetAddress server_addr;
     enet_address_set_host(&server_addr, server_hostname.c_str());
     server_addr.port = port;
-    connect_to(server_addr);
+    connect_to(&server_addr);
     run();
 }
 
@@ -25,9 +27,9 @@ Client::~Client()
     enet_host_destroy(enet_client);
 }
 
-void Client::connect_to(ENetAddress server_addr)
+void Client::connect_to(ENetAddress *server_addr)
 {
-    enet_server = enet_host_connect(enet_client, &server_addr, 1, 0);
+    enet_server = enet_host_connect(enet_client, server_addr, 1, 0);
     if(enet_server == NULL)
     {
         throw std::runtime_error("couldn't connect to server"); //TODO display addr?
@@ -35,16 +37,16 @@ void Client::connect_to(ENetAddress server_addr)
     ENetEvent event;
     if(enet_host_service(enet_client, &event, 5000) > 0) //TODO magic number
     {
-        if(event.type == ENET_EVENT_TYPE_DISCONNECT)
+        if(event.type != ENET_EVENT_TYPE_CONNECT)
         {
-            throw std::runtime_error("server refused connection");
-        }
-        else if(event.type != ENET_EVENT_TYPE_CONNECT)
-        {
+            enet_peer_reset(enet_server);
+            if(event.type == ENET_EVENT_TYPE_DISCONNECT)
+            {
+                throw std::runtime_error("server refused connection");
+            }
             throw std::runtime_error("invalid server response");
         }
-        printw("client connected\n"); //TODO
-        refresh();
+        util::log("CLIENT", util::INFO, "connected to server");
     }
     else
     {
@@ -64,11 +66,14 @@ void Client::disconnect()
         {
             case ENET_EVENT_TYPE_DISCONNECT:
             enet_server = nullptr; //for reset peer null-check
-            //TODO debug message?
+            util::log("CLIENT", util::INFO, "disconnected from server");
+            break;
+
+            case ENET_EVENT_TYPE_RECEIVE:
+            enet_packet_destroy(event.packet);
             break;
 
             default:
-            enet_packet_destroy(event.packet);
             break;
         }
     }
@@ -88,5 +93,7 @@ void Client::run()
 
 void Client::tick()
 {
-
+    ENetPacket *packet = enet_packet_create("test", 5, ENET_PACKET_FLAG_RELIABLE);
+    enet_peer_send(enet_server, 0, packet);
+    enet_host_flush(enet_client);
 }
