@@ -35,7 +35,7 @@ void Client::connect_to(ENetAddress *server_addr)
         throw std::runtime_error("couldn't connect to server"); //TODO display addr?
     }
     ENetEvent event;
-    if(enet_host_service(enet_client, &event, 5000) > 0) //TODO magic number
+    if(enet_host_service(enet_client, &event, CONNECT_TIMEOUT) > 0)
     {
         if(event.type != ENET_EVENT_TYPE_CONNECT)
         {
@@ -60,7 +60,7 @@ void Client::disconnect()
 {
     enet_peer_disconnect(enet_server, 0);
     ENetEvent event;
-    while(enet_host_service(enet_client, &event, 3000) > 0) //TODO magic number
+    while(enet_host_service(enet_client, &event, DISCONNECT_TIMEOUT) > 0)
     {
         switch(event.type)
         {
