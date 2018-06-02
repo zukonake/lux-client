@@ -7,6 +7,7 @@
 
 #include <util/tick_clock.hpp>
 #include <net/port.hpp>
+#include <net/server_data.hpp>
 
 class Client
 {
@@ -21,8 +22,13 @@ private:
     void disconnect();
     void run();
     void tick();
+    void handle_input();
+    void handle_output();
+    void receive(ENetPacket *packet); //TODO move those to a different class?
+    ENetPacket *send();               //
 
     ENetHost       *enet_client;
     ENetPeer       *enet_server;
     util::TickClock tick_clock;
+    net::ServerData server_data;
 };

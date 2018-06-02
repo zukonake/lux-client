@@ -1,0 +1,3 @@
+[submodule "deps/lux-shared"]
+	path = deps/lux-shared
+	url = git@github.com:sh44/lux-shared.git

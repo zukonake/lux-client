@@ -1,7 +1,11 @@
+#include <cstdint>
 #include <stdexcept>
-#include <ncurses.h>
+#include <vector>
 //
 #include <util/log.hpp>
+#include <net/ip.hpp>
+#include <net/server_data.hpp>
+#include <net/client_data.hpp>
 //
 #include "client.hpp"
 
@@ -54,6 +58,7 @@ void Client::connect_to(ENetAddress *server_addr)
         throw std::runtime_error("server connection failed");
     }
     //TODO throws should probably be more descriptive
+    //TODO integrate this function with handle_input()?
 }
 
 void Client::disconnect()
@@ -93,7 +98,54 @@ void Client::run()
 
 void Client::tick()
 {
-    ENetPacket *packet = enet_packet_create("test", 5, ENET_PACKET_FLAG_RELIABLE);
+    handle_input();
+    handle_output();
+}
+
+void Client::handle_input()
+{
+    ENetEvent event;
+    while(enet_host_service(enet_client, &event, 0) > 0)
+    {
+        if(event.type != ENET_EVENT_TYPE_NONE)
+        {
+            net::Ip ip = event.peer->address.host;
+            util::log("CLIENT", util::TRACE, "received packet from %u.%u.%u.%u",
+                  ip & 0xFF,
+                 (ip >>  8) & 0xFF,
+                 (ip >> 16) & 0xFF,
+                 (ip >> 24) & 0xFF);
+        }
+        switch(event.type)
+        {
+            case ENET_EVENT_TYPE_RECEIVE:
+                receive(event.packet);
+                enet_packet_destroy(event.packet);
+                break;
+            default: break;
+        }
+    }
+
+}
+
+
+#include <iostream>
+void Client::handle_output()
+{
+    net::ClientData client_data;
+    uint32_t test = 0x0100 | (0x0100 << 16);
+    std::cout << test << std::endl;
+    ENetPacket *packet = enet_packet_create(&test, 4, ENET_PACKET_FLAG_RELIABLE);
     enet_peer_send(enet_server, 0, packet);
     enet_host_flush(enet_client);
 }
+
+void Client::receive(ENetPacket *packet)
+{
+    std::vector<uint8_t> bytes(packet->data, packet->data + packet->dataLength);
+    net::ServerData server_data;
+    net::ServerData::deserialize(server_data, bytes);
+    if(server_data.tiles.size() > 0)
+    std::cout << server_data.tiles[0].tex_pos.x << std::endl;
+}
+
