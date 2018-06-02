@@ -57,6 +57,6 @@ liblux.a : $(LUX_SHARED)
 clean :
 	@echo "Cleaning up..."
 	@$(RM) -r $(TARGET) $(BUILD_DIR)
-	@make -C $(LUX_SHARED)
+	@make -C $(LUX_SHARED) clean
 
 -include $(DEP_FILES)
