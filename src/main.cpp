@@ -1,5 +1,3 @@
-#include <cstdlib>
-//
 #include <net/enet_handle.hpp>
 #include <client.hpp>
 

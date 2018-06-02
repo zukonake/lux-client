@@ -1,7 +1,6 @@
-#include <cstdint>
 #include <stdexcept>
-#include <vector>
 //
+#include <alias/int.hpp>
 #include <util/log.hpp>
 #include <net/ip.hpp>
 #include <net/server_data.hpp>
@@ -9,7 +8,7 @@
 //
 #include "client.hpp"
 
-Client::Client(std::string server_hostname, net::Port port, double tick_rate) :
+Client::Client(String server_hostname, net::Port port, double tick_rate) :
     enet_client(nullptr), //nullptr for null-check
     enet_server(nullptr), //
     tick_clock(util::TickClock::Duration(1.0 / tick_rate)) //TODO, should get info from server
@@ -129,12 +128,10 @@ void Client::handle_input()
 }
 
 
-#include <iostream>
 void Client::handle_output()
 {
     net::ClientData client_data;
-    uint32_t test = 0x0100 | (0x0100 << 16);
-    std::cout << test << std::endl;
+    U32 test = 0x0100 | (0x0100 << 16);
     ENetPacket *packet = enet_packet_create(&test, 4, ENET_PACKET_FLAG_RELIABLE);
     enet_peer_send(enet_server, 0, packet);
     enet_host_flush(enet_client);
@@ -142,10 +139,8 @@ void Client::handle_output()
 
 void Client::receive(ENetPacket *packet)
 {
-    std::vector<uint8_t> bytes(packet->data, packet->data + packet->dataLength);
+    Vector<U8> bytes(packet->data, packet->data + packet->dataLength);
     net::ServerData server_data;
     net::ServerData::deserialize(server_data, bytes);
-    if(server_data.tiles.size() > 0)
-    std::cout << server_data.tiles[0].tex_pos.x << std::endl;
 }
 

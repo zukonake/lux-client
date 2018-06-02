@@ -1,10 +1,9 @@
 #pragma once
 
-#include <cstddef>
-#include <string>
-
 #include <enet/enet.h>
-
+//
+#include <alias/int.hpp>
+#include <alias/string.hpp>
 #include <util/tick_clock.hpp>
 #include <net/port.hpp>
 #include <net/server_data.hpp>
@@ -12,11 +11,11 @@
 class Client
 {
 public:
-    Client(std::string server_hostname, net::Port port, double tick_rate);
+    Client(String server_hostname, net::Port port, double tick_rate);
     ~Client();
 private:
-    static const std::size_t    CONNECT_TIMEOUT = 5000;
-    static const std::size_t DISCONNECT_TIMEOUT = 5000;
+    static const SizeT    CONNECT_TIMEOUT = 5000;
+    static const SizeT DISCONNECT_TIMEOUT = 5000;
 
     void connect_to(ENetAddress *server_addr);
     void disconnect();
