@@ -7,11 +7,12 @@ DEBUG_FLAGS     = -g -O0 -ftrapv
 WARNINGS_FLAGS  = \
 	-Wall \
 	-Wextra \
+	-Werror \
 	-Wwrite-strings \
 	-Winit-self \
 	-Wcast-align \
 	-Wcast-qual \
-	-Wold-style-cast \
+	-Wno-old-style-cast \
 	-Wpointer-arith \
 	-Wstrict-aliasing \
 	-Wformat=2 \
@@ -24,9 +25,10 @@ WARNINGS_FLAGS  = \
 	-Weffc++ \
 	-Wconversion
 
-CXX       = g++
-CXXFLAGS += -I$(SRC_DIR) -I$(LUX_SHARED)/src $(WARNINGS) $(DEBUG_FLAGS) -std=c++17 -pedantic
-LDLIBS   += -lenet -pthread -lluajit -Wl,--whole-archive $(LUX_SHARED)/liblux.a -Wl,--no-whole-archive
+CXX       = clang++
+CXXFLAGS += -I$(SRC_DIR) -isystem $(LUX_SHARED)/src -isystem $(LUX_SHARED)/include \
+	    $(WARNINGS_FLAGS) $(DEBUG_FLAGS) -std=c++17 -pedantic
+LDLIBS   += -lenet -pthread -Wl,--whole-archive $(LUX_SHARED)/liblux.a -Wl,--no-whole-archive
 LDFLAGS  +=
 
 CPP_FILES = $(shell find $(SRC_DIR) -type f -name "*.cpp" -printf '%p ')

@@ -130,7 +130,7 @@ void Client::handle_input()
 
 void Client::handle_output()
 {
-    net::ClientData client_data;
+    //net::ClientData client_data;
     U32 test = 0x0100 | (0x0100 << 16);
     ENetPacket *packet = enet_packet_create(&test, 4, ENET_PACKET_FLAG_RELIABLE);
     enet_peer_send(enet_server, 0, packet);
