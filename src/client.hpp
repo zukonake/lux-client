@@ -7,11 +7,12 @@
 #include <util/tick_clock.hpp>
 #include <net/port.hpp>
 #include <net/server_data.hpp>
+#include <io_handler.hpp>
 
 class Client
 {
 public:
-    Client(String server_hostname, net::Port port, double tick_rate);
+    Client(String server_hostname, net::Port port, double tick_rate, double fps);
     ~Client();
 private:
     static const SizeT    CONNECT_TIMEOUT = 5000;
@@ -29,5 +30,7 @@ private:
     ENetHost       *enet_client;
     ENetPeer       *enet_server;
     util::TickClock tick_clock;
-    net::ServerData server_data;
+    net::ServerData sd;
+    net::ClientData cd;
+    IoHandler       io_handler;
 };

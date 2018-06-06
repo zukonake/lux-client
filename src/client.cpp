@@ -8,10 +8,11 @@
 //
 #include "client.hpp"
 
-Client::Client(String server_hostname, net::Port port, double tick_rate) :
-    enet_client(nullptr), //nullptr for null-check
+Client::Client(String server_hostname, net::Port port, double tick_rate, double fps) :
+    enet_client(nullptr), //nullptr for null-check TODO?
     enet_server(nullptr), //
-    tick_clock(util::TickClock::Duration(1.0 / tick_rate)) //TODO, should get info from server
+    tick_clock(util::TickClock::Duration(1.0 / tick_rate)), //TODO, should get info from server
+    io_handler(fps)
 {
     enet_client = enet_host_create(NULL, 1, 1, 0, 0);
     if(enet_client == NULL)
@@ -130,9 +131,10 @@ void Client::handle_input()
 
 void Client::handle_output()
 {
-    //net::ClientData client_data;
-    U32 test = 0x0100 | (0x0100 << 16);
-    ENetPacket *packet = enet_packet_create(&test, 4, ENET_PACKET_FLAG_RELIABLE);
+    io_handler.send(cd);
+    Vector<U8> bytes;
+    net::ClientData::serialize(cd, bytes);
+    ENetPacket *packet = enet_packet_create(bytes.data(), bytes.size() * sizeof(uint8_t), 0);
     enet_peer_send(enet_server, 0, packet);
     enet_host_flush(enet_client);
 }
@@ -140,7 +142,7 @@ void Client::handle_output()
 void Client::receive(ENetPacket *packet)
 {
     Vector<U8> bytes(packet->data, packet->data + packet->dataLength);
-    net::ServerData server_data;
-    net::ServerData::deserialize(server_data, bytes);
+    net::ServerData::deserialize(sd, bytes);
+    io_handler.receive(sd);
 }
 

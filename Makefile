@@ -27,8 +27,9 @@ WARNINGS_FLAGS  = \
 
 CXX       = clang++
 CXXFLAGS += -I$(SRC_DIR) -isystem $(LUX_SHARED)/src -isystem $(LUX_SHARED)/include \
-	    $(WARNINGS_FLAGS) $(DEBUG_FLAGS) -std=c++17 -pedantic
-LDLIBS   += -lenet -pthread -Wl,--whole-archive $(LUX_SHARED)/liblux.a -Wl,--no-whole-archive
+	    -isystem include $(WARNINGS_FLAGS) $(DEBUG_FLAGS) -std=c++17 -pedantic
+LDLIBS   += -lenet -pthread -Wl,--whole-archive $(LUX_SHARED)/liblux.a -Wl,--no-whole-archive \
+	    -lGL -lglfw -lX11 -lXrandr -lXi -ldl
 LDFLAGS  +=
 
 CPP_FILES = $(shell find $(SRC_DIR) -type f -name "*.cpp" -printf '%p ')
@@ -37,7 +38,7 @@ OBJ_FILES = $(subst $(SRC_DIR),$(BUILD_DIR),$(patsubst %.cpp,%.o,$(CPP_FILES)))
 
 .PHONY : clean
 
-$(TARGET) : $(OBJ_FILES) liblux.a
+$(TARGET) : $(OBJ_FILES) $(LUX_SHARED)/liblux.a
 	@echo "Linking $@..."
 	@mkdir -p $(dir $@)
 	$(CXX) $(LDFLAGS) $(OBJ_FILES) -o $@ $(LDLIBS)
@@ -52,7 +53,7 @@ $(BUILD_DIR)/%.d : $(SRC_DIR)/%.cpp
 	$(CXX) -MM $(CXXFLAGS) $< > $@
 	@sed -i "1s~^~$(dir $@)~" $@
 
-liblux.a : $(LUX_SHARED)
+$(LUX_SHARED)/liblux.a : $(LUX_SHARED)
 	@echo "Building lux-shared..."
 	@make -C $(LUX_SHARED)
 
