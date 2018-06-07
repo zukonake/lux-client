@@ -46,6 +46,7 @@ void IoHandler::error_callback(int err, const char* desc)
 
 void IoHandler::init_glfw()
 {
+    util::log("IO_HANDLER", util::DEBUG, "initializing GLFW");
     glfwInit();
     glfwSetErrorCallback(error_callback);
     init_glfw_window();
@@ -53,6 +54,7 @@ void IoHandler::init_glfw()
 
 void IoHandler::init_glfw_window()
 {
+    util::log("IO_HANDLER", util::DEBUG, "initializing window");
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_ANY_PROFILE);
@@ -66,6 +68,7 @@ void IoHandler::init_glfw_window()
 
 void IoHandler::init_glad()
 {
+    util::log("IO_HANDLER", util::DEBUG, "initializing GLAD");
     if(gladLoadGLLoader((GLADloadproc)glfwGetProcAddress) == 0)
     {
         throw std::runtime_error("couldn't initialize GLAD");
@@ -74,6 +77,7 @@ void IoHandler::init_glad()
 
 void IoHandler::run()
 {
+    util::log("IO_HANDLER", util::DEBUG, "IO loop started");
     while(!glfwWindowShouldClose(glfw_window))
     {
         tick_clock.start();
@@ -82,6 +86,7 @@ void IoHandler::run()
         tick_clock.stop();
         tick_clock.synchronize();
     }
+    util::log("IO_HANDLER", util::DEBUG, "IO loop stopped");
 }
 
 void IoHandler::render()

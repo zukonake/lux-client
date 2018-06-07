@@ -33,6 +33,12 @@ Client::~Client()
 
 void Client::connect_to(ENetAddress *server_addr)
 {
+    util::log("CLIENT", util::INFO, "connecting to %u.%u.%u.%u:%u",
+               server_addr->host        & 0xFF,
+              (server_addr->host >>  8) & 0xFF,
+              (server_addr->host >> 16) & 0xFF,
+               server_addr->host >> 24,
+               server_addr->port);
     enet_server = enet_host_connect(enet_client, server_addr, 1, 0);
     if(enet_server == NULL)
     {
@@ -109,12 +115,7 @@ void Client::handle_input()
     {
         if(event.type != ENET_EVENT_TYPE_NONE)
         {
-            net::Ip ip = event.peer->address.host;
-            util::log("CLIENT", util::TRACE, "received packet from %u.%u.%u.%u",
-                  ip & 0xFF,
-                 (ip >>  8) & 0xFF,
-                 (ip >> 16) & 0xFF,
-                 (ip >> 24) & 0xFF);
+            //TODO
         }
         switch(event.type)
         {
