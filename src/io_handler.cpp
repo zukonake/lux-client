@@ -3,11 +3,12 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 //
+#include <util/log.hpp>
 #include <alias/string.hpp>
 #include "io_handler.hpp"
 
 IoHandler::IoHandler(double fps) :
-    tick_clock(util::TickClock::Duration(fps))
+    tick_clock(util::TickClock::Duration(1.0 / fps))
 {
     init_glfw();
     thread = std::thread(&IoHandler::run, this);
@@ -15,8 +16,9 @@ IoHandler::IoHandler(double fps) :
 
 IoHandler::~IoHandler()
 {
-    glfwTerminate();
+    glfwSetWindowShouldClose(glfw_window, GLFW_TRUE);
     thread.join();
+    glfwTerminate();
 }
 
 void IoHandler::receive(net::ServerData const &sd)
