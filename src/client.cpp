@@ -1,3 +1,4 @@
+#include <cassert>
 #include <stdexcept>
 //
 #include <alias/int.hpp>
@@ -12,7 +13,8 @@ Client::Client(String server_hostname, net::Port port, double tick_rate, double 
     enet_client(nullptr), //nullptr for null-check TODO?
     enet_server(nullptr), //
     tick_clock(util::TickClock::Duration(1.0 / tick_rate)), //TODO, should get info from server
-    io_handler(fps)
+    io_handler(fps),
+    connected(false)
 {
     enet_client = enet_host_create(NULL, 1, 1, 0, 0);
     if(enet_client == NULL)
@@ -28,11 +30,13 @@ Client::Client(String server_hostname, net::Port port, double tick_rate, double 
 
 Client::~Client()
 {
+    disconnect();
     enet_host_destroy(enet_client);
 }
 
 void Client::connect_to(ENetAddress *server_addr)
 {
+    assert(!connected);
     util::log("CLIENT", util::INFO, "connecting to %u.%u.%u.%u:%u",
                server_addr->host        & 0xFF,
               (server_addr->host >>  8) & 0xFF,
@@ -57,6 +61,7 @@ void Client::connect_to(ENetAddress *server_addr)
             throw std::runtime_error("invalid server response");
         }
         util::log("CLIENT", util::INFO, "connected to server");
+        connected = true;
     }
     else
     {
@@ -69,15 +74,16 @@ void Client::connect_to(ENetAddress *server_addr)
 
 void Client::disconnect()
 {
+    assert(connected);
     enet_peer_disconnect(enet_server, 0);
     ENetEvent event;
-    while(enet_host_service(enet_client, &event, DISCONNECT_TIMEOUT) > 0)
+    while(connected && enet_host_service(enet_client, &event, DISCONNECT_TIMEOUT) > 0)
     {
         switch(event.type)
         {
             case ENET_EVENT_TYPE_DISCONNECT:
-            enet_server = nullptr; //for reset peer null-check
             util::log("CLIENT", util::INFO, "disconnected from server");
+            connected = false;
             break;
 
             case ENET_EVENT_TYPE_RECEIVE:
@@ -88,12 +94,12 @@ void Client::disconnect()
             break;
         }
     }
-    if(enet_server != nullptr) enet_peer_reset(enet_server);
+    enet_peer_reset(enet_server);
 }
 
 void Client::run()
 {
-    while(true) //TODO
+    while(!io_handler.should_close())
     {
         tick_clock.start();
         tick();

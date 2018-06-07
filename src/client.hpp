@@ -33,4 +33,5 @@ private:
     net::ServerData sd;
     net::ClientData cd;
     IoHandler       io_handler;
+    bool            connected;
 };
