@@ -1,17 +1,26 @@
+#include <cstring>
 #include <stdexcept>
+#include <sstream>
+#include <fstream>
 //
+#include <glm/detail/func_matrix.hpp>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 //
 #include <util/log.hpp>
+#include <alias/cstring.hpp>
 #include <alias/string.hpp>
+#include <linear/size_3d.hpp>
 #include "io_handler.hpp"
 
-IoHandler::IoHandler(double fps) :
+IoHandler::IoHandler(data::Config const &config, double fps) :
+    config(config),
     tick_clock(util::TickClock::Duration(1.0 / fps)),
-    initialized(false)
+    initialized(false),
+    view_size(11, 11)
 {
     thread = std::thread(&IoHandler::start, this);
+    // ^ all the opengl related stuff must be initialized in the corresponding thread
 }
 
 IoHandler::~IoHandler()
@@ -68,6 +77,7 @@ void IoHandler::start()
     glfwInit();
     glfwSetErrorCallback(error_callback);
 
+    util::log("IO_HANDLER", util::DEBUG, "initializing GLFW window");
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_ANY_PROFILE);
@@ -84,6 +94,90 @@ void IoHandler::start()
     glViewport(0, 0, 800, 600);
     glfwSetKeyCallback(glfw_window, key_callback);
     glfwSwapInterval(1);
+    //^ TODO not sure if needed since io loop is regulated by tick_clock anyway
+
+    glGenBuffers(1, &VboId);
+    glBindBuffer(GL_ARRAY_BUFFER, VboId);
+
+    util::log("IO_HANDLER", util::DEBUG, "initializing vertex shader");
+    unsigned vert_shader = glCreateShader(GL_VERTEX_SHADER);
+    {
+        std::ifstream file(config.vertex_shader_path);
+        file.seekg (0, file.end);
+        long len = file.tellg();
+        file.seekg (0, file.beg);
+        char *str = new char[(SizeT)len + 1];
+        file.read(str, len);
+        str[(SizeT)len] = '\0';
+        glShaderSource(vert_shader, 1, &str, NULL);
+        glCompileShader(vert_shader);
+        file.close();
+        delete[] str;
+
+        int success;
+        char log[512];
+        glGetShaderiv(vert_shader, GL_COMPILE_STATUS, &success);
+        if(!success)
+        {
+            glGetShaderInfoLog(vert_shader, 512, NULL, log);
+            throw std::runtime_error("vertex shader compile error: \n" + std::string(log));
+        }
+    }
+
+    util::log("IO_HANDLER", util::DEBUG, "initializing fragment shader");
+    unsigned frag_shader = glCreateShader(GL_FRAGMENT_SHADER);
+    {
+        std::ifstream file(config.fragment_shader_path);
+        file.seekg (0, file.end);
+        long len = file.tellg();
+        file.seekg (0, file.beg);
+        char *str = new char[(SizeT)len + 1];
+        file.read(str, len);
+        str[(SizeT)len] = '\0';
+        glShaderSource(frag_shader, 1, &str, NULL);
+        glCompileShader(frag_shader);
+        file.close();
+        delete[] str;
+
+        int success;
+        char log[512];
+        glGetShaderiv(frag_shader, GL_COMPILE_STATUS, &success);
+        if(!success)
+        {
+            glGetShaderInfoLog(frag_shader, 512, NULL, log);
+            throw std::runtime_error("fragment shader compile error: \n" + std::string(log));
+        }
+    }
+
+    util::log("IO_HANDLER", util::DEBUG, "initializing shader program");
+    unsigned program = glCreateProgram();
+    glAttachShader(program, vert_shader);
+    glAttachShader(program, frag_shader);
+    glLinkProgram(program);
+    {
+        int success;
+        char log[512];
+        glGetProgramiv(program, GL_LINK_STATUS, &success);
+        if(!success)
+        {
+            glGetProgramInfoLog(program, 512, NULL, log);
+            throw std::runtime_error("program linking error: \n" + std::string(log));
+        }
+    }
+    glUseProgram(program);
+    glDeleteShader(vert_shader);
+    glDeleteShader(frag_shader);  
+
+    util::log("IO_HANDLER", util::DEBUG, "initializing vertex attributes");
+    static_assert(sizeof(render::Vertex) == 3 * sizeof(float) + 
+                                            2 * sizeof(unsigned) +
+                                            4 * sizeof(float));
+    glVertexAttribPointer(0, 3, GL_FLOAT       , GL_FALSE, sizeof(render::Vertex), (void*)0);
+    glVertexAttribPointer(1, 2, GL_UNSIGNED_INT, GL_FALSE, sizeof(render::Vertex), (void*)(sizeof(float) * 3));
+    glVertexAttribPointer(2, 4, GL_FLOAT       , GL_FALSE, sizeof(render::Vertex), (void*)(sizeof(float) * 3 + sizeof(unsigned) * 2));
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
+    glEnableVertexAttribArray(2);
 
     run();
 }
@@ -105,12 +199,39 @@ void IoHandler::run()
 
 void IoHandler::render()
 {
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    std::lock_guard lock(io_mutex);
+    auto tiles_size = sd_buffer.tiles.size();
+    vertices.resize(tiles_size * 3);
+    linear::Size3d<float> quad_size = {1.0f / view_size.x, 1.0f / view_size.y, 0.f};
+    for(SizeT i = 0; i < tiles_size; ++i)
+    {
+        vertices[(i * 3) + 0].pos = {(i % view_size.x) * quad_size.x,
+                                     (i / view_size.y) * quad_size.y, 0};
+        vertices[(i * 3) + 0].pos.x -= 1.0;
+        vertices[(i * 3) + 1].pos = vertices[(i * 3) + 0].pos + glm::vec3(quad_size.x, 0, 0);
+        vertices[(i * 3) + 2].pos = vertices[(i * 3) + 0].pos + quad_size;
+        vertices[(i * 3) + 0].tex_pos = sd_buffer.tiles[i].tex_pos;
+        vertices[(i * 3) + 1].tex_pos = sd_buffer.tiles[i].tex_pos;
+        vertices[(i * 3) + 2].tex_pos = sd_buffer.tiles[i].tex_pos;
+        vertices[(i * 3) + 0].color = {(float)sd_buffer.tiles[i].shape, 0.0, 0.0, 1.0};
+        vertices[(i * 3) + 1].color = {(float)sd_buffer.tiles[i].shape, 0.0, 0.0, 1.0};
+        vertices[(i * 3) + 2].color = {(float)sd_buffer.tiles[i].shape, 0.0, 0.0, 1.0};
+        // ^ TODO placeholder
+    }
+    glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
+    glBufferData(GL_ARRAY_BUFFER,
+                 sizeof(render::Vertex) * vertices.size(),
+                 vertices.data(),
+                 GL_STREAM_DRAW);
+    glDrawArrays(GL_TRIANGLES, 0, vertices.size());
     glfwSwapBuffers(glfw_window);
 }
 
 void IoHandler::handle_input()
 {
+    std::lock_guard lock(io_mutex);
+    cd_buffer.view_size = view_size;
+
     glfwPollEvents();
 }

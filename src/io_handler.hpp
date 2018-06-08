@@ -6,14 +6,17 @@
 //
 #include <GLFW/glfw3.h>
 //
+#include <alias/vector.hpp>
+#include <util/tick_clock.hpp>
 #include <net/server_data.hpp>
 #include <net/client_data.hpp>
-#include <util/tick_clock.hpp>
+#include <data/config.hpp>
+#include <render/vertex.hpp>
 
 class IoHandler
 {
     public:
-    IoHandler(double fps);
+    IoHandler(data::Config const &config, double fps);
     ~IoHandler();
 
     void receive(net::ServerData const &sd);
@@ -32,8 +35,13 @@ class IoHandler
     GLFWwindow *glfw_window;
     std::mutex  io_mutex;
     std::thread thread;
+    data::Config const &config;
     net::ServerData sd_buffer;
     net::ClientData cd_buffer;
     util::TickClock tick_clock;
     std::atomic<bool> initialized;
+
+    unsigned VboId;
+    Vector<render::Vertex> vertices;
+    linear::Size2d<U16>    view_size;
 };

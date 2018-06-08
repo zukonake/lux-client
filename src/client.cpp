@@ -6,6 +6,7 @@
 #include <net/ip.hpp>
 #include <net/server_data.hpp>
 #include <net/client_data.hpp>
+#include <data/obj.hpp>
 //
 #include "client.hpp"
 
@@ -13,7 +14,7 @@ Client::Client(String server_hostname, net::Port port, double tick_rate, double 
     enet_client(nullptr), //nullptr for null-check TODO?
     enet_server(nullptr), //
     tick_clock(util::TickClock::Duration(1.0 / tick_rate)), //TODO, should get info from server
-    io_handler(fps),
+    io_handler(default_config, fps),
     connected(false)
 {
     enet_client = enet_host_create(NULL, 1, 1, 0, 0);
@@ -149,6 +150,7 @@ void Client::handle_output()
 void Client::receive(ENetPacket *packet)
 {
     Vector<U8> bytes(packet->data, packet->data + packet->dataLength);
+    sd.tiles.clear();
     net::ServerData::deserialize(sd, bytes);
     io_handler.receive(sd);
 }

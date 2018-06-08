@@ -15,8 +15,8 @@ public:
     Client(String server_hostname, net::Port port, double tick_rate, double fps);
     ~Client();
 private:
-    static const SizeT    CONNECT_TIMEOUT = 5000;
-    static const SizeT DISCONNECT_TIMEOUT = 5000;
+    static const SizeT    CONNECT_TIMEOUT = 500;
+    static const SizeT DISCONNECT_TIMEOUT = 500;
 
     void connect_to(ENetAddress *server_addr);
     void disconnect();
