@@ -31,6 +31,9 @@ class IoHandler
     void run();
     void render();
     void handle_input();
+    void set_view_size(linear::Point2d<U16> const &val);
+    void resize_indices();
+    void resize_vertices();
 
     GLFWwindow *glfw_window;
     std::mutex  io_mutex;

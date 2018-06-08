@@ -16,9 +16,9 @@
 IoHandler::IoHandler(data::Config const &config, double fps) :
     config(config),
     tick_clock(util::TickClock::Duration(1.0 / fps)),
-    initialized(false),
-    view_size(11, 11)
+    initialized(false)
 {
+    set_view_size({11, 11});
     thread = std::thread(&IoHandler::start, this);
     // ^ all the opengl related stuff must be initialized in the corresponding thread
 }
@@ -228,16 +228,6 @@ void IoHandler::render()
         vertices[(i * 4) + 3].color = {(float)sd_buffer.tiles[i].shape, 0.0, 0.0, 1.0};
         // ^ TODO placeholder
     }
-    indices.resize(tiles_size * 6);
-    for(SizeT i = 0; i < tiles_size; ++i)
-    {
-        indices[(i * 6) + 0] = (unsigned)((i * 4) + 0);
-        indices[(i * 6) + 1] = (unsigned)((i * 4) + 1);
-        indices[(i * 6) + 2] = (unsigned)((i * 4) + 3);
-        indices[(i * 6) + 3] = (unsigned)((i * 4) + 1);
-        indices[(i * 6) + 4] = (unsigned)((i * 4) + 2);
-        indices[(i * 6) + 5] = (unsigned)((i * 4) + 3);
-    }
     glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
@@ -259,4 +249,42 @@ void IoHandler::handle_input()
     cd_buffer.view_size = view_size;
 
     glfwPollEvents();
+}
+
+void IoHandler::set_view_size(linear::Point2d<U16> const &val)
+{
+    view_size = val;
+    resize_indices();
+    resize_vertices();
+}
+
+void IoHandler::resize_indices()
+{
+    SizeT view_tiles = view_size.x * view_size.y;
+    indices.resize(view_tiles * 6);
+    for(SizeT i = 0; i < view_tiles; ++i)
+    {
+        indices[(i * 6) + 0] = (unsigned)((i * 4) + 0);
+        indices[(i * 6) + 1] = (unsigned)((i * 4) + 1);
+        indices[(i * 6) + 2] = (unsigned)((i * 4) + 3);
+        indices[(i * 6) + 3] = (unsigned)((i * 4) + 1);
+        indices[(i * 6) + 4] = (unsigned)((i * 4) + 2);
+        indices[(i * 6) + 5] = (unsigned)((i * 4) + 3);
+    }
+}
+
+void IoHandler::resize_vertices()
+{
+    SizeT view_tiles = view_size.x * view_size.y;
+    vertices.resize(view_tiles * 4);
+    linear::Size3d<float> quad_size = {2.0f / view_size.x, 2.0f / view_size.y, 0.f};
+    for(SizeT i = 0; i < view_tiles; ++i)
+    {
+        glm::vec3 base = {((i % view_size.x) * quad_size.x) - 1.0,
+                          ((i / view_size.y) * quad_size.y) - 1.0, 0};
+        vertices[(i * 4) + 0].pos = base;
+        vertices[(i * 4) + 1].pos = base + glm::vec3(quad_size.x, 0, 0);
+        vertices[(i * 4) + 2].pos = base + quad_size;
+        vertices[(i * 4) + 3].pos = base + glm::vec3(0, quad_size.y, 0);
+    }
 }
