@@ -208,11 +208,13 @@ void IoHandler::render()
     auto tiles_size = sd_buffer.tiles.size();
     vertices.resize(tiles_size * 4);
     linear::Size3d<float> quad_size = {1.0f / view_size.x, 1.0f / view_size.y, 0.f};
+    quad_size *= 2;
     for(SizeT i = 0; i < tiles_size; ++i)
     {
         vertices[(i * 4) + 0].pos = {(i % view_size.x) * quad_size.x,
                                      (i / view_size.y) * quad_size.y, 0};
         vertices[(i * 4) + 0].pos.x -= 1.0;
+        vertices[(i * 4) + 0].pos.y -= 1.0;
         vertices[(i * 4) + 1].pos = vertices[(i * 4) + 0].pos + glm::vec3(quad_size.x, 0, 0);
         vertices[(i * 4) + 2].pos = vertices[(i * 4) + 0].pos + quad_size;
         vertices[(i * 4) + 3].pos = vertices[(i * 4) + 0].pos + glm::vec3(0, quad_size.y, 0);
