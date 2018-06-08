@@ -41,7 +41,7 @@ class IoHandler
     util::TickClock tick_clock;
     std::atomic<bool> initialized;
 
-    unsigned VboId;
     Vector<render::Vertex> vertices;
+    Vector<unsigned>       indices;
     linear::Size2d<U16>    view_size;
 };

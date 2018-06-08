@@ -96,9 +96,6 @@ void IoHandler::start()
     glfwSwapInterval(1);
     //^ TODO not sure if needed since io loop is regulated by tick_clock anyway
 
-    glGenBuffers(1, &VboId);
-    glBindBuffer(GL_ARRAY_BUFFER, VboId);
-
     util::log("IO_HANDLER", util::DEBUG, "initializing vertex shader");
     unsigned vert_shader = glCreateShader(GL_VERTEX_SHADER);
     {
@@ -168,6 +165,14 @@ void IoHandler::start()
     glDeleteShader(vert_shader);
     glDeleteShader(frag_shader);  
 
+    unsigned vboId;
+    glGenBuffers(1, &vboId);
+    glBindBuffer(GL_ARRAY_BUFFER, vboId);
+
+    unsigned eboId;
+    glGenBuffers(1, &eboId);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, eboId);
+
     util::log("IO_HANDLER", util::DEBUG, "initializing vertex attributes");
     static_assert(sizeof(render::Vertex) == 3 * sizeof(float) + 
                                             2 * sizeof(unsigned) +
@@ -201,30 +206,48 @@ void IoHandler::render()
 {
     std::lock_guard lock(io_mutex);
     auto tiles_size = sd_buffer.tiles.size();
-    vertices.resize(tiles_size * 3);
+    vertices.resize(tiles_size * 4);
     linear::Size3d<float> quad_size = {1.0f / view_size.x, 1.0f / view_size.y, 0.f};
     for(SizeT i = 0; i < tiles_size; ++i)
     {
-        vertices[(i * 3) + 0].pos = {(i % view_size.x) * quad_size.x,
+        vertices[(i * 4) + 0].pos = {(i % view_size.x) * quad_size.x,
                                      (i / view_size.y) * quad_size.y, 0};
-        vertices[(i * 3) + 0].pos.x -= 1.0;
-        vertices[(i * 3) + 1].pos = vertices[(i * 3) + 0].pos + glm::vec3(quad_size.x, 0, 0);
-        vertices[(i * 3) + 2].pos = vertices[(i * 3) + 0].pos + quad_size;
-        vertices[(i * 3) + 0].tex_pos = sd_buffer.tiles[i].tex_pos;
-        vertices[(i * 3) + 1].tex_pos = sd_buffer.tiles[i].tex_pos;
-        vertices[(i * 3) + 2].tex_pos = sd_buffer.tiles[i].tex_pos;
-        vertices[(i * 3) + 0].color = {(float)sd_buffer.tiles[i].shape, 0.0, 0.0, 1.0};
-        vertices[(i * 3) + 1].color = {(float)sd_buffer.tiles[i].shape, 0.0, 0.0, 1.0};
-        vertices[(i * 3) + 2].color = {(float)sd_buffer.tiles[i].shape, 0.0, 0.0, 1.0};
+        vertices[(i * 4) + 0].pos.x -= 1.0;
+        vertices[(i * 4) + 1].pos = vertices[(i * 4) + 0].pos + glm::vec3(quad_size.x, 0, 0);
+        vertices[(i * 4) + 2].pos = vertices[(i * 4) + 0].pos + quad_size;
+        vertices[(i * 4) + 3].pos = vertices[(i * 4) + 0].pos + glm::vec3(0, quad_size.y, 0);
+        vertices[(i * 4) + 0].tex_pos = sd_buffer.tiles[i].tex_pos;
+        vertices[(i * 4) + 1].tex_pos = sd_buffer.tiles[i].tex_pos;
+        vertices[(i * 4) + 2].tex_pos = sd_buffer.tiles[i].tex_pos;
+        vertices[(i * 4) + 3].tex_pos = sd_buffer.tiles[i].tex_pos;
+        vertices[(i * 4) + 0].color = {(float)sd_buffer.tiles[i].shape, 0.0, 0.0, 1.0};
+        vertices[(i * 4) + 1].color = {(float)sd_buffer.tiles[i].shape, 0.0, 0.0, 1.0};
+        vertices[(i * 4) + 2].color = {(float)sd_buffer.tiles[i].shape, 0.0, 0.0, 1.0};
+        vertices[(i * 4) + 3].color = {(float)sd_buffer.tiles[i].shape, 0.0, 0.0, 1.0};
         // ^ TODO placeholder
+    }
+    indices.resize(tiles_size * 6);
+    for(SizeT i = 0; i < tiles_size; ++i)
+    {
+        indices[(i * 6) + 0] = (unsigned)((i * 4) + 0);
+        indices[(i * 6) + 1] = (unsigned)((i * 4) + 1);
+        indices[(i * 6) + 2] = (unsigned)((i * 4) + 3);
+        indices[(i * 6) + 3] = (unsigned)((i * 4) + 1);
+        indices[(i * 6) + 4] = (unsigned)((i * 4) + 2);
+        indices[(i * 6) + 5] = (unsigned)((i * 4) + 3);
     }
     glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
+
     glBufferData(GL_ARRAY_BUFFER,
                  sizeof(render::Vertex) * vertices.size(),
                  vertices.data(),
                  GL_STREAM_DRAW);
-    glDrawArrays(GL_TRIANGLES, 0, vertices.size());
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                 sizeof(unsigned) * indices.size(),
+                 indices.data(),
+                 GL_STREAM_DRAW);
+    glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
     glfwSwapBuffers(glfw_window);
 }
 
