@@ -3,7 +3,7 @@
 #include <sstream>
 #include <fstream>
 //
-#include <glm/detail/func_matrix.hpp>
+#include <glm/glm.hpp>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 //
@@ -284,20 +284,26 @@ void IoHandler::resize_indices()
         indices[(i * 6) + 4] = (unsigned)((i * 4) + 2);
         indices[(i * 6) + 5] = (unsigned)((i * 4) + 3);
     }
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                 sizeof(unsigned) * indices.size(),
+                 indices.data(),
+                 GL_DYNAMIC_DRAW);
 }
 
 void IoHandler::resize_vertices()
 {
     SizeT view_tiles = view_size.x * view_size.y;
     vertices.resize(view_tiles * 4);
-    linear::Size3d<float> quad_size = {2.0f / view_size.x, 2.0f / view_size.y, 0.f};
+    glm::mat3x2 size(2.0 / view_size.x, 0                ,
+                     0                , 2.0 / view_size.y,
+                     0                , 0                );
     for(SizeT i = 0; i < view_tiles; ++i)
     {
-        glm::vec3 base = {((i % view_size.x) * quad_size.x) - 1.0,
-                          ((i / view_size.x) * quad_size.y) - 1.0, 0};
-        vertices[(i * 4) + 0].pos = base;
-        vertices[(i * 4) + 1].pos = base + glm::vec3(quad_size.x, 0, 0);
-        vertices[(i * 4) + 2].pos = base + quad_size;
-        vertices[(i * 4) + 3].pos = base + glm::vec3(0, quad_size.y, 0);
+        glm::vec3 base((i % view_size.x) - (float)(view_size.x / 2),
+                       (i / view_size.x) - (float)(view_size.y / 2), 0);
+        vertices[(i * 4) + 0].pos = (base + glm::vec3(0, 0, 0)) * size;
+        vertices[(i * 4) + 1].pos = (base + glm::vec3(1, 0, 0)) * size;
+        vertices[(i * 4) + 2].pos = (base + glm::vec3(1, 1, 0)) * size;
+        vertices[(i * 4) + 3].pos = (base + glm::vec3(0, 1, 0)) * size;
     }
 }
