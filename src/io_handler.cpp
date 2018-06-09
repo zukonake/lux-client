@@ -18,7 +18,6 @@ IoHandler::IoHandler(data::Config const &config, double fps) :
     tick_clock(util::TickClock::Duration(1.0 / fps)),
     initialized(false)
 {
-    set_view_size({11, 11});
     thread = std::thread(&IoHandler::start, this);
     // ^ all the opengl related stuff must be initialized in the corresponding thread
 }
@@ -51,8 +50,10 @@ bool IoHandler::should_close()
 
 void IoHandler::framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
-    (void)window;
     glViewport(0, 0, width, height);
+    IoHandler *io_handler = (IoHandler *)glfwGetWindowUserPointer(window);
+    io_handler->set_view_size({width / 80 + 2, height / 80 + 2}); //TODO
+    util::log("IO_HANDLER", util::DEBUG, "screen size change to %ux%u", width, height);
 }
 
 void IoHandler::error_callback(int err, const char* desc)
@@ -69,8 +70,6 @@ void IoHandler::key_callback(GLFWwindow *window, int key, int scancode, int acti
     (void)scancode;
     (void)action;
     (void)mode;
-    IoHandler *io_handler = (IoHandler *)glfwGetWindowUserPointer(window);
-    io_handler->set_view_size({io_handler->view_size.x + 1, io_handler->view_size.y});
 }
 
 void IoHandler::start()
@@ -79,7 +78,6 @@ void IoHandler::start()
     init_glfw_window();
     init_glad();
 
-    glViewport(0, 0, 800, 600);
     glfwSwapInterval(1);
     //^ TODO not sure if needed since io loop is regulated by tick_clock anyway
 
@@ -88,6 +86,8 @@ void IoHandler::start()
     init_ebo();
     init_vert_attribs();
 
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    framebuffer_size_callback(glfw_window, 800, 600);
     initialized = true;
 
     run();
@@ -263,6 +263,7 @@ void IoHandler::handle_input()
 void IoHandler::set_view_size(linear::Point2d<U16> const &val)
 {
     view_size = val;
+    util::log("IO_HANDLER", util::DEBUG, "view size change to %ux%u", val.x, val.y);
     resize_indices();
     resize_vertices();
 }
