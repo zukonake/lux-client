@@ -222,6 +222,7 @@ void IoHandler::run()
 
 void IoHandler::render()
 {
+    if(sd_buffer.tiles.size() == view_size.x * view_size.y)
     {
         std::lock_guard lock(io_mutex);
         auto tiles_size = sd_buffer.tiles.size();
@@ -238,18 +239,13 @@ void IoHandler::render()
             vertices[(i * 4) + 3].color = {(float)tile.shape, 0.0, 0.0, 1.0};
             // ^ TODO placeholder
         }
+        glBufferData(GL_ARRAY_BUFFER,
+                     sizeof(render::Vertex) * vertices.size(),
+                     vertices.data(),
+                     GL_STREAM_DRAW);
     }
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
-
-    glBufferData(GL_ARRAY_BUFFER,
-                 sizeof(render::Vertex) * vertices.size(),
-                 vertices.data(),
-                 GL_STREAM_DRAW);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-                 sizeof(unsigned) * indices.size(),
-                 indices.data(),
-                 GL_STREAM_DRAW);
     glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
     glfwSwapBuffers(glfw_window);
 }
