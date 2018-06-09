@@ -69,127 +69,145 @@ void IoHandler::key_callback(GLFWwindow *window, int key, int scancode, int acti
     (void)scancode;
     (void)action;
     (void)mode;
+    IoHandler *io_handler = (IoHandler *)glfwGetWindowUserPointer(window);
+    io_handler->set_view_size({io_handler->view_size.x + 1, io_handler->view_size.y});
 }
 
 void IoHandler::start()
 {
-    util::log("IO_HANDLER", util::DEBUG, "initializing GLFW");
+    init_glfw_core();
+    init_glfw_window();
+    init_glad();
+
+    glViewport(0, 0, 800, 600);
+    glfwSwapInterval(1);
+    //^ TODO not sure if needed since io loop is regulated by tick_clock anyway
+
+    init_shader_program();
+    init_vbo();
+    init_ebo();
+    init_vert_attribs();
+
+    initialized = true;
+
+    run();
+}
+
+void IoHandler::init_glfw_core()
+{
+    util::log("IO_HANDLER", util::DEBUG, "initializing GLFW core");
     glfwInit();
     glfwSetErrorCallback(error_callback);
+}
 
+void IoHandler::init_glfw_window()
+{
     util::log("IO_HANDLER", util::DEBUG, "initializing GLFW window");
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_ANY_PROFILE);
     glfw_window = glfwCreateWindow(800, 600, "Lux", NULL, NULL);
     glfwMakeContextCurrent(glfw_window);
+    glfwSetWindowUserPointer(glfw_window, this);
     glfwSetFramebufferSizeCallback(glfw_window, framebuffer_size_callback);
+    glfwSetKeyCallback(glfw_window, key_callback);
+}
 
+void IoHandler::init_glad()
+{
     util::log("IO_HANDLER", util::DEBUG, "initializing GLAD");
     if(gladLoadGLLoader((GLADloadproc)glfwGetProcAddress) == 0)
     {
         throw std::runtime_error("couldn't initialize GLAD");
     }
+}
 
-    glViewport(0, 0, 800, 600);
-    glfwSetKeyCallback(glfw_window, key_callback);
-    glfwSwapInterval(1);
-    //^ TODO not sure if needed since io loop is regulated by tick_clock anyway
+unsigned IoHandler::init_shader(GLenum type, CString path)
+{
+    util::log("IO_HANDLER", util::DEBUG, "initializing shader type %u from %s", type, path);
+    unsigned id = glCreateShader(type);
 
-    util::log("IO_HANDLER", util::DEBUG, "initializing vertex shader");
-    unsigned vert_shader = glCreateShader(GL_VERTEX_SHADER);
+    std::ifstream file(path);
+    file.seekg (0, file.end);
+    long len = file.tellg();
+    file.seekg (0, file.beg);
+
+    char *str = new char[(SizeT)len + 1];
+    file.read(str, len);
+    str[(SizeT)len] = '\0';
+    glShaderSource(id, 1, &str, NULL);
+    glCompileShader(id);
+    file.close();
+    delete[] str;
+
+    int success;
+    char log[512];
+    glGetShaderiv(id, GL_COMPILE_STATUS, &success);
+    if(!success)
     {
-        std::ifstream file(config.vertex_shader_path);
-        file.seekg (0, file.end);
-        long len = file.tellg();
-        file.seekg (0, file.beg);
-        char *str = new char[(SizeT)len + 1];
-        file.read(str, len);
-        str[(SizeT)len] = '\0';
-        glShaderSource(vert_shader, 1, &str, NULL);
-        glCompileShader(vert_shader);
-        file.close();
-        delete[] str;
-
-        int success;
-        char log[512];
-        glGetShaderiv(vert_shader, GL_COMPILE_STATUS, &success);
-        if(!success)
-        {
-            glGetShaderInfoLog(vert_shader, 512, NULL, log);
-            throw std::runtime_error("vertex shader compile error: \n" + std::string(log));
-        }
+        glGetShaderInfoLog(id, 512, NULL, log);
+        throw std::runtime_error("shader compile error: \n" + std::string(log));
     }
+    return id;
+}
 
-    util::log("IO_HANDLER", util::DEBUG, "initializing fragment shader");
-    unsigned frag_shader = glCreateShader(GL_FRAGMENT_SHADER);
-    {
-        std::ifstream file(config.fragment_shader_path);
-        file.seekg (0, file.end);
-        long len = file.tellg();
-        file.seekg (0, file.beg);
-        char *str = new char[(SizeT)len + 1];
-        file.read(str, len);
-        str[(SizeT)len] = '\0';
-        glShaderSource(frag_shader, 1, &str, NULL);
-        glCompileShader(frag_shader);
-        file.close();
-        delete[] str;
-
-        int success;
-        char log[512];
-        glGetShaderiv(frag_shader, GL_COMPILE_STATUS, &success);
-        if(!success)
-        {
-            glGetShaderInfoLog(frag_shader, 512, NULL, log);
-            throw std::runtime_error("fragment shader compile error: \n" + std::string(log));
-        }
-    }
-
+void IoHandler::init_shader_program()
+{
+    unsigned vert_shader = init_shader(GL_VERTEX_SHADER, config.vertex_shader_path);
+    unsigned frag_shader = init_shader(GL_FRAGMENT_SHADER, config.fragment_shader_path);
     util::log("IO_HANDLER", util::DEBUG, "initializing shader program");
-    unsigned program = glCreateProgram();
-    glAttachShader(program, vert_shader);
-    glAttachShader(program, frag_shader);
-    glLinkProgram(program);
+    programId = glCreateProgram();
+    glAttachShader(programId, vert_shader);
+    glAttachShader(programId, frag_shader);
+    glLinkProgram(programId);
     {
         int success;
         char log[512];
-        glGetProgramiv(program, GL_LINK_STATUS, &success);
+        glGetProgramiv(programId, GL_LINK_STATUS, &success);
         if(!success)
         {
-            glGetProgramInfoLog(program, 512, NULL, log);
+            glGetProgramInfoLog(programId, 512, NULL, log);
             throw std::runtime_error("program linking error: \n" + std::string(log));
         }
     }
-    glUseProgram(program);
+    glUseProgram(programId);
     glDeleteShader(vert_shader);
     glDeleteShader(frag_shader);  
+}
 
-    unsigned vboId;
+void IoHandler::init_vbo()
+{
+    util::log("IO_HANDLER", util::DEBUG, "initializing VBO");
     glGenBuffers(1, &vboId);
     glBindBuffer(GL_ARRAY_BUFFER, vboId);
+}
 
-    unsigned eboId;
+void IoHandler::init_ebo()
+{
+    util::log("IO_HANDLER", util::DEBUG, "initializing EBO");
     glGenBuffers(1, &eboId);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, eboId);
+}
 
+void IoHandler::init_vert_attribs()
+{
     util::log("IO_HANDLER", util::DEBUG, "initializing vertex attributes");
     static_assert(sizeof(render::Vertex) == 3 * sizeof(float) + 
                                             2 * sizeof(unsigned) +
                                             4 * sizeof(float));
-    glVertexAttribPointer(0, 3, GL_FLOAT       , GL_FALSE, sizeof(render::Vertex), (void*)0);
-    glVertexAttribPointer(1, 2, GL_UNSIGNED_INT, GL_FALSE, sizeof(render::Vertex), (void*)(sizeof(float) * 3));
-    glVertexAttribPointer(2, 4, GL_FLOAT       , GL_FALSE, sizeof(render::Vertex), (void*)(sizeof(float) * 3 + sizeof(unsigned) * 2));
+    glVertexAttribPointer(0, 3, GL_FLOAT       , GL_FALSE, sizeof(render::Vertex),
+                          (void*)offsetof(render::Vertex, pos));
+    glVertexAttribPointer(1, 2, GL_UNSIGNED_INT, GL_FALSE, sizeof(render::Vertex),
+                          (void*)offsetof(render::Vertex, tex_pos));
+    glVertexAttribPointer(2, 4, GL_FLOAT       , GL_FALSE, sizeof(render::Vertex),
+                          (void*)offsetof(render::Vertex, color));
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
     glEnableVertexAttribArray(2);
-
-    run();
 }
 
 void IoHandler::run()
 {
-    initialized = true;
     util::log("IO_HANDLER", util::DEBUG, "IO loop started");
     while(!glfwWindowShouldClose(glfw_window))
     {
@@ -204,22 +222,24 @@ void IoHandler::run()
 
 void IoHandler::render()
 {
-    std::lock_guard lock(io_mutex);
-    auto tiles_size = sd_buffer.tiles.size();
-    for(SizeT i = 0; i < tiles_size; ++i)
     {
-        auto const &tile = sd_buffer.tiles[i];
-        vertices[(i * 4) + 0].tex_pos = tile.tex_pos;
-        vertices[(i * 4) + 1].tex_pos = tile.tex_pos;
-        vertices[(i * 4) + 2].tex_pos = tile.tex_pos;
-        vertices[(i * 4) + 3].tex_pos = tile.tex_pos;
-        vertices[(i * 4) + 0].color = {(float)tile.shape, 0.0, 0.0, 1.0};
-        vertices[(i * 4) + 1].color = {(float)tile.shape, 0.0, 0.0, 1.0};
-        vertices[(i * 4) + 2].color = {(float)tile.shape, 0.0, 0.0, 1.0};
-        vertices[(i * 4) + 3].color = {(float)tile.shape, 0.0, 0.0, 1.0};
-        // ^ TODO placeholder
+        std::lock_guard lock(io_mutex);
+        auto tiles_size = sd_buffer.tiles.size();
+        for(SizeT i = 0; i < tiles_size; ++i)
+        {
+            auto const &tile = sd_buffer.tiles[i];
+            vertices[(i * 4) + 0].tex_pos = tile.tex_pos;
+            vertices[(i * 4) + 1].tex_pos = tile.tex_pos;
+            vertices[(i * 4) + 2].tex_pos = tile.tex_pos;
+            vertices[(i * 4) + 3].tex_pos = tile.tex_pos;
+            vertices[(i * 4) + 0].color = {(float)tile.shape, 0.0, 0.0, 1.0};
+            vertices[(i * 4) + 1].color = {(float)tile.shape, 0.0, 0.0, 1.0};
+            vertices[(i * 4) + 2].color = {(float)tile.shape, 0.0, 0.0, 1.0};
+            vertices[(i * 4) + 3].color = {(float)tile.shape, 0.0, 0.0, 1.0};
+            // ^ TODO placeholder
+        }
     }
-    glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
     glBufferData(GL_ARRAY_BUFFER,
@@ -236,8 +256,10 @@ void IoHandler::render()
 
 void IoHandler::handle_input()
 {
-    std::lock_guard lock(io_mutex);
-    cd_buffer.view_size = view_size;
+    {
+        std::lock_guard lock(io_mutex);
+        cd_buffer.view_size = view_size;
+    }
 
     glfwPollEvents();
 }
@@ -272,7 +294,7 @@ void IoHandler::resize_vertices()
     for(SizeT i = 0; i < view_tiles; ++i)
     {
         glm::vec3 base = {((i % view_size.x) * quad_size.x) - 1.0,
-                          ((i / view_size.y) * quad_size.y) - 1.0, 0};
+                          ((i / view_size.x) * quad_size.y) - 1.0, 0};
         vertices[(i * 4) + 0].pos = base;
         vertices[(i * 4) + 1].pos = base + glm::vec3(quad_size.x, 0, 0);
         vertices[(i * 4) + 2].pos = base + quad_size;

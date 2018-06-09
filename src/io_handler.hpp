@@ -28,6 +28,15 @@ class IoHandler
     static void key_callback(GLFWwindow *window, int key, int scancode, int action, int mode);
 
     void start();
+    void init_glfw_core();
+    void init_glfw_window();
+    void init_glad();
+    unsigned init_shader(GLenum type, CString path);
+    void init_shader_program();
+    void init_vbo();
+    void init_ebo();
+    void init_vert_attribs();
+
     void run();
     void render();
     void handle_input();
@@ -47,4 +56,7 @@ class IoHandler
     Vector<render::Vertex> vertices;
     Vector<unsigned>       indices;
     linear::Size2d<U16>    view_size;
+    unsigned               vboId;
+    unsigned               eboId;
+    unsigned               programId;
 };
