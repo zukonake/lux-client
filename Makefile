@@ -28,8 +28,7 @@ WARNINGS_FLAGS  = \
 CXX       = clang++
 CXXFLAGS += -I$(SRC_DIR) -isystem $(LUX_SHARED)/src -isystem $(LUX_SHARED)/include \
 	    -isystem include $(WARNINGS_FLAGS) $(DEBUG_FLAGS) -std=c++17 -pedantic
-LDLIBS   += -lenet -pthread -llux \
-	    -lGL -lglfw -lX11 -lXrandr -lXi -ldl
+LDLIBS   += -lenet -pthread -llux -lGL -lglfw -lX11 -lXrandr -lXi -ldl
 LDFLAGS  += -L$(LUX_SHARED)
 
 CPP_FILES = $(shell find $(SRC_DIR) -type f -name "*.cpp" -printf '%p ')
