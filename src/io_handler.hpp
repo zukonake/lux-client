@@ -34,11 +34,12 @@ class IoHandler
     void init_glfw_core();
     void init_glfw_window();
     void init_glad();
-    unsigned init_shader(GLenum type, CString path);
+    GLuint init_shader(GLenum type, CString path);
     void init_shader_program();
     void init_vbo();
     void init_ebo();
     void init_vert_attribs();
+    void init_tileset();
 
     void run();
     void render();
@@ -57,9 +58,13 @@ class IoHandler
     std::atomic<bool> initialized;
 
     Vector<render::Vertex> vertices;
-    Vector<unsigned>       indices;
+    Vector<GLuint>         indices;
     linear::Size2d<U16>    view_size;
-    unsigned               vboId;
-    unsigned               eboId;
-    unsigned               programId;
+    glm::vec2              tileset_size;
+    GLuint vbo_id;
+    GLuint ebo_id;
+    GLuint vert_shader_id;
+    GLuint frag_shader_id;
+    GLuint program_id;
+    GLuint tileset_id;
 };

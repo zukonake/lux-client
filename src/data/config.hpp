@@ -1,5 +1,7 @@
 #pragma once
 
+#include <glm/glm.hpp>
+//
 #include <alias/cstring.hpp>
 #include <linear/size_2d.hpp>
 
@@ -8,9 +10,11 @@ namespace data
 
 struct Config
 {
-    linear::Size2d<U16> tile_pixel_size;
-    CString             vertex_shader_path;
-    CString             fragment_shader_path;
+    glm::vec2 tile_tex_size;
+    glm::vec2 tile_quad_size;
+    CString   tileset_path;
+    CString   vert_shader_path;
+    CString   frag_shader_path;
 };
 
 }

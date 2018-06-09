@@ -4,8 +4,10 @@
 #include <fstream>
 //
 #include <glm/glm.hpp>
+#include <glm/gtc/type_ptr.hpp>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#include <lodepng.h>
 //
 #include <util/log.hpp>
 #include <alias/cstring.hpp>
@@ -52,7 +54,8 @@ void IoHandler::framebuffer_size_callback(GLFWwindow* window, int width, int hei
 {
     glViewport(0, 0, width, height);
     IoHandler *io_handler = (IoHandler *)glfwGetWindowUserPointer(window);
-    io_handler->set_view_size({width / 80 + 2, height / 80 + 2}); //TODO
+    io_handler->set_view_size({width  / io_handler->config.tile_quad_size.x + 2,
+                               height / io_handler->config.tile_quad_size.y + 2}); //TODO
     util::log("IO_HANDLER", util::DEBUG, "screen size change to %ux%u", width, height);
 }
 
@@ -85,6 +88,7 @@ void IoHandler::start()
     init_vbo();
     init_ebo();
     init_vert_attribs();
+    init_tileset();
 
     framebuffer_size_callback(glfw_window, 800, 600);
     initialized = true;
@@ -121,10 +125,10 @@ void IoHandler::init_glad()
     }
 }
 
-unsigned IoHandler::init_shader(GLenum type, CString path)
+GLuint IoHandler::init_shader(GLenum type, CString path)
 {
     util::log("IO_HANDLER", util::DEBUG, "initializing shader type %u from %s", type, path);
-    unsigned id = glCreateShader(type);
+    GLuint id = glCreateShader(type);
 
     std::ifstream file(path);
     file.seekg (0, file.end);
@@ -152,57 +156,104 @@ unsigned IoHandler::init_shader(GLenum type, CString path)
 
 void IoHandler::init_shader_program()
 {
-    unsigned vert_shader = init_shader(GL_VERTEX_SHADER, config.vertex_shader_path);
-    unsigned frag_shader = init_shader(GL_FRAGMENT_SHADER, config.fragment_shader_path);
     util::log("IO_HANDLER", util::DEBUG, "initializing shader program");
-    programId = glCreateProgram();
-    glAttachShader(programId, vert_shader);
-    glAttachShader(programId, frag_shader);
-    glLinkProgram(programId);
+    vert_shader_id = init_shader(GL_VERTEX_SHADER, config.vert_shader_path);
+    frag_shader_id = init_shader(GL_FRAGMENT_SHADER, config.frag_shader_path);
+
+    program_id = glCreateProgram();
+    glAttachShader(program_id, vert_shader_id);
+    glAttachShader(program_id, frag_shader_id);
+    glLinkProgram(program_id);
     {
         int success;
-        glGetProgramiv(programId, GL_LINK_STATUS, &success);
+        glGetProgramiv(program_id, GL_LINK_STATUS, &success);
         if(!success)
         {
             char log[OPENGL_LOG_SIZE];
-            glGetProgramInfoLog(programId, OPENGL_LOG_SIZE, NULL, log);
+            glGetProgramInfoLog(program_id, OPENGL_LOG_SIZE, NULL, log);
             throw std::runtime_error("program linking error: \n" + std::string(log));
         }
     }
-    glUseProgram(programId);
-    glDeleteShader(vert_shader);
-    glDeleteShader(frag_shader);  
+    glUseProgram(program_id);
+    glDeleteShader(vert_shader_id);
+    glDeleteShader(frag_shader_id);  
 }
 
 void IoHandler::init_vbo()
 {
     util::log("IO_HANDLER", util::DEBUG, "initializing VBO");
-    glGenBuffers(1, &vboId);
-    glBindBuffer(GL_ARRAY_BUFFER, vboId);
+    glGenBuffers(1, &vbo_id);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo_id);
 }
 
 void IoHandler::init_ebo()
 {
     util::log("IO_HANDLER", util::DEBUG, "initializing EBO");
-    glGenBuffers(1, &eboId);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, eboId);
+    glGenBuffers(1, &ebo_id);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_id);
 }
 
 void IoHandler::init_vert_attribs()
 {
     util::log("IO_HANDLER", util::DEBUG, "initializing vertex attributes");
-    static_assert(sizeof(render::Vertex) == 3 * sizeof(float) + 
-                                            2 * sizeof(unsigned) +
-                                            4 * sizeof(float));
-    glVertexAttribPointer(0, 3, GL_FLOAT       , GL_FALSE, sizeof(render::Vertex),
+    static_assert(sizeof(render::Vertex) == 3 * sizeof(GLfloat) + 
+                                            2 * sizeof(GLfloat) +
+                                            4 * sizeof(GLfloat));
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(render::Vertex),
                           (void*)offsetof(render::Vertex, pos));
-    glVertexAttribPointer(1, 2, GL_UNSIGNED_INT, GL_FALSE, sizeof(render::Vertex),
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(render::Vertex),
                           (void*)offsetof(render::Vertex, tex_pos));
-    glVertexAttribPointer(2, 4, GL_FLOAT       , GL_FALSE, sizeof(render::Vertex),
+    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(render::Vertex),
                           (void*)offsetof(render::Vertex, color));
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
     glEnableVertexAttribArray(2);
+}
+
+void IoHandler::init_tileset()
+{
+    util::log("IO_HANDLER", util::DEBUG, "loading tileset texture %s", config.tileset_path);
+
+    glGenTextures(1, &tileset_id);
+    glBindTexture(GL_TEXTURE_2D, tileset_id);
+    Vector<U8> image;
+    linear::Size2d<unsigned> image_size;
+    unsigned error = lodepng::decode(image,
+                                     image_size.x,
+                                     image_size.y,
+                                     String(config.tileset_path));
+    tileset_size = (glm::vec2)image_size;
+
+    auto const &tile_size = config.tile_tex_size;
+    glm::vec2 tile_scale = {tile_size.x / tileset_size.x, tile_size.y / tileset_size.y};
+    GLint tile_scale_location = glGetUniformLocation(program_id, "tile_scale");
+    glUniform2f(tile_scale_location, tile_scale.x, tile_scale.y);
+
+    if(error) throw std::runtime_error("couldn't load tileset texture");
+
+    glTexImage2D(GL_TEXTURE_2D,
+                 0,
+                 GL_RGBA,
+                 tileset_size.x,
+                 tileset_size.y,
+                 0,
+                 GL_RGBA,
+                 GL_UNSIGNED_BYTE,
+                 image.data());
+
+    //glGenerateMipmap(GL_TEXTURE_2D);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
+    // TODO ^ no mipmaps unless I find a way to generate them reliably
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    util::log("IO_HANDLER",
+              util::DEBUG,
+              "loaded tileset texture of size %ux%u",
+              tileset_size.x,
+              tileset_size.y);
 }
 
 void IoHandler::run()
@@ -228,14 +279,14 @@ void IoHandler::render()
         for(SizeT i = 0; i < tiles_size; ++i)
         {
             auto const &tile = sd_buffer.tiles[i];
-            vertices[(i * 4) + 0].tex_pos = tile.tex_pos;
-            vertices[(i * 4) + 1].tex_pos = tile.tex_pos;
-            vertices[(i * 4) + 2].tex_pos = tile.tex_pos;
-            vertices[(i * 4) + 3].tex_pos = tile.tex_pos;
-            vertices[(i * 4) + 0].color = {(float)tile.shape, 0.0, 0.0, 1.0};
-            vertices[(i * 4) + 1].color = {(float)tile.shape, 0.0, 0.0, 1.0};
-            vertices[(i * 4) + 2].color = {(float)tile.shape, 0.0, 0.0, 1.0};
-            vertices[(i * 4) + 3].color = {(float)tile.shape, 0.0, 0.0, 1.0};
+            vertices[(i * 4) + 0].tex_pos = glm::vec2(0, 0) + (glm::vec2)tile.tex_pos;
+            vertices[(i * 4) + 1].tex_pos = glm::vec2(1, 0) + (glm::vec2)tile.tex_pos;
+            vertices[(i * 4) + 2].tex_pos = glm::vec2(1, 1) + (glm::vec2)tile.tex_pos;
+            vertices[(i * 4) + 3].tex_pos = glm::vec2(0, 1) + (glm::vec2)tile.tex_pos;
+            vertices[(i * 4) + 0].color = {1.0, 1.0, 1.0, 1.0};
+            vertices[(i * 4) + 1].color = {1.0, 1.0, 1.0, 1.0};
+            vertices[(i * 4) + 2].color = {1.0, 1.0, 1.0, 1.0};
+            vertices[(i * 4) + 3].color = {1.0, 1.0, 1.0, 1.0};
             // ^ TODO placeholder
         }
         glBufferData(GL_ARRAY_BUFFER,
@@ -273,15 +324,15 @@ void IoHandler::resize_indices()
     indices.resize(view_tiles * 6);
     for(SizeT i = 0; i < view_tiles; ++i)
     {
-        indices[(i * 6) + 0] = (unsigned)((i * 4) + 0);
-        indices[(i * 6) + 1] = (unsigned)((i * 4) + 1);
-        indices[(i * 6) + 2] = (unsigned)((i * 4) + 3);
-        indices[(i * 6) + 3] = (unsigned)((i * 4) + 1);
-        indices[(i * 6) + 4] = (unsigned)((i * 4) + 2);
-        indices[(i * 6) + 5] = (unsigned)((i * 4) + 3);
+        indices[(i * 6) + 0] = (GLuint)((i * 4) + 0);
+        indices[(i * 6) + 1] = (GLuint)((i * 4) + 1);
+        indices[(i * 6) + 2] = (GLuint)((i * 4) + 3);
+        indices[(i * 6) + 3] = (GLuint)((i * 4) + 1);
+        indices[(i * 6) + 4] = (GLuint)((i * 4) + 2);
+        indices[(i * 6) + 5] = (GLuint)((i * 4) + 3);
     }
     glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-                 sizeof(unsigned) * indices.size(),
+                 sizeof(GLuint) * indices.size(),
                  indices.data(),
                  GL_DYNAMIC_DRAW);
 }

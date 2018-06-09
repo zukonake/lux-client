@@ -1,7 +1,6 @@
 TARGET     = lux-client
 BUILD_DIR  = build
 SRC_DIR    = src
-LUX_SHARED = deps/lux-shared
 
 DEBUG_FLAGS     = -g -O0 -ftrapv
 WARNINGS_FLAGS  = \
@@ -26,10 +25,10 @@ WARNINGS_FLAGS  = \
 	-Wconversion
 
 CXX       = clang++
-CXXFLAGS += -I$(SRC_DIR) -isystem $(LUX_SHARED)/src -isystem $(LUX_SHARED)/include \
-	    -isystem include $(WARNINGS_FLAGS) $(DEBUG_FLAGS) -std=c++17 -pedantic
-LDLIBS   += -lenet -pthread -llux -lGL -lglfw -lX11 -lXrandr -lXi -ldl
-LDFLAGS  += -L$(LUX_SHARED)
+CXXFLAGS += -I$(SRC_DIR) -Ideps/lux-shared/src -isystem include \
+	    $(WARNINGS_FLAGS) $(DEBUG_FLAGS) -std=c++17 -pedantic
+LDLIBS   += -lenet -pthread -llux -llodepng -lGL -lglfw -lX11 -lXrandr -lXi -ldl
+LDFLAGS  += -Ldeps/lux-shared -Ldeps/lodepng
 
 CPP_FILES = $(shell find $(SRC_DIR) -type f -name "*.cpp" -printf '%p ')
 DEP_FILES = $(subst $(SRC_DIR),$(BUILD_DIR),$(patsubst %.cpp,%.d,$(CPP_FILES)))
@@ -37,7 +36,7 @@ OBJ_FILES = $(subst $(SRC_DIR),$(BUILD_DIR),$(patsubst %.cpp,%.o,$(CPP_FILES)))
 
 .PHONY : clean
 
-$(TARGET) : $(OBJ_FILES) $(LUX_SHARED)/liblux.a
+$(TARGET) : $(OBJ_FILES) deps/lux-shared/liblux.a deps/lodepng/liblodepng.a
 	@echo "Linking $@..."
 	@mkdir -p $(dir $@)
 	$(CXX) $(LDFLAGS) $(OBJ_FILES) -o $@ $(LDLIBS)
@@ -52,13 +51,18 @@ $(BUILD_DIR)/%.d : $(SRC_DIR)/%.cpp
 	$(CXX) -MM $(CXXFLAGS) $< > $@
 	@sed -i "1s~^~$(dir $@)~" $@
 
-$(LUX_SHARED)/liblux.a : $(LUX_SHARED)
+deps/lux-shared/liblux.a : deps/lux-shared
 	@echo "Building lux-shared..."
-	@make -C $(LUX_SHARED)
+	@make -C deps/lux-shared
+
+deps/lodepng/liblodepng.a : deps/lodepng
+	@echo "Building lodepng..."
+	@make -C deps/lodepng
 
 clean :
 	@echo "Cleaning up..."
 	@$(RM) -r $(TARGET) $(BUILD_DIR)
-	@make -C $(LUX_SHARED) clean
+	@make -C deps/lux-shared clean
+	@make -C deps/lodepng clean
 
 -include $(DEP_FILES)

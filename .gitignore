@@ -10,6 +10,7 @@ vgcore*
 *.swp
 
 # Ignore binary files
+*.a
 *.so
 *.bin
 *.dll
