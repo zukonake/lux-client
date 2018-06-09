@@ -86,7 +86,6 @@ void IoHandler::start()
     init_ebo();
     init_vert_attribs();
 
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     framebuffer_size_callback(glfw_window, 800, 600);
     initialized = true;
 
@@ -141,11 +140,11 @@ unsigned IoHandler::init_shader(GLenum type, CString path)
     delete[] str;
 
     int success;
-    char log[512];
     glGetShaderiv(id, GL_COMPILE_STATUS, &success);
     if(!success)
     {
-        glGetShaderInfoLog(id, 512, NULL, log);
+        char log[OPENGL_LOG_SIZE];
+        glGetShaderInfoLog(id, OPENGL_LOG_SIZE, NULL, log);
         throw std::runtime_error("shader compile error: \n" + std::string(log));
     }
     return id;
@@ -162,11 +161,11 @@ void IoHandler::init_shader_program()
     glLinkProgram(programId);
     {
         int success;
-        char log[512];
         glGetProgramiv(programId, GL_LINK_STATUS, &success);
         if(!success)
         {
-            glGetProgramInfoLog(programId, 512, NULL, log);
+            char log[OPENGL_LOG_SIZE];
+            glGetProgramInfoLog(programId, OPENGL_LOG_SIZE, NULL, log);
             throw std::runtime_error("program linking error: \n" + std::string(log));
         }
     }

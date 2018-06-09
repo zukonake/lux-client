@@ -6,6 +6,7 @@
 //
 #include <GLFW/glfw3.h>
 //
+#include <alias/int.hpp>
 #include <alias/vector.hpp>
 #include <util/tick_clock.hpp>
 #include <net/server_data.hpp>
@@ -23,6 +24,8 @@ class IoHandler
     void send(net::ClientData &cd);
     bool should_close();
     private:
+    static const SizeT OPENGL_LOG_SIZE = 512;
+
     static void framebuffer_size_callback(GLFWwindow* window, int width, int height);
     static void error_callback(int err, const char* desc);
     static void key_callback(GLFWwindow *window, int key, int scancode, int action, int mode);
