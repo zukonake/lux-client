@@ -84,13 +84,14 @@ void IoHandler::start()
     glfwSwapInterval(1);
     //^ TODO not sure if needed since io loop is regulated by tick_clock anyway
 
-    init_shader_program();
+    program.init(config.vert_shader_path, config.frag_shader_path);
     init_vbo();
     init_ebo();
     init_vert_attribs();
     init_tileset();
 
     framebuffer_size_callback(glfw_window, 800, 600);
+
     initialized = true;
 
     run();
@@ -123,60 +124,6 @@ void IoHandler::init_glad()
     {
         throw std::runtime_error("couldn't initialize GLAD");
     }
-}
-
-GLuint IoHandler::init_shader(GLenum type, CString path)
-{
-    util::log("IO_HANDLER", util::DEBUG, "initializing shader type %u from %s", type, path);
-    GLuint id = glCreateShader(type);
-
-    std::ifstream file(path);
-    file.seekg (0, file.end);
-    long len = file.tellg();
-    file.seekg (0, file.beg);
-
-    char *str = new char[(SizeT)len + 1];
-    file.read(str, len);
-    str[(SizeT)len] = '\0';
-    glShaderSource(id, 1, &str, NULL);
-    glCompileShader(id);
-    file.close();
-    delete[] str;
-
-    int success;
-    glGetShaderiv(id, GL_COMPILE_STATUS, &success);
-    if(!success)
-    {
-        char log[OPENGL_LOG_SIZE];
-        glGetShaderInfoLog(id, OPENGL_LOG_SIZE, NULL, log);
-        throw std::runtime_error("shader compile error: \n" + std::string(log));
-    }
-    return id;
-}
-
-void IoHandler::init_shader_program()
-{
-    util::log("IO_HANDLER", util::DEBUG, "initializing shader program");
-    vert_shader_id = init_shader(GL_VERTEX_SHADER, config.vert_shader_path);
-    frag_shader_id = init_shader(GL_FRAGMENT_SHADER, config.frag_shader_path);
-
-    program_id = glCreateProgram();
-    glAttachShader(program_id, vert_shader_id);
-    glAttachShader(program_id, frag_shader_id);
-    glLinkProgram(program_id);
-    {
-        int success;
-        glGetProgramiv(program_id, GL_LINK_STATUS, &success);
-        if(!success)
-        {
-            char log[OPENGL_LOG_SIZE];
-            glGetProgramInfoLog(program_id, OPENGL_LOG_SIZE, NULL, log);
-            throw std::runtime_error("program linking error: \n" + std::string(log));
-        }
-    }
-    glUseProgram(program_id);
-    glDeleteShader(vert_shader_id);
-    glDeleteShader(frag_shader_id);  
 }
 
 void IoHandler::init_vbo()
@@ -226,8 +173,7 @@ void IoHandler::init_tileset()
 
     auto const &tile_size = config.tile_tex_size;
     glm::vec2 tile_scale = {tile_size.x / tileset_size.x, tile_size.y / tileset_size.y};
-    GLint tile_scale_location = glGetUniformLocation(program_id, "tile_scale");
-    glUniform2f(tile_scale_location, tile_scale.x, tile_scale.y);
+    program.set_uniform("tile_scale", glUniform2f, tile_scale.x, tile_scale.y);
 
     if(error) throw std::runtime_error("couldn't load tileset texture");
 
@@ -276,9 +222,20 @@ void IoHandler::render()
     {
         std::lock_guard lock(io_mutex);
         auto tiles_size = sd_buffer.tiles.size();
+        vertices.resize(tiles_size * 4);
+        glm::mat3x2 size(2.0 / view_size.x, 0                ,
+                         0                , 2.0 / view_size.y,
+                         0                , 0                );
         for(SizeT i = 0; i < tiles_size; ++i)
         {
             auto const &tile = sd_buffer.tiles[i];
+            glm::vec3 base((i % view_size.x) - (float)(view_size.x / 2),
+                           (i / view_size.x) - (float)(view_size.y / 2),
+                           tile.shape == net::TileState::WALL ? 1 : 0);
+            vertices[(i * 4) + 0].pos = (base + glm::vec3(0, 0, 0)) * size;
+            vertices[(i * 4) + 1].pos = (base + glm::vec3(1, 0, 0)) * size;
+            vertices[(i * 4) + 2].pos = (base + glm::vec3(1, 1, 0)) * size;
+            vertices[(i * 4) + 3].pos = (base + glm::vec3(0, 1, 0)) * size;
             vertices[(i * 4) + 0].tex_pos = glm::vec2(0, 0) + (glm::vec2)tile.tex_pos;
             vertices[(i * 4) + 1].tex_pos = glm::vec2(1, 0) + (glm::vec2)tile.tex_pos;
             vertices[(i * 4) + 2].tex_pos = glm::vec2(1, 1) + (glm::vec2)tile.tex_pos;
@@ -287,7 +244,6 @@ void IoHandler::render()
             vertices[(i * 4) + 1].color = {1.0, 1.0, 1.0, 1.0};
             vertices[(i * 4) + 2].color = {1.0, 1.0, 1.0, 1.0};
             vertices[(i * 4) + 3].color = {1.0, 1.0, 1.0, 1.0};
-            // ^ TODO placeholder
         }
         glBufferData(GL_ARRAY_BUFFER,
                      sizeof(render::Vertex) * vertices.size(),
@@ -315,7 +271,6 @@ void IoHandler::set_view_size(linear::Point2d<U16> const &val)
     view_size = val;
     util::log("IO_HANDLER", util::DEBUG, "view size change to %ux%u", val.x, val.y);
     resize_indices();
-    resize_vertices();
 }
 
 void IoHandler::resize_indices()
@@ -335,22 +290,4 @@ void IoHandler::resize_indices()
                  sizeof(GLuint) * indices.size(),
                  indices.data(),
                  GL_DYNAMIC_DRAW);
-}
-
-void IoHandler::resize_vertices()
-{
-    SizeT view_tiles = view_size.x * view_size.y;
-    vertices.resize(view_tiles * 4);
-    glm::mat3x2 size(2.0 / view_size.x, 0                ,
-                     0                , 2.0 / view_size.y,
-                     0                , 0                );
-    for(SizeT i = 0; i < view_tiles; ++i)
-    {
-        glm::vec3 base((i % view_size.x) - (float)(view_size.x / 2),
-                       (i / view_size.x) - (float)(view_size.y / 2), 0);
-        vertices[(i * 4) + 0].pos = (base + glm::vec3(0, 0, 0)) * size;
-        vertices[(i * 4) + 1].pos = (base + glm::vec3(1, 0, 0)) * size;
-        vertices[(i * 4) + 2].pos = (base + glm::vec3(1, 1, 0)) * size;
-        vertices[(i * 4) + 3].pos = (base + glm::vec3(0, 1, 0)) * size;
-    }
 }

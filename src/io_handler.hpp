@@ -4,6 +4,7 @@
 #include <mutex>
 #include <atomic>
 //
+#include <glad/glad.h>
 #include <GLFW/glfw3.h>
 //
 #include <alias/int.hpp>
@@ -13,6 +14,7 @@
 #include <net/client_data.hpp>
 #include <data/config.hpp>
 #include <render/vertex.hpp>
+#include <render/program.hpp>
 
 class IoHandler
 {
@@ -34,8 +36,6 @@ class IoHandler
     void init_glfw_core();
     void init_glfw_window();
     void init_glad();
-    GLuint init_shader(GLenum type, CString path);
-    void init_shader_program();
     void init_vbo();
     void init_ebo();
     void init_vert_attribs();
@@ -46,7 +46,6 @@ class IoHandler
     void handle_input();
     void set_view_size(linear::Point2d<U16> const &val);
     void resize_indices();
-    void resize_vertices();
 
     GLFWwindow *glfw_window;
     std::mutex  io_mutex;
@@ -55,6 +54,7 @@ class IoHandler
     net::ServerData sd_buffer;
     net::ClientData cd_buffer;
     util::TickClock tick_clock;
+    render::Program program;
     std::atomic<bool> initialized;
 
     Vector<render::Vertex> vertices;
@@ -63,8 +63,5 @@ class IoHandler
     glm::vec2              tileset_size;
     GLuint vbo_id;
     GLuint ebo_id;
-    GLuint vert_shader_id;
-    GLuint frag_shader_id;
-    GLuint program_id;
     GLuint tileset_id;
 };
