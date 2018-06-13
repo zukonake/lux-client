@@ -1,6 +1,9 @@
 #pragma once
 
+#include <glad/glad.h>
+//
 #include <data/config.hpp>
+#include <render/model.hpp>
 
 data::Config const default_config =
 {
@@ -9,4 +12,37 @@ data::Config const default_config =
     "tileset.png",
     "glsl/vertex.glsl",
     "glsl/fragment.glsl"
+};
+
+render::Model const floor_model =
+{
+    {
+        {0.0, 0.0, 0.0},
+        {1.0, 0.0, 0.0},
+        {1.0, 1.0, 0.0},
+        {0.0, 1.0, 0.0}
+    },
+    { 0, 1, 2,
+      0, 2, 3 },
+    GL_TRIANGLE_STRIP
+};
+
+render::Model const wall_model =
+{
+    {
+        {0.0, 0.0, 0.0},
+        {0.0, 0.0, 1.0},
+        {1.0, 0.0, 0.0},
+        {1.0, 0.0, 1.0},
+        {1.0, 1.0, 0.0},
+        {1.0, 1.0, 1.0},
+        {0.0, 1.0, 0.0},
+        {0.0, 1.0, 1.0}
+    },
+    { 0, 1, 2, 1, 3, 2,
+      2, 3, 4, 3, 5, 4,
+      4, 5, 6, 5, 7, 6,
+      6, 7, 0, 7, 1, 8,
+      1, 3, 5, 1, 5, 7 },
+    GL_TRIANGLE_STRIP
 };
