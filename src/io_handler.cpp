@@ -211,7 +211,13 @@ void IoHandler::run()
         render();
         handle_input();
         tick_clock.stop();
-        tick_clock.synchronize();
+        auto delta = tick_clock.synchronize();
+        if(delta < util::TickClock::Duration::zero())
+        {
+            util::log("IO_HANDLER", util::WARN, "io loop overhead of %f seconds",
+                      std::abs(delta.count()));
+        }
+
     }
     util::log("IO_HANDLER", util::DEBUG, "IO loop stopped");
 }
