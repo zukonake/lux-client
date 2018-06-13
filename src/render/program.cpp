@@ -11,7 +11,7 @@ Program::~Program()
     glDeleteProgram(id);
 }
 
-void Program::init(String vert_path, String frag_path)
+void Program::init(String const &vert_path, String const &frag_path)
 {
     vert_id = load_shader(GL_VERTEX_SHADER  , vert_path);
     frag_id = load_shader(GL_FRAGMENT_SHADER, frag_path);
@@ -50,7 +50,7 @@ GLuint Program::get_frag_id() const
     return frag_id;
 }
 
-GLuint Program::load_shader(GLenum type, String path)
+GLuint Program::load_shader(GLenum type, String const &path)
 {
     GLuint shader_id = glCreateShader(type);
 

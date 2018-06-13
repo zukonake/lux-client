@@ -12,7 +12,7 @@
 class Client
 {
 public:
-    Client(String server_hostname, net::Port port, double tick_rate, double fps);
+    Client(String const &server_hostname, net::Port port, double tick_rate, double fps);
     ~Client();
 private:
     static const SizeT    CONNECT_TIMEOUT = 500;

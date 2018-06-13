@@ -10,7 +10,7 @@
 //
 #include "client.hpp"
 
-Client::Client(String server_hostname, net::Port port, double tick_rate, double fps) :
+Client::Client(String const &server_hostname, net::Port port, double tick_rate, double fps) :
     enet_client(nullptr), //nullptr for null-check TODO?
     enet_server(nullptr), //
     tick_clock(util::TickClock::Duration(1.0 / tick_rate)), //TODO, should get info from server

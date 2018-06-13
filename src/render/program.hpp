@@ -15,9 +15,9 @@ class Program
     Program() = default;
     ~Program();
 
-    void init(String vert_path, String frag_path);
+    void init(String const &vert_path, String const &frag_path);
     template<typename F, typename... Args>
-    void set_uniform(String name, F gl_fun, Args... args);
+    void set_uniform(String const &name, F const &gl_fun, Args const &...args);
 
     GLuint get_id() const;
     GLuint get_vert_id() const;
@@ -25,7 +25,7 @@ class Program
     private:
     static const SizeT OPENGL_LOG_SIZE = 512;
 
-    GLuint load_shader(GLenum type, String path);
+    GLuint load_shader(GLenum type, String const &path);
 
     GLuint id;
     GLuint vert_id;
@@ -33,7 +33,7 @@ class Program
 };
 
 template<typename F, typename... Args>
-void Program::set_uniform(String name, F gl_fun, Args... args)
+void Program::set_uniform(String const &name, F const &gl_fun, Args const &...args)
 {
     gl_fun(glGetUniformLocation(id, name.c_str()), args...);
 }
