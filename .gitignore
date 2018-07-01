@@ -2,7 +2,7 @@
 bin
 depend
 build
-
+Debug
 # Ignore generated files
 callgrind*
 vgcore*
@@ -18,3 +18,10 @@ vgcore*
 *.exe
 *.out
 lux-client
+*.user
+*.vcxproj
+*.filters
+resource.h
+*.user
+Shared.rc
+Shared.aps
