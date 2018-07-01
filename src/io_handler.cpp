@@ -267,6 +267,8 @@ void IoHandler::handle_input()
     {
         std::lock_guard lock(io_mutex);
         cd_buffer.view_size = view_size;
+        cd_buffer.character_dir = {0, 0};
+        cd_buffer.is_moving = false;
     }
 
     glfwPollEvents();

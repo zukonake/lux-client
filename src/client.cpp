@@ -141,7 +141,7 @@ void Client::handle_output()
 {
     io_handler.send(cd);
     Vector<U8> bytes;
-    net::ClientData::serialize(cd, bytes);
+    net::serialize(bytes, cd);
     ENetPacket *packet = enet_packet_create(bytes.data(), bytes.size() * sizeof(uint8_t), 0);
     enet_peer_send(enet_server, 0, packet);
     enet_host_flush(enet_client);
@@ -151,7 +151,7 @@ void Client::receive(ENetPacket *packet)
 {
     Vector<U8> bytes(packet->data, packet->data + packet->dataLength);
     sd.tiles.clear();
-    net::ServerData::deserialize(sd, bytes);
+    net::deserialize(bytes, sd);
     io_handler.receive(sd);
 }
 
