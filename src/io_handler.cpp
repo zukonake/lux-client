@@ -12,7 +12,7 @@
 #include <util/log.hpp>
 #include <alias/cstring.hpp>
 #include <alias/string.hpp>
-#include <linear/size_3d.hpp>
+#include <linear/vec_2.hpp>
 #include "io_handler.hpp"
 
 IoHandler::IoHandler(data::Config const &config, double fps) :
@@ -164,7 +164,7 @@ void IoHandler::init_tileset()
     glGenTextures(1, &tileset_id);
     glBindTexture(GL_TEXTURE_2D, tileset_id);
     Vector<U8> image;
-    linear::Size2d<unsigned> image_size;
+    linear::Vec2<unsigned> image_size;
     unsigned error = lodepng::decode(image,
                                      image_size.x,
                                      image_size.y,

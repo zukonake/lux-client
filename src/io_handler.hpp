@@ -59,7 +59,7 @@ class IoHandler
 
     Vector<render::Vertex> vertices;
     Vector<GLuint>         indices;
-    linear::Size2d<U16>    view_size;
+    linear::Vec2<U16>      view_size;
     glm::vec2              tileset_size;
     GLuint vbo_id;
     GLuint ebo_id;

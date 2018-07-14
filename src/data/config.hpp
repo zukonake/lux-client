@@ -3,7 +3,7 @@
 #include <glm/glm.hpp>
 //
 #include <alias/cstring.hpp>
-#include <linear/size_2d.hpp>
+#include <linear/vec_2.hpp>
 
 namespace data
 {

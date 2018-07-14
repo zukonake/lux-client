@@ -136,9 +136,6 @@ void Client::handle_input()
 
 }
 
-
-#include <iostream>
-
 void Client::handle_output()
 {
     io_handler.send(cd);
