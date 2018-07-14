@@ -274,7 +274,7 @@ void IoHandler::handle_input()
     glfwPollEvents();
 }
 
-void IoHandler::set_view_size(linear::Point2d<U16> const &val)
+void IoHandler::set_view_size(linear::Vec2<U16> const &val)
 {
     view_size = val;
     util::log("IO_HANDLER", util::DEBUG, "view size change to %ux%u", val.x, val.y);

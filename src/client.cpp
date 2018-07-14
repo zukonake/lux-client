@@ -137,11 +137,13 @@ void Client::handle_input()
 }
 
 
+#include <iostream>
+
 void Client::handle_output()
 {
     io_handler.send(cd);
     net::Serializer serializer(sizeof(net::ClientData));
-    serializer.push(cd);
+    serializer << cd;
     ENetPacket *packet = enet_packet_create(serializer.get(), serializer.get_size(), 0);
     enet_peer_send(enet_server, 0, packet);
     enet_host_flush(enet_client);
@@ -151,7 +153,7 @@ void Client::receive(ENetPacket *packet)
 {
     sd.tiles.clear();
     net::Deserializer deserializer(packet->data, packet->data + packet->dataLength);
-    deserializer.pop(sd);
+    deserializer >> sd;
     io_handler.receive(sd);
 }
 

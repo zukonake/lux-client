@@ -44,7 +44,7 @@ class IoHandler
     void run();
     void render();
     void handle_input();
-    void set_view_size(linear::Point2d<U16> const &val);
+    void set_view_size(linear::Vec2<U16> const &val);
     void resize_indices();
 
     GLFWwindow *glfw_window;
