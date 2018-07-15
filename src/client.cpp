@@ -149,8 +149,14 @@ void Client::handle_output()
 void Client::receive(ENetPacket *packet)
 {
     sd.tiles.clear();
+    sd.entities.clear();
     net::Deserializer deserializer(packet->data, packet->data + packet->dataLength);
     deserializer >> sd;
+    util::log("CLIENT", util::DEBUG, "%zd", sd.entities.size());
+    for(auto const &i : sd.entities)
+    {
+        util::log("CLIENT", util::DEBUG, "entity on {%.2f, %.2f, %.2f}", i.x, i.y, i.z);
+    }
     io_handler.receive(sd);
 }
 

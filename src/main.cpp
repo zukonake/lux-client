@@ -4,6 +4,6 @@
 int main()
 {
     net::ENetHandle enet_handle; //TODO place into client?
-    Client client("localhost", 31337, 128.0, 60);
+    Client client("localhost", 31337, 64.0, 60);
     return 0;
 }

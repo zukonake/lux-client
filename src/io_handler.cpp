@@ -68,8 +68,8 @@ void IoHandler::error_callback(int err, const char* desc)
 
 void IoHandler::key_callback(GLFWwindow *window, int key, int scancode, int action, int mode)
 {
-    (void)window;
     (void)key;
+    (void)window;
     (void)scancode;
     (void)action;
     (void)mode;
@@ -267,10 +267,30 @@ void IoHandler::handle_input()
     {
         std::lock_guard lock(io_mutex);
         cd_buffer.view_size = view_size;
-        cd_buffer.character_dir = {0, 0};
         cd_buffer.is_moving = false;
+        if(glfwGetKey(glfw_window, GLFW_KEY_A))
+        {
+            cd_buffer.character_dir.x = -1.0;
+            cd_buffer.is_moving = true;
+        }
+        else if(glfwGetKey(glfw_window, GLFW_KEY_D))
+        {
+            cd_buffer.character_dir.x = 1.0;
+            cd_buffer.is_moving = true;
+        }
+        else cd_buffer.character_dir.x = 0.0;
+        if(glfwGetKey(glfw_window, GLFW_KEY_W))
+        {
+            cd_buffer.character_dir.y = 1.0;
+            cd_buffer.is_moving = true;
+        }
+        else if(glfwGetKey(glfw_window, GLFW_KEY_S))
+        {
+            cd_buffer.character_dir.y = -1.0;
+            cd_buffer.is_moving = true;
+        }
+        else cd_buffer.character_dir.y = 0.0;
     }
-
     glfwPollEvents();
 }
 
