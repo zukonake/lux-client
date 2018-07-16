@@ -238,6 +238,8 @@ void IoHandler::render()
             glm::vec3 base((i % view_size.x) - (float)(view_size.x / 2),
                            (i / view_size.x) - (float)(view_size.y / 2),
                            tile.shape == net::TileState::WALL ? 1 : 0);
+            base.x -= sd_buffer.player_pos.x - (int)sd_buffer.player_pos.x;
+            base.y -= sd_buffer.player_pos.y - (int)sd_buffer.player_pos.y;
             vertices[(i * 4) + 0].pos = (base + glm::vec3(0, 0, 0)) * size;
             vertices[(i * 4) + 1].pos = (base + glm::vec3(1, 0, 0)) * size;
             vertices[(i * 4) + 2].pos = (base + glm::vec3(1, 1, 0)) * size;
@@ -246,10 +248,32 @@ void IoHandler::render()
             vertices[(i * 4) + 1].tex_pos = glm::vec2(1, 0) + (glm::vec2)tile.tex_pos;
             vertices[(i * 4) + 2].tex_pos = glm::vec2(1, 1) + (glm::vec2)tile.tex_pos;
             vertices[(i * 4) + 3].tex_pos = glm::vec2(0, 1) + (glm::vec2)tile.tex_pos;
-            vertices[(i * 4) + 0].color = {1.0, 1.0, 1.0, 1.0};
-            vertices[(i * 4) + 1].color = {1.0, 1.0, 1.0, 1.0};
-            vertices[(i * 4) + 2].color = {1.0, 1.0, 1.0, 1.0};
-            vertices[(i * 4) + 3].color = {1.0, 1.0, 1.0, 1.0};
+            base.x += sd_buffer.player_pos.x - (int)sd_buffer.player_pos.x;
+            base.y += sd_buffer.player_pos.y - (int)sd_buffer.player_pos.y;
+            bool found = false;
+            for(auto const &entity : sd_buffer.entities)
+            {
+                EntityPoint map_point = base + sd_buffer.player_pos;
+                map_point.z = sd_buffer.player_pos.z;
+                if(glm::distance(entity, map_point) <= 0.5)
+                {
+                    found = true;
+                }
+            }
+            if(found)
+            {
+                vertices[(i * 4) + 0].color = {1.0, 0.0, 0.0, 1.0};
+                vertices[(i * 4) + 1].color = {1.0, 0.0, 0.0, 1.0};
+                vertices[(i * 4) + 2].color = {1.0, 0.0, 0.0, 1.0};
+                vertices[(i * 4) + 3].color = {1.0, 0.0, 0.0, 1.0};
+            }
+            else
+            {
+                vertices[(i * 4) + 0].color = {1.0, 1.0, 1.0, 1.0};
+                vertices[(i * 4) + 1].color = {1.0, 1.0, 1.0, 1.0};
+                vertices[(i * 4) + 2].color = {1.0, 1.0, 1.0, 1.0};
+                vertices[(i * 4) + 3].color = {1.0, 1.0, 1.0, 1.0};
+            }
         }
         glBufferData(GL_ARRAY_BUFFER,
                      sizeof(render::Vertex) * vertices.size(),
