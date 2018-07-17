@@ -6,7 +6,8 @@
 #include <lux/alias/string.hpp>
 #include <lux/util/tick_clock.hpp>
 #include <lux/net/port.hpp>
-#include <lux/net/server_data.hpp>
+#include <lux/net/client/client_data.hpp>
+#include <lux/net/server/server_data.hpp>
 //
 #include <io_handler.hpp>
 

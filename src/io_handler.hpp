@@ -10,8 +10,8 @@
 #include <lux/alias/scalar.hpp>
 #include <lux/alias/vector.hpp>
 #include <lux/util/tick_clock.hpp>
-#include <lux/net/server_data.hpp>
-#include <lux/net/client_data.hpp>
+#include <lux/net/server/server_data.hpp>
+#include <lux/net/client/client_data.hpp>
 //
 #include <data/config.hpp>
 #include <render/vertex.hpp>

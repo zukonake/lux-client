@@ -34,13 +34,13 @@ IoHandler::~IoHandler()
 
 void IoHandler::receive(net::ServerData const &sd)
 {
-    std::lock_guard lock(io_mutex);
+    std::lock_guard<std::mutex> lock(io_mutex);
     sd_buffer = sd;
 }
 
 void IoHandler::send(net::ClientData &cd)
 {
-    std::lock_guard lock(io_mutex);
+    std::lock_guard<std::mutex> lock(io_mutex);
     cd = cd_buffer;
 }
 
@@ -54,7 +54,7 @@ bool IoHandler::should_close()
 void IoHandler::framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
     glViewport(0, 0, width, height);
-    IoHandler *io_handler = (IoHandler *)glfwGetWindowUserPoser(window);
+    IoHandler *io_handler = (IoHandler *)glfwGetWindowUserPointer(window);
     io_handler->set_view_size({width  / io_handler->config.tile_quad_size.x + 2,
                                height / io_handler->config.tile_quad_size.y + 2}); //TODO
     util::log("IO_HANDLER", util::DEBUG, "screen size change to %ux%u", width, height);
@@ -113,7 +113,7 @@ void IoHandler::init_glfw_window()
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_ANY_PROFILE);
     glfw_window = glfwCreateWindow(800, 600, "Lux", NULL, NULL);
     glfwMakeContextCurrent(glfw_window);
-    glfwSetWindowUserPoser(glfw_window, this);
+    glfwSetWindowUserPointer(glfw_window, this);
     glfwSetFramebufferSizeCallback(glfw_window, framebuffer_size_callback);
     glfwSetKeyCallback(glfw_window, key_callback);
 }
@@ -147,11 +147,11 @@ void IoHandler::init_vert_attribs()
     static_assert(sizeof(render::Vertex) == 3 * sizeof(GLfloat) + 
                                             2 * sizeof(GLfloat) +
                                             4 * sizeof(GLfloat));
-    glVertexAttribPoser(0, 3, GL_FLOAT, GL_FALSE, sizeof(render::Vertex),
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(render::Vertex),
                           (void*)offsetof(render::Vertex, pos));
-    glVertexAttribPoser(1, 2, GL_FLOAT, GL_FALSE, sizeof(render::Vertex),
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(render::Vertex),
                           (void*)offsetof(render::Vertex, tex_pos));
-    glVertexAttribPoser(2, 4, GL_FLOAT, GL_FALSE, sizeof(render::Vertex),
+    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(render::Vertex),
                           (void*)offsetof(render::Vertex, color));
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
@@ -225,9 +225,10 @@ void IoHandler::run()
 
 void IoHandler::render()
 {
+    /*
     if(sd_buffer.tiles.size() == view_size.x * view_size.y)
     {
-        std::lock_guard lock(io_mutex);
+        std::lock_guard<std::mutex> lock(io_mutex);
         auto tiles_size = sd_buffer.tiles.size();
         vertices.resize(tiles_size * 4);
         glm::mat3x2 size(2.0 / view_size.x, 0                ,
@@ -249,32 +250,6 @@ void IoHandler::render()
             vertices[(i * 4) + 1].tex_pos = glm::vec2(1, 0) + (glm::vec2)tile.tex_pos;
             vertices[(i * 4) + 2].tex_pos = glm::vec2(1, 1) + (glm::vec2)tile.tex_pos;
             vertices[(i * 4) + 3].tex_pos = glm::vec2(0, 1) + (glm::vec2)tile.tex_pos;
-            base.x += sd_buffer.player_pos.x - (int)sd_buffer.player_pos.x;
-            base.y += sd_buffer.player_pos.y - (int)sd_buffer.player_pos.y;
-            bool found = false;
-            for(auto const &entity : sd_buffer.entities)
-            {
-                EntityPos map_point = base + sd_buffer.player_pos;
-                map_point.z = sd_buffer.player_pos.z;
-                if(glm::distance(entity, map_point) <= 0.5)
-                {
-                    found = true;
-                }
-            }
-            if(found)
-            {
-                vertices[(i * 4) + 0].color = {1.0, 0.0, 0.0, 1.0};
-                vertices[(i * 4) + 1].color = {1.0, 0.0, 0.0, 1.0};
-                vertices[(i * 4) + 2].color = {1.0, 0.0, 0.0, 1.0};
-                vertices[(i * 4) + 3].color = {1.0, 0.0, 0.0, 1.0};
-            }
-            else
-            {
-                vertices[(i * 4) + 0].color = {1.0, 1.0, 1.0, 1.0};
-                vertices[(i * 4) + 1].color = {1.0, 1.0, 1.0, 1.0};
-                vertices[(i * 4) + 2].color = {1.0, 1.0, 1.0, 1.0};
-                vertices[(i * 4) + 3].color = {1.0, 1.0, 1.0, 1.0};
-            }
         }
         glBufferData(GL_ARRAY_BUFFER,
                      sizeof(render::Vertex) * vertices.size(),
@@ -285,13 +260,13 @@ void IoHandler::render()
     glClear(GL_COLOR_BUFFER_BIT);
     glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
     glfwSwapBuffers(glfw_window);
+    */
 }
 
 void IoHandler::handle_input()
 {
     {
-        std::lock_guard lock(io_mutex);
-        cd_buffer.view_size = view_size;
+        std::lock_guard<std::mutex> lock(io_mutex);
         cd_buffer.is_moving = false;
         if(glfwGetKey(glfw_window, GLFW_KEY_A))
         {
@@ -328,6 +303,7 @@ void IoHandler::set_view_size(linear::Vec2<U16> const &val)
 
 void IoHandler::resize_indices()
 {
+    /*
     SizeT view_tiles = view_size.x * view_size.y;
     indices.resize(view_tiles * 6);
     for(SizeT i = 0; i < view_tiles; ++i)
@@ -343,4 +319,5 @@ void IoHandler::resize_indices()
                  sizeof(GLuint) * indices.size(),
                  indices.data(),
                  GL_DYNAMIC_DRAW);
+                 */
 }
