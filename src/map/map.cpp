@@ -5,8 +5,8 @@ namespace map
 
 Tile const &Map::operator[](MapPos const &pos) const
 {
-    ChunkPos chunk_pos   = Chunk::pos_map_to_chunk(pos);
-    ChunkIndex chunk_index = Chunk::pos_map_to_index(pos);
+    ChunkPos chunk_pos     = to_chunk_pos(pos);
+    ChunkIndex chunk_index = to_chunk_index(pos);
     return get_chunk(chunk_pos).tiles[chunk_index];
 }
 
