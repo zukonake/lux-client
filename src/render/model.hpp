@@ -3,7 +3,7 @@
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 //
-#include <alias/vector.hpp>
+#include <lux/alias/vector.hpp>
 
 namespace render
 {

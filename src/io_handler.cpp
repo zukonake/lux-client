@@ -9,10 +9,11 @@
 #include <GLFW/glfw3.h>
 #include <lodepng.h>
 //
-#include <util/log.hpp>
-#include <alias/cstring.hpp>
-#include <alias/string.hpp>
-#include <linear/vec_2.hpp>
+#include <lux/util/log.hpp>
+#include <lux/alias/cstring.hpp>
+#include <lux/alias/string.hpp>
+#include <lux/linear/vec_2.hpp>
+//
 #include "io_handler.hpp"
 
 IoHandler::IoHandler(data::Config const &config, double fps) :
@@ -53,7 +54,7 @@ bool IoHandler::should_close()
 void IoHandler::framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
     glViewport(0, 0, width, height);
-    IoHandler *io_handler = (IoHandler *)glfwGetWindowUserPointer(window);
+    IoHandler *io_handler = (IoHandler *)glfwGetWindowUserPoser(window);
     io_handler->set_view_size({width  / io_handler->config.tile_quad_size.x + 2,
                                height / io_handler->config.tile_quad_size.y + 2}); //TODO
     util::log("IO_HANDLER", util::DEBUG, "screen size change to %ux%u", width, height);
@@ -112,7 +113,7 @@ void IoHandler::init_glfw_window()
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_ANY_PROFILE);
     glfw_window = glfwCreateWindow(800, 600, "Lux", NULL, NULL);
     glfwMakeContextCurrent(glfw_window);
-    glfwSetWindowUserPointer(glfw_window, this);
+    glfwSetWindowUserPoser(glfw_window, this);
     glfwSetFramebufferSizeCallback(glfw_window, framebuffer_size_callback);
     glfwSetKeyCallback(glfw_window, key_callback);
 }
@@ -146,11 +147,11 @@ void IoHandler::init_vert_attribs()
     static_assert(sizeof(render::Vertex) == 3 * sizeof(GLfloat) + 
                                             2 * sizeof(GLfloat) +
                                             4 * sizeof(GLfloat));
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(render::Vertex),
+    glVertexAttribPoser(0, 3, GL_FLOAT, GL_FALSE, sizeof(render::Vertex),
                           (void*)offsetof(render::Vertex, pos));
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(render::Vertex),
+    glVertexAttribPoser(1, 2, GL_FLOAT, GL_FALSE, sizeof(render::Vertex),
                           (void*)offsetof(render::Vertex, tex_pos));
-    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(render::Vertex),
+    glVertexAttribPoser(2, 4, GL_FLOAT, GL_FALSE, sizeof(render::Vertex),
                           (void*)offsetof(render::Vertex, color));
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
@@ -253,7 +254,7 @@ void IoHandler::render()
             bool found = false;
             for(auto const &entity : sd_buffer.entities)
             {
-                EntityPoint map_point = base + sd_buffer.player_pos;
+                EntityPos map_point = base + sd_buffer.player_pos;
                 map_point.z = sd_buffer.player_pos.z;
                 if(glm::distance(entity, map_point) <= 0.5)
                 {

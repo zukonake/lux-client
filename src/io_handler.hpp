@@ -7,11 +7,12 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 //
-#include <alias/int.hpp>
-#include <alias/vector.hpp>
-#include <util/tick_clock.hpp>
-#include <net/server_data.hpp>
-#include <net/client_data.hpp>
+#include <lux/alias/scalar.hpp>
+#include <lux/alias/vector.hpp>
+#include <lux/util/tick_clock.hpp>
+#include <lux/net/server_data.hpp>
+#include <lux/net/client_data.hpp>
+//
 #include <data/config.hpp>
 #include <render/vertex.hpp>
 #include <render/program.hpp>

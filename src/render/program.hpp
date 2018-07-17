@@ -3,8 +3,8 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 //
-#include <alias/int.hpp>
-#include <alias/string.hpp>
+#include <lux/alias/scalar.hpp>
+#include <lux/alias/string.hpp>
 
 namespace render
 {

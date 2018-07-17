@@ -1,13 +1,13 @@
 #include <cassert>
 #include <stdexcept>
 //
-#include <alias/int.hpp>
-#include <util/log.hpp>
-#include <net/ip.hpp>
-#include <net/server_data.hpp>
-#include <net/client_data.hpp>
-#include <data/obj.hpp>
+#include <lux/alias/scalar.hpp>
+#include <lux/util/log.hpp>
+#include <lux/net/ip.hpp>
+#include <lux/net/server/server_data.hpp>
+#include <lux/net/client/client_data.hpp>
 //
+#include <data/obj.hpp>
 #include "client.hpp"
 
 Client::Client(String const &server_hostname, net::Port port, double tick_rate, double fps) :
