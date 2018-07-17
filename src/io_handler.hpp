@@ -16,6 +16,7 @@
 #include <data/config.hpp>
 #include <render/vertex.hpp>
 #include <render/program.hpp>
+#include <map/map.hpp>
 
 class IoHandler
 {
@@ -57,6 +58,7 @@ class IoHandler
     util::TickClock tick_clock;
     render::Program program;
     std::atomic<bool> initialized;
+    map::Map map;
 
     Vector<render::Vertex> vertices;
     Vector<GLuint>         indices;

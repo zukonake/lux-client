@@ -3,14 +3,17 @@
 #include <lux/alias/hash.hpp>
 #include <lux/alias/hash_map.hpp>
 
-struct TileType;
+namespace map
+{
+    struct TileType;
+}
 
 namespace data
 {
 
 struct Database
 {
-    HashMap<Hash, TileType const *> tile_types;
+    HashMap<Hash, map::TileType const *> tile_types;
 };
 
 }

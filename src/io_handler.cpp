@@ -19,7 +19,8 @@
 IoHandler::IoHandler(data::Config const &config, double fps) :
     config(config),
     tick_clock(util::TickClock::Duration(1.0 / fps)),
-    initialized(false)
+    initialized(false),
+    map(*config.db)
 {
     thread = std::thread(&IoHandler::start, this);
     // ^ all the opengl related stuff must be initialized in the corresponding thread
@@ -132,8 +133,7 @@ void IoHandler::init_vbo()
     util::log("IO_HANDLER", util::DEBUG, "initializing VBO");
     glGenBuffers(1, &vbo_id);
     glBindBuffer(GL_ARRAY_BUFFER, vbo_id);
-}
-
+} 
 void IoHandler::init_ebo()
 {
     util::log("IO_HANDLER", util::DEBUG, "initializing EBO");

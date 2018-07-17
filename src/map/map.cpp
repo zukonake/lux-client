@@ -1,10 +1,17 @@
 #include <lux/util/log.hpp>
 //
 #include <data/database.hpp>
+#include <map/tile/tile_type.hpp>
 #include "map.hpp"
 
 namespace map
 {
+
+Map::Map(data::Database const &db) :
+    db(db)
+{
+
+}
 
 Tile const *Map::operator[](MapPos const &pos) const
 {
@@ -29,16 +36,10 @@ void Map::add_chunk(net::ChunkData const &new_chunk)
     }
 }
 
-Set<ChunkPos> const &Map::get_requests() const
-{
-    return chunk_requests;
-}
-
 Chunk const *Map::get_chunk(ChunkPos const &pos) const
 {
     if(chunks.count(pos) == 0)
     {
-        chunk_requests.emplace(pos);
         return nullptr;
     }
     else return &chunks.at(pos);
