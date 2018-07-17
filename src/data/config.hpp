@@ -2,7 +2,7 @@
 
 #include <glm/glm.hpp>
 //
-#include <lux/alias/cstring.hpp>
+#include <lux/alias/c_string.hpp>
 #include <lux/linear/vec_2.hpp>
 
 namespace data
