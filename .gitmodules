@@ -1,6 +1,6 @@
 [submodule "deps/lux-shared"]
 	path = deps/lux-shared
-	url = git@github.com:sh44/lux-shared.git
+	url = https://github.com/sh44/lux-shared.git
 [submodule "deps/lodepng"]
 	path = deps/lodepng
 	url = https://github.com/sh44/lodepng
