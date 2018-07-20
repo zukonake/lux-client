@@ -6,7 +6,6 @@
 #include <lux/alias/set.hpp>
 #include <lux/common/chunk.hpp>
 #include <lux/common/map.hpp>
-#include <lux/net/array.hpp>
 #include <lux/net/server/chunk_data.hpp>
 //
 #include <map/chunk.hpp>
@@ -26,13 +25,13 @@ class Map
     public:
     Map(data::Database const &db);
 
-    Tile const *operator[](MapPos const &pos) const;
+    Tile const *operator[](map::Pos const &pos) const;
 
     void add_chunk(net::ChunkData const &new_chunk);
     private:
-    Chunk const *get_chunk(ChunkPos const &pos) const;
+    Chunk const *get_chunk(chunk::Pos const &pos) const;
 
-    HashMap<ChunkPos, Chunk> chunks;
+    HashMap<chunk::Pos, Chunk> chunks;
     data::Database const &db;
 };
 

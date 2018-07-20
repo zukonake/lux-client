@@ -139,7 +139,8 @@ void Client::handle_input()
 void Client::handle_output()
 {
     io_handler.send(cd);
-    net::Serializer serializer(sizeof(net::ClientData));
+    net::Serializer serializer(sizeof(SizeT) + sizeof(chunk::Pos) *
+        cd.chunk_requests.size() + sizeof(linear::Vec2<F32>) + sizeof(bool));
     serializer << cd;
     ENetPacket *packet = enet_packet_create(serializer.get(), serializer.get_size(), 0);
     enet_peer_send(enet_server, 0, packet);
