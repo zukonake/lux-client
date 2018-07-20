@@ -13,15 +13,6 @@ Map::Map(data::Database const &db) :
 
 }
 
-Tile const *Map::operator[](MapPos const &pos) const
-{
-    ChunkPos   chunk_pos   = to_chunk_pos(pos);
-    ChunkIndex chunk_index = to_chunk_index(pos);
-    Chunk const *chunk_ptr = get_chunk(chunk_pos);
-    if(chunk_ptr != nullptr) return &chunk_ptr->tiles[chunk_index];
-    else return nullptr;
-}
-
 void Map::add_chunk(net::ChunkData const &new_chunk)
 {
     util::log("MAP", util::TRACE, "adding new chunk %zd, %zd, %zd",

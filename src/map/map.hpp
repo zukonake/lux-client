@@ -26,11 +26,10 @@ class Map
     public:
     Map(data::Database const &db);
 
-    Tile const *operator[](MapPos const &pos) const;
-
     void add_chunk(net::ChunkData const &new_chunk);
-    private:
+
     Chunk const *get_chunk(ChunkPos const &pos) const;
+    private:
 
     HashMap<ChunkPos, Chunk> chunks;
     data::Database const &db;
