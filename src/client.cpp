@@ -4,8 +4,8 @@
 #include <lux/alias/scalar.hpp>
 #include <lux/util/log.hpp>
 #include <lux/net/ip.hpp>
-#include <lux/net/server/server_data.hpp>
-#include <lux/net/client/client_data.hpp>
+#include <lux/serial/server_data.hpp>
+#include <lux/serial/client_data.hpp>
 //
 #include <data/obj.hpp>
 #include "client.hpp"
@@ -139,17 +139,19 @@ void Client::handle_input()
 void Client::handle_output()
 {
     io_handler.send(cd);
-    net::Serializer serializer(sizeof(SizeT) + sizeof(chunk::Pos) *
-        cd.chunk_requests.size() + sizeof(linear::Vec2<F32>) + sizeof(bool));
+    serializer.reserve(serial::get_size(cd));
     serializer << cd;
     ENetPacket *packet = enet_packet_create(serializer.get(), serializer.get_size(), 0);
     enet_peer_send(enet_server, 0, packet);
     enet_host_flush(enet_client);
 }
 
+#include <iostream>
+
 void Client::receive(ENetPacket *packet)
 {
-    net::Deserializer deserializer(packet->data, packet->data + packet->dataLength);
+    deserializer.set_slice(packet->data, packet->data + packet->dataLength);
+    std::cout << packet->dataLength << std::endl;
     deserializer >> sd;
     io_handler.receive(sd);
 }

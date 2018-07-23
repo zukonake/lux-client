@@ -6,7 +6,7 @@
 #include <lux/alias/set.hpp>
 #include <lux/common/chunk.hpp>
 #include <lux/common/map.hpp>
-#include <lux/net/server/chunk_data.hpp>
+#include <lux/serial/server_data.hpp>
 //
 #include <map/chunk.hpp>
 
@@ -27,7 +27,7 @@ class Map
 
     Tile const *operator[](map::Pos const &pos) const;
 
-    void add_chunk(net::ChunkData const &new_chunk);
+    void add_chunk(serial::ChunkData const &new_chunk);
     private:
     Chunk const *get_chunk(chunk::Pos const &pos) const;
 

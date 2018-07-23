@@ -10,8 +10,8 @@
 #include <lux/alias/scalar.hpp>
 #include <lux/alias/vector.hpp>
 #include <lux/util/tick_clock.hpp>
-#include <lux/net/server/server_data.hpp>
-#include <lux/net/client/client_data.hpp>
+#include <lux/serial/server_data.hpp>
+#include <lux/serial/client_data.hpp>
 //
 #include <data/config.hpp>
 #include <render/vertex.hpp>
@@ -24,8 +24,8 @@ class IoHandler
     IoHandler(data::Config const &config, double fps);
     ~IoHandler();
 
-    void receive(net::ServerData const &sd);
-    void send(net::ClientData &cd);
+    void receive(serial::ServerData const &sd);
+    void send(serial::ClientData &cd);
     bool should_close();
     private:
     static const SizeT OPENGL_LOG_SIZE = 512;
@@ -53,8 +53,8 @@ class IoHandler
     std::mutex  io_mutex;
     std::thread thread;
     data::Config const &config;
-    net::ServerData sd_buffer;
-    net::ClientData cd_buffer;
+    serial::ServerData sd_buffer;
+    serial::ClientData cd_buffer;
     util::TickClock tick_clock;
     render::Program program;
     std::atomic<bool> initialized;

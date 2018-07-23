@@ -20,7 +20,8 @@ IoHandler::IoHandler(data::Config const &config, double fps) :
     config(config),
     tick_clock(util::TickClock::Duration(1.0 / fps)),
     initialized(false),
-    map(*config.db)
+    map(*config.db),
+    cd_buffer({{}, {0, 0}, false})
 {
     thread = std::thread(&IoHandler::start, this);
     // ^ all the opengl related stuff must be initialized in the corresponding thread
@@ -33,13 +34,13 @@ IoHandler::~IoHandler()
     glfwTerminate();
 }
 
-void IoHandler::receive(net::ServerData const &sd)
+void IoHandler::receive(serial::ServerData const &sd)
 {
     std::lock_guard<std::mutex> lock(io_mutex);
     sd_buffer = sd;
 }
 
-void IoHandler::send(net::ClientData &cd)
+void IoHandler::send(serial::ClientData &cd)
 {
     std::lock_guard<std::mutex> lock(io_mutex);
     cd = cd_buffer;

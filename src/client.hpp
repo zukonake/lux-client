@@ -6,8 +6,8 @@
 #include <lux/alias/string.hpp>
 #include <lux/util/tick_clock.hpp>
 #include <lux/net/port.hpp>
-#include <lux/net/client/client_data.hpp>
-#include <lux/net/server/server_data.hpp>
+#include <lux/serial/client_data.hpp>
+#include <lux/serial/server_data.hpp>
 //
 #include <io_handler.hpp>
 
@@ -32,8 +32,10 @@ private:
     ENetHost       *enet_client;
     ENetPeer       *enet_server;
     util::TickClock tick_clock;
-    net::ServerData sd;
-    net::ClientData cd;
+    serial::ServerData sd;
+    serial::ClientData cd;
+    serial::Serializer     serializer;
+    serial::Deserializer deserializer;
     IoHandler       io_handler;
     bool            connected;
 };

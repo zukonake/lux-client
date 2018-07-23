@@ -22,7 +22,7 @@ Tile const *Map::operator[](map::Pos const &pos) const
     else return nullptr;
 }
 
-void Map::add_chunk(net::ChunkData const &new_chunk)
+void Map::add_chunk(serial::ChunkData const &new_chunk)
 {
     util::log("MAP", util::TRACE, "adding new chunk %zd, %zd, %zd",
         new_chunk.pos.x,
