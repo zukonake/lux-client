@@ -1,31 +1,31 @@
 #pragma once
 
-#include <thread>
-#include <mutex>
-#include <atomic>
-//
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 //
 #include <lux/alias/scalar.hpp>
 #include <lux/alias/vector.hpp>
-#include <lux/util/tick_clock.hpp>
-#include <lux/serial/server_data.hpp>
-#include <lux/serial/client_data.hpp>
 //
 #include <data/config.hpp>
 #include <render/vertex.hpp>
 #include <render/program.hpp>
 #include <map/map.hpp>
 
-class IoHandler
+namespace serial
+{
+    struct ServerData;
+    struct ClientData;
+}
+
+class IoClient
 {
     public:
-    IoHandler(data::Config const &config, double fps);
-    ~IoHandler();
+    IoClient(data::Config const &config, F64 fps);
+    ~IoClient();
 
-    void receive(serial::ServerData const &sd);
-    void send(serial::ClientData &cd);
+    void set_server_data(serial::ServerData const &sd);
+    void get_client_data(serial::ClientData       &cd);
+
     bool should_close();
     private:
     static const SizeT OPENGL_LOG_SIZE = 512;
@@ -34,7 +34,6 @@ class IoHandler
     static void error_callback(int err, const char* desc);
     static void key_callback(GLFWwindow *window, int key, int scancode, int action, int mode);
 
-    void start();
     void init_glfw_core();
     void init_glfw_window();
     void init_glad();
@@ -43,23 +42,11 @@ class IoHandler
     void init_vert_attribs();
     void init_tileset();
 
-    void run();
-    void render();
-    void handle_input();
-    void set_view_size(linear::Vec2<U16> const &val);
-    void resize_indices();
-
     GLFWwindow *glfw_window;
-    std::mutex  io_mutex;
-    std::thread thread;
-    data::Config const &config;
-    serial::ServerData sd_buffer;
-    serial::ClientData cd_buffer;
-    util::TickClock tick_clock;
-    render::Program program;
-    std::atomic<bool> initialized;
+    data::Config const &conf;
     map::Map map;
 
+    render::Program program;
     Vector<render::Vertex> vertices;
     Vector<GLuint>         indices;
     linear::Vec2<U16>      view_size;

@@ -44,7 +44,11 @@ data::Config const default_config =
     {32.0, 32.0},
     "tileset.png",
     "glsl/vertex.glsl",
-    "glsl/fragment.glsl"
+    "glsl/fragment.glsl",
+    {
+        "localhost",
+        31337
+    }
 };
 
 render::Model const floor_model =
