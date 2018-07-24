@@ -22,6 +22,9 @@ void Client::init_from_server()
     serial::ServerInitData sid;
     net_client.get_server_init_data(sid);
     game_tick.set_rate(util::TickClock::Duration(1.f / sid.tick_rate));
+    String server_name(sid.server_name.begin(), sid.server_name.end());
+    util::log("CLIENT", util::INFO, "received init data from %s", server_name);
+    util::log("CLIENT", util::INFO, "game running on %.2f tick rate", sid.tick_rate);
 }
 
 bool Client::should_run()
