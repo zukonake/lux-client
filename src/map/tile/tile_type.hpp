@@ -9,8 +9,8 @@ namespace map
 
 struct TileType
 {
-    String         name;
     String         id;
+    String         name;
     render::TexPos tex_pos;
 };
 

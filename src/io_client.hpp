@@ -4,11 +4,13 @@
 #include <GLFW/glfw3.h>
 //
 #include <lux/alias/scalar.hpp>
-#include <lux/alias/vector.hpp>
+#include <lux/alias/set.hpp>
+#include <lux/common/chunk.hpp>
 //
 #include <data/config.hpp>
 #include <render/vertex.hpp>
 #include <render/program.hpp>
+#include <map/chunk.hpp>
 #include <map/map.hpp>
 
 namespace serial
@@ -34,24 +36,19 @@ class IoClient
     static void error_callback(int err, const char* desc);
     static void key_callback(GLFWwindow *window, int key, int scancode, int action, int mode);
 
+    void render();
+    void render_chunk(map::Chunk const &chunk);
+
     void init_glfw_core();
     void init_glfw_window();
     void init_glad();
-    void init_vbo();
-    void init_ebo();
-    void init_vert_attribs();
-    void init_tileset();
-
+   // void init_tileset(); 
     GLFWwindow *glfw_window;
     data::Config const &conf;
     map::Map map;
 
     render::Program program;
-    Vector<render::Vertex> vertices;
-    Vector<GLuint>         indices;
-    linear::Vec2<U16>      view_size;
-    glm::vec2              tileset_size;
-    GLuint vbo_id;
-    GLuint ebo_id;
-    GLuint tileset_id;
+    glm::mat4 projection;
+    glm::mat4 view;
+    Set<chunk::Pos> chunk_requests;
 };

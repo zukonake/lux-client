@@ -2,9 +2,11 @@
 #include <stdexcept>
 #include <sstream>
 #include <fstream>
+#include <algorithm>
 //
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <lodepng.h>
@@ -20,7 +22,8 @@
 
 IoClient::IoClient(data::Config const &config, F64 fps) :
     conf(config),
-    map(*conf.db)
+    map(*conf.db),
+    view(1.f)
 {
     //TODO gl initializer class?
     init_glfw_core();
@@ -31,10 +34,7 @@ IoClient::IoClient(data::Config const &config, F64 fps) :
     //^ TODO not sure if needed
 
     program.init(conf.vert_shader_path, conf.frag_shader_path);
-    init_vbo();
-    init_ebo();
-    init_vert_attribs();
-    init_tileset();
+    //init_tileset();
 
     framebuffer_size_callback(glfw_window, 800, 600);
 }
@@ -47,30 +47,46 @@ IoClient::~IoClient()
 
 void IoClient::set_server_data(serial::ServerData const &sd)
 {
-
+    for(auto const &chunk : sd.chunks)
+    {
+        map.add_chunk(chunk);
+    }
+    program.set_uniform("projection", glUniformMatrix4fv,
+        1, GL_FALSE, glm::value_ptr(projection));
+    program.set_uniform("view", glUniformMatrix4fv,
+        1, GL_FALSE, glm::value_ptr(view));
+    render();
 }
 
 void IoClient::get_client_data(serial::ClientData &cd)
 {
+    cd.chunk_requests.clear();
+    std::copy(chunk_requests.begin(),
+              chunk_requests.end(),
+              std::back_inserter(cd.chunk_requests));
     cd.is_moving = false;
     if(glfwGetKey(glfw_window, GLFW_KEY_A))
     {
+        view = glm::rotate(view, glm::radians(2.f), {0.0, 1.0, 0.0});
         cd.character_dir.x = -1.0;
         cd.is_moving = true;
     }
     else if(glfwGetKey(glfw_window, GLFW_KEY_D))
     {
+        projection = glm::translate(projection, {0.0, 0.0, 0.1});
         cd.character_dir.x = 1.0;
         cd.is_moving = true;
     }
     else cd.character_dir.x = 0.0;
     if(glfwGetKey(glfw_window, GLFW_KEY_W))
     {
+        view = glm::rotate(view, glm::radians(2.f), {1.0, 0.0, 0.0});
         cd.character_dir.y = 1.0;
         cd.is_moving = true;
     }
     else if(glfwGetKey(glfw_window, GLFW_KEY_S))
     {
+        view = glm::rotate(view, glm::radians(2.f), {0.0, 0.0, 1.0});
         cd.character_dir.y = -1.0;
         cd.is_moving = true;
     }
@@ -86,9 +102,9 @@ bool IoClient::should_close()
 void IoClient::framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
     glViewport(0, 0, width, height);
-    IoClient *io_handler = (IoClient *)glfwGetWindowUserPointer(window);
-    /*io_handler->set_view_size({width  / io_handler->conf.tile_quad_size.x + 2,
-                               height / io_handler->conf.tile_quad_size.y + 2}); //TODO*/
+    IoClient *io_client = (IoClient *)glfwGetWindowUserPointer(window);
+    io_client->projection =
+        glm::perspective(glm::radians(45.f), (float)width/(float)height, 0.1f, 40.0f);
     util::log("IO_CLIENT", util::DEBUG, "screen size change to %ux%u", width, height);
 }
 
@@ -108,6 +124,23 @@ void IoClient::key_callback(GLFWwindow *window, int key, int scancode, int actio
     (void)mode;
 }
 
+void IoClient::render()
+{
+    chunk_requests.clear();
+    glClearColor(0.0, 0.0, 0.0, 1.0);
+    glClear(GL_COLOR_BUFFER_BIT);
+    map::Chunk const *chunk = map[chunk::Pos(0, 0, 0)];
+    if(chunk != nullptr) render_chunk(*chunk);
+    else chunk_requests.insert(chunk::Pos(0, 0, 0));
+    glfwSwapBuffers(glfw_window);
+}
+
+void IoClient::render_chunk(map::Chunk const &chunk)
+{
+    glBindBuffer(GL_ARRAY_BUFFER, chunk.vbo_id);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, chunk.ebo_id);
+    glDrawElements(GL_TRIANGLES, chunk.indices.size(), render::INDEX_TYPE, 0);
+}
 
 void IoClient::init_glfw_core()
 {
@@ -138,36 +171,7 @@ void IoClient::init_glad()
     }
 }
 
-void IoClient::init_vbo()
-{
-    util::log("IO_CLIENT", util::DEBUG, "initializing VBO");
-    glGenBuffers(1, &vbo_id);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo_id);
-} 
-void IoClient::init_ebo()
-{
-    util::log("IO_CLIENT", util::DEBUG, "initializing EBO");
-    glGenBuffers(1, &ebo_id);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_id);
-}
-
-void IoClient::init_vert_attribs()
-{
-    util::log("IO_CLIENT", util::DEBUG, "initializing vertex attributes");
-    static_assert(sizeof(render::Vertex) == 3 * sizeof(GLfloat) + 
-                                            2 * sizeof(GLfloat) +
-                                            4 * sizeof(GLfloat));
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(render::Vertex),
-                          (void*)offsetof(render::Vertex, pos));
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(render::Vertex),
-                          (void*)offsetof(render::Vertex, tex_pos));
-    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(render::Vertex),
-                          (void*)offsetof(render::Vertex, color));
-    glEnableVertexAttribArray(0);
-    glEnableVertexAttribArray(1);
-    glEnableVertexAttribArray(2);
-}
-
+/*
 void IoClient::init_tileset()
 {
     util::log("IO_CLIENT", util::DEBUG, "loading tileset texture %s", conf.tileset_path);
@@ -211,4 +215,4 @@ void IoClient::init_tileset()
               "loaded tileset texture of size %ux%u",
               tileset_size.x,
               tileset_size.y);
-}
+}*/

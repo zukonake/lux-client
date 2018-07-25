@@ -26,10 +26,10 @@ class Map
     Map(data::Database const &db);
 
     Tile const *operator[](map::Pos const &pos) const;
+    Chunk const *operator[](chunk::Pos const &pos) const;
 
     void add_chunk(serial::ChunkData const &new_chunk);
     private:
-    Chunk const *get_chunk(chunk::Pos const &pos) const;
 
     HashMap<chunk::Pos, Chunk> chunks;
     data::Database const &db;
