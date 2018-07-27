@@ -23,7 +23,10 @@
 IoClient::IoClient(data::Config const &config, F64 fps) :
     conf(config),
     map(*conf.db),
-    view(1.f)
+    world_mat({1.0, 0.0, 0.0, 0.0},
+              {0.0, 0.0, 1.0, 0.0},
+              {0.0, 1.0, 0.0, 0.0},
+              {0.0, 0.0, 0.0, 1.0})
 {
     //TODO gl initializer class?
     init_glfw_core();
@@ -35,6 +38,7 @@ IoClient::IoClient(data::Config const &config, F64 fps) :
 
     program.init(conf.vert_shader_path, conf.frag_shader_path);
     //init_tileset();
+    glEnable(GL_DEPTH_TEST);
 
     framebuffer_size_callback(glfw_window, 800, 600);
 }
@@ -51,10 +55,6 @@ void IoClient::set_server_data(serial::ServerData const &sd)
     {
         map.add_chunk(chunk);
     }
-    program.set_uniform("projection", glUniformMatrix4fv,
-        1, GL_FALSE, glm::value_ptr(projection));
-    program.set_uniform("view", glUniformMatrix4fv,
-        1, GL_FALSE, glm::value_ptr(view));
     render();
 }
 
@@ -67,30 +67,38 @@ void IoClient::get_client_data(serial::ClientData &cd)
     cd.is_moving = false;
     if(glfwGetKey(glfw_window, GLFW_KEY_A))
     {
-        view = glm::rotate(view, glm::radians(2.f), {0.0, 1.0, 0.0});
+        camera.move_x(false);
         cd.character_dir.x = -1.0;
         cd.is_moving = true;
     }
     else if(glfwGetKey(glfw_window, GLFW_KEY_D))
     {
-        projection = glm::translate(projection, {0.0, 0.0, 0.1});
+        camera.move_x(true);
         cd.character_dir.x = 1.0;
         cd.is_moving = true;
     }
     else cd.character_dir.x = 0.0;
     if(glfwGetKey(glfw_window, GLFW_KEY_W))
     {
-        view = glm::rotate(view, glm::radians(2.f), {1.0, 0.0, 0.0});
+        camera.move_z(false);
         cd.character_dir.y = 1.0;
         cd.is_moving = true;
     }
     else if(glfwGetKey(glfw_window, GLFW_KEY_S))
     {
-        view = glm::rotate(view, glm::radians(2.f), {0.0, 0.0, 1.0});
+        camera.move_z(true);
         cd.character_dir.y = -1.0;
         cd.is_moving = true;
     }
     else cd.character_dir.y = 0.0;
+    if(glfwGetKey(glfw_window, GLFW_KEY_SPACE))
+    {
+        camera.move_y(true);
+    }
+    else if(glfwGetKey(glfw_window, GLFW_KEY_LEFT_SHIFT))
+    {
+        camera.move_y(false);
+    }
     glfwPollEvents();
 }
 
@@ -103,8 +111,10 @@ void IoClient::framebuffer_size_callback(GLFWwindow* window, int width, int heig
 {
     glViewport(0, 0, width, height);
     IoClient *io_client = (IoClient *)glfwGetWindowUserPointer(window);
-    io_client->projection =
-        glm::perspective(glm::radians(45.f), (float)width/(float)height, 0.1f, 40.0f);
+    glm::mat4 projection =
+        glm::perspective(glm::radians(120.f), (float)width/(float)height, 0.1f, 40.0f);
+    io_client->program.set_uniform("projection", glUniformMatrix4fv,
+        1, GL_FALSE, glm::value_ptr(projection));
     util::log("IO_CLIENT", util::DEBUG, "screen size change to %ux%u", width, height);
 }
 
@@ -124,11 +134,23 @@ void IoClient::key_callback(GLFWwindow *window, int key, int scancode, int actio
     (void)mode;
 }
 
+void IoClient::mouse_callback(GLFWwindow* window, double xpos, double ypos)
+{
+    IoClient *io_client = (IoClient *)glfwGetWindowUserPointer(window);
+    io_client->camera.rotate({xpos - io_client->mouse_pos.x,
+                              io_client->mouse_pos.y - ypos});
+    io_client->mouse_pos = glm::vec2(xpos, ypos);
+}
+
 void IoClient::render()
 {
+    program.set_uniform("world", glUniformMatrix4fv,
+        1, GL_FALSE, glm::value_ptr(world_mat));
+    program.set_uniform("view", glUniformMatrix4fv,
+        1, GL_FALSE, glm::value_ptr(camera.get_view()));
     chunk_requests.clear();
     glClearColor(0.0, 0.0, 0.0, 1.0);
-    glClear(GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     map::Chunk const *chunk = map[chunk::Pos(0, 0, 0)];
     if(chunk != nullptr) render_chunk(*chunk);
     else chunk_requests.insert(chunk::Pos(0, 0, 0));
@@ -160,6 +182,8 @@ void IoClient::init_glfw_window()
     glfwSetWindowUserPointer(glfw_window, this);
     glfwSetFramebufferSizeCallback(glfw_window, framebuffer_size_callback);
     glfwSetKeyCallback(glfw_window, key_callback);
+    glfwSetInputMode(glfw_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    glfwSetCursorPosCallback(glfw_window, mouse_callback);
 }
 
 void IoClient::init_glad()

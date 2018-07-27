@@ -10,6 +10,7 @@
 #include <data/config.hpp>
 #include <render/vertex.hpp>
 #include <render/program.hpp>
+#include <render/camera.hpp>
 #include <map/chunk.hpp>
 #include <map/map.hpp>
 
@@ -35,6 +36,7 @@ class IoClient
     static void framebuffer_size_callback(GLFWwindow* window, int width, int height);
     static void error_callback(int err, const char* desc);
     static void key_callback(GLFWwindow *window, int key, int scancode, int action, int mode);
+    static void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 
     void render();
     void render_chunk(map::Chunk const &chunk);
@@ -46,9 +48,10 @@ class IoClient
     GLFWwindow *glfw_window;
     data::Config const &conf;
     map::Map map;
+    glm::vec2 mouse_pos;
+    glm::mat4 world_mat;
 
     render::Program program;
-    glm::mat4 projection;
-    glm::mat4 view;
+    render::Camera  camera;
     Set<chunk::Pos> chunk_requests;
 };
