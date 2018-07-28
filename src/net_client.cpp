@@ -102,6 +102,8 @@ void NetClient::get_server_init_data(serial::ServerInitData &sid)
 
 void NetClient::get_server_data(serial::ServerData &sd)
 {
+    sd.chunks.clear();   //TODO
+    sd.entities.clear(); //
     ENetEvent event;
     while(enet_host_service(enet_client, &event, 0) > 0)
     {
