@@ -21,6 +21,11 @@ glm::mat4 Camera::get_view() const
     return glm::lookAt(pos, pos + dir, up);
 }
 
+glm::vec3 Camera::get_pos() const
+{
+    return pos;
+}
+
 void Camera::move_x(bool positive)
 {
     pos += glm::cross(dir, up) * move_speed * ((positive == 0) ? -1.f : 1.f);

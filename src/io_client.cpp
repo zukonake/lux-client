@@ -26,7 +26,8 @@ IoClient::IoClient(data::Config const &config, F64 fps) :
     world_mat({1.0, 0.0, 0.0, 0.0},
               {0.0, 0.0, 1.0, 0.0},
               {0.0, 1.0, 0.0, 0.0},
-              {0.0, 0.0, 0.0, 1.0})
+              {0.0, 0.0, 0.0, 1.0}),
+    view_range(config.view_range)
 {
     //TODO gl initializer class?
     init_glfw_core();
@@ -55,7 +56,7 @@ void IoClient::set_server_data(serial::ServerData const &sd)
     {
         map.add_chunk(chunk);
     }
-    render();
+    render(glm::vec3(world_mat * glm::vec4(camera.get_pos(), 1.0)));
 }
 
 void IoClient::get_client_data(serial::ClientData &cd)
@@ -142,7 +143,7 @@ void IoClient::mouse_callback(GLFWwindow* window, double xpos, double ypos)
     io_client->mouse_pos = glm::vec2(xpos, ypos);
 }
 
-void IoClient::render()
+void IoClient::render(entity::Pos const &pos)
 {
     program.set_uniform("world", glUniformMatrix4fv,
         1, GL_FALSE, glm::value_ptr(world_mat));
@@ -151,17 +152,46 @@ void IoClient::render()
     chunk_requests.clear();
     glClearColor(0.0, 0.0, 0.0, 1.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    map::Chunk const *chunk = map[chunk::Pos(0, 0, 0)];
-    if(chunk != nullptr) render_chunk(*chunk);
-    else chunk_requests.insert(chunk::Pos(0, 0, 0));
+    chunk::Pos index;
+    chunk::Pos center = chunk::to_pos(pos); //TODO map::to_pos from entity::Pos
+    for(index.z = center.z - view_range.z;
+        index.z <= center.z + view_range.z;
+        ++index.z)
+    {
+        for(index.y = center.y - view_range.y;
+            index.y <= center.y + view_range.y;
+            ++index.y)
+        {
+            for(index.x = center.x - view_range.x;
+                index.x <= center.x + view_range.x;
+                ++index.x)
+            {
+                render_chunk(index);
+            }
+        }
+    }
     glfwSwapBuffers(glfw_window);
 }
 
-void IoClient::render_chunk(map::Chunk const &chunk)
+void IoClient::render_chunk(chunk::Pos const &pos)
 {
-    glBindBuffer(GL_ARRAY_BUFFER, chunk.vbo_id);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, chunk.ebo_id);
-    glDrawElements(GL_TRIANGLES, chunk.indices.size(), render::INDEX_TYPE, 0);
+    map::Chunk const *chunk = map[pos];
+    if(chunk == nullptr)
+    {
+        chunk_requests.insert(pos);
+    }
+    else
+    {
+        glBindBuffer(GL_ARRAY_BUFFER, chunk->vbo_id);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, chunk->ebo_id);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE,
+            sizeof(render::Vertex), (void*)offsetof(render::Vertex, pos));
+        glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE,
+            sizeof(render::Vertex), (void*)offsetof(render::Vertex, col));
+        glEnableVertexAttribArray(0);
+        glEnableVertexAttribArray(1);
+        glDrawElements(GL_TRIANGLES, chunk->indices.size(), render::INDEX_TYPE, 0);
+    }
 }
 
 void IoClient::init_glfw_core()

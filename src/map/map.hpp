@@ -2,6 +2,8 @@
 
 #include <set>
 //
+#include <glad/glad.h>
+//
 #include <lux/alias/hash_map.hpp>
 #include <lux/alias/set.hpp>
 #include <lux/common/chunk.hpp>

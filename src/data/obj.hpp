@@ -48,7 +48,8 @@ data::Config const default_config =
     {
         "localhost",
         31337
-    }
+    },
+    {2, 2, 1},
 };
 
 render::Model const block_model =

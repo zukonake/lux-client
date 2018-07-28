@@ -13,6 +13,7 @@ class Camera
     Camera();
 
     glm::mat4 get_view() const;
+    glm::vec3 get_pos() const;
 
     void move_x(bool positive);
     void move_y(bool positive);

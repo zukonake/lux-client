@@ -2,9 +2,11 @@
 
 #include <glm/glm.hpp>
 //
+#include <lux/alias/scalar.hpp>
 #include <lux/alias/c_string.hpp>
 #include <lux/net/port.hpp>
 #include <lux/linear/vec_2.hpp>
+#include <lux/linear/vec_3.hpp>
 
 namespace data
 {
@@ -24,6 +26,7 @@ struct Config
         CString hostname;
         net::Port port;
     } server;
+    linear::Vec3<U8> view_range;
 };
 
 }

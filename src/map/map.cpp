@@ -80,12 +80,6 @@ void Map::add_chunk(serial::ChunkData const &new_chunk)
                  sizeof(render::Index) * chunk.indices.size(),
                  chunk.indices.data(),
                  GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(render::Vertex),
-                          (void*)offsetof(render::Vertex, pos));
-    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(render::Vertex),
-                          (void*)offsetof(render::Vertex, col));
-    glEnableVertexAttribArray(0);
-    glEnableVertexAttribArray(1);
 }
 
 }

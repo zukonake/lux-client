@@ -6,6 +6,7 @@
 #include <lux/alias/scalar.hpp>
 #include <lux/alias/set.hpp>
 #include <lux/common/chunk.hpp>
+#include <lux/common/entity.hpp>
 //
 #include <data/config.hpp>
 #include <render/vertex.hpp>
@@ -38,8 +39,8 @@ class IoClient
     static void key_callback(GLFWwindow *window, int key, int scancode, int action, int mode);
     static void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 
-    void render();
-    void render_chunk(map::Chunk const &chunk);
+    void render(entity::Pos const &pos);
+    void render_chunk(chunk::Pos const &pos);
 
     void init_glfw_core();
     void init_glfw_window();
@@ -48,6 +49,7 @@ class IoClient
     GLFWwindow *glfw_window;
     data::Config const &conf;
     map::Map map;
+    linear::Vec3<U8> view_range;
     glm::vec2 mouse_pos;
     glm::mat4 world_mat;
 

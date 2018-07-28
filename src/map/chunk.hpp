@@ -15,7 +15,7 @@ namespace map
 struct Chunk
 {
     Array<Tile, chunk::TILE_SIZE> tiles;
-    
+
     Vector<render::Vertex> vertices;
     Vector<render::Index>   indices;
     GLuint vbo_id;
