@@ -34,8 +34,8 @@ IoClient::IoClient(data::Config const &config, F64 fps) :
     init_glfw_window();
     init_glad();
 
-    glfwSwapInterval(1);
-    //^ TODO not sure if needed
+    glfwSwapInterval(0);
+    // TODO opengl will actually need a separate thread probably
 
     program.init(conf.vert_shader_path, conf.frag_shader_path);
     //init_tileset();
