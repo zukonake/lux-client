@@ -42,6 +42,8 @@ class IoClient
     void render(entity::Pos const &pos);
     void render_chunk(chunk::Pos const &pos);
 
+    void check_gl_error();
+
     void init_glfw_core();
     void init_glfw_window();
     void init_glad();

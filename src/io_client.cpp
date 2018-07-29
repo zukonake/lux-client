@@ -57,6 +57,7 @@ void IoClient::set_server_data(serial::ServerData const &sd)
         map.add_chunk(chunk);
     }
     render(glm::vec3(world_mat * glm::vec4(camera.get_pos(), 1.0)));
+    check_gl_error();
 }
 
 void IoClient::get_client_data(serial::ClientData &cd)
@@ -191,6 +192,16 @@ void IoClient::render_chunk(chunk::Pos const &pos)
         glEnableVertexAttribArray(0);
         glEnableVertexAttribArray(1);
         glDrawElements(GL_TRIANGLES, chunk->indices.size(), render::INDEX_TYPE, 0);
+    }
+}
+
+void IoClient::check_gl_error()
+{
+    GLenum error = glGetError();
+    while(error != GL_NO_ERROR)
+    {
+        util::log("OPEN_GL", util::ERROR, "%d", error);
+        error = glGetError();
     }
 }
 
