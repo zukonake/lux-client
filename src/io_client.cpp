@@ -137,7 +137,7 @@ void IoClient::mouse_callback(GLFWwindow* window, double xpos, double ypos)
 void IoClient::render(entity::Pos const &pos)
 {
     camera.teleport(glm::vec3(world_mat *
-        glm::vec4(pos + glm::vec3(0.0, 0.0, 1.0), 1.0)));
+        glm::vec4(pos + glm::vec3(0.0, 0.0, 0.8), 1.0)));
     program.set_uniform("world", glUniformMatrix4fv,
         1, GL_FALSE, glm::value_ptr(world_mat));
     program.set_uniform("view", glUniformMatrix4fv,
