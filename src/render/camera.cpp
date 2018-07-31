@@ -1,3 +1,6 @@
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/euler_angles.hpp>
+#undef GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtc/matrix_transform.hpp>
 //
 #include "camera.hpp"
@@ -21,23 +24,19 @@ glm::mat4 Camera::get_view() const
     return glm::lookAt(pos, pos + dir, up);
 }
 
+glm::mat4 Camera::get_rotation() const
+{
+    return glm::eulerAngleZ(glm::radians(rotation.x) + glm::half_pi<F32>());
+}
+
 glm::vec3 Camera::get_pos() const
 {
     return pos;
 }
 
-void Camera::move_x(bool positive)
+void Camera::teleport(glm::vec3 new_pos)
 {
-    pos += glm::cross(dir, up) * move_speed * ((positive == 0) ? -1.f : 1.f);
-}
-
-void Camera::move_y(bool positive)
-{
-    pos += up * move_speed * ((positive == 0) ? -1.f : 1.f);
-}
-void Camera::move_z(bool positive)
-{
-    pos -= dir * move_speed * ((positive == 0) ? -1.f : 1.f);
+    pos = new_pos;
 }
 
 void Camera::rotate(glm::vec2 change)

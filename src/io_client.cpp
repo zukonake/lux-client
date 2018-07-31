@@ -56,7 +56,7 @@ void IoClient::set_server_data(serial::ServerData const &sd)
     {
         map.add_chunk(chunk);
     }
-    render(glm::vec3(world_mat * glm::vec4(camera.get_pos(), 1.0)));
+    render(sd.player_pos);
     check_gl_error();
 }
 
@@ -69,38 +69,28 @@ void IoClient::get_client_data(serial::ClientData &cd)
     cd.is_moving = false;
     if(glfwGetKey(glfw_window, GLFW_KEY_A))
     {
-        camera.move_x(false);
         cd.character_dir.x = -1.0;
         cd.is_moving = true;
     }
     else if(glfwGetKey(glfw_window, GLFW_KEY_D))
     {
-        camera.move_x(true);
         cd.character_dir.x = 1.0;
         cd.is_moving = true;
     }
     else cd.character_dir.x = 0.0;
     if(glfwGetKey(glfw_window, GLFW_KEY_W))
     {
-        camera.move_z(false);
-        cd.character_dir.y = 1.0;
+        cd.character_dir.y = -1.0;
         cd.is_moving = true;
     }
     else if(glfwGetKey(glfw_window, GLFW_KEY_S))
     {
-        camera.move_z(true);
-        cd.character_dir.y = -1.0;
+        cd.character_dir.y = 1.0;
         cd.is_moving = true;
     }
     else cd.character_dir.y = 0.0;
-    if(glfwGetKey(glfw_window, GLFW_KEY_SPACE))
-    {
-        camera.move_y(true);
-    }
-    else if(glfwGetKey(glfw_window, GLFW_KEY_LEFT_SHIFT))
-    {
-        camera.move_y(false);
-    }
+    cd.character_dir =
+        glm::vec3(camera.get_rotation() * glm::vec4(cd.character_dir, 0.0, 1.0));
     glfwPollEvents();
 }
 
@@ -146,6 +136,8 @@ void IoClient::mouse_callback(GLFWwindow* window, double xpos, double ypos)
 
 void IoClient::render(entity::Pos const &pos)
 {
+    camera.teleport(glm::vec3(world_mat *
+        glm::vec4(pos + glm::vec3(0.0, 0.0, 1.0), 1.0)));
     program.set_uniform("world", glUniformMatrix4fv,
         1, GL_FALSE, glm::value_ptr(world_mat));
     program.set_uniform("view", glUniformMatrix4fv,
