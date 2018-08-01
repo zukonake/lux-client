@@ -42,6 +42,8 @@ IoClient::IoClient(data::Config const &config, F64 fps) :
     glEnable(GL_DEPTH_TEST);
 
     framebuffer_size_callback(glfw_window, 800, 600);
+    glGenBuffers(1, &entity_vbo);
+    glGenBuffers(1, &entity_ebo);
 }
 
 IoClient::~IoClient()
@@ -54,9 +56,12 @@ void IoClient::set_server_data(serial::ServerData const &sd)
 {
     for(auto const &chunk : sd.chunks)
     {
+        util::log("IO_CLIENT", util::DEBUG, "receiving chunk %d, %d, %d",
+                   chunk.pos.x, chunk.pos.y, chunk.pos.z);
         map.add_chunk(chunk);
     }
-    render(sd.player_pos);
+    build_entity_buffer(sd.player_pos, sd.entities);
+    render(sd.player_pos, sd.entities.size() - 1);
     check_gl_error();
 }
 
@@ -66,6 +71,7 @@ void IoClient::get_client_data(serial::ClientData &cd)
     std::copy(chunk_requests.begin(),
               chunk_requests.end(),
               std::back_inserter(cd.chunk_requests));
+    chunk_requests.clear();
     cd.is_moving = false;
     if(glfwGetKey(glfw_window, GLFW_KEY_A))
     {
@@ -134,7 +140,7 @@ void IoClient::mouse_callback(GLFWwindow* window, double xpos, double ypos)
     io_client->mouse_pos = glm::vec2(xpos, ypos);
 }
 
-void IoClient::render(entity::Pos const &pos)
+void IoClient::render(entity::Pos const &pos, SizeT entities_num)
 {
     camera.teleport(glm::vec3(world_mat *
         glm::vec4(pos + glm::vec3(0.0, 0.0, 0.8), 1.0)));
@@ -163,6 +169,7 @@ void IoClient::render(entity::Pos const &pos)
             }
         }
     }
+    render_entities(entities_num);
     glfwSwapBuffers(glfw_window);
 }
 
@@ -171,6 +178,8 @@ void IoClient::render_chunk(chunk::Pos const &pos)
     map::Chunk const *chunk = map[pos];
     if(chunk == nullptr)
     {
+        util::log("IO_CLIENT", util::DEBUG, "requesting chunk %d, %d, %d",
+                   pos.x, pos.y, pos.z);
         chunk_requests.insert(pos);
     }
     else
@@ -187,6 +196,19 @@ void IoClient::render_chunk(chunk::Pos const &pos)
     }
 }
 
+void IoClient::render_entities(SizeT num)
+{
+    glBindBuffer(GL_ARRAY_BUFFER        , entity_vbo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, entity_ebo);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE,
+        sizeof(render::Vertex), (void*)offsetof(render::Vertex, pos));
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE,
+        sizeof(render::Vertex), (void*)offsetof(render::Vertex, col));
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
+    glDrawElements(GL_TRIANGLES, num * 24, render::INDEX_TYPE, 0);
+}
+
 void IoClient::check_gl_error()
 {
     GLenum error = glGetError();
@@ -195,6 +217,56 @@ void IoClient::check_gl_error()
         util::log("OPEN_GL", util::ERROR, "%d", error);
         error = glGetError();
     }
+}
+
+void IoClient::build_entity_buffer(entity::Pos const &player_pos,
+                                   Vector<entity::Pos> const &entities)
+{
+    glm::vec3 model[8] =
+    {
+        {0.0, 0.0, 0.0},
+        {0.0, 0.8, 0.0},
+        {0.0, 0.8, 1.7},
+        {0.0, 0.0, 1.7},
+        {0.8, 0.0, 0.0},
+        {0.8, 0.8, 0.0},
+        {0.8, 0.8, 1.7},
+        {0.8, 0.0, 1.7},
+    };
+    Vector<render::Vertex> verts;
+    Vector<render::Index>  indices;
+    render::Index index_offset = 0;
+    for(auto const &entity : entities)
+    {
+        if(entity != player_pos)
+        {
+            for(auto const &vert : model)
+            {
+                verts.push_back({entity + vert, {0.5, 0.0, 0.0, 1.0}});
+            }
+            for(auto const &idx : {0, 1, 2, 0, 3, 2,
+                                   4, 5, 6, 4, 7, 6,
+                                   0, 4, 7, 0, 3, 7,
+                                   1, 5, 6, 1, 2, 6,
+                                   0, 1, 5, 0, 4, 5,
+                                   3, 2, 6, 3, 7, 6})
+            {
+                indices.emplace_back(idx + index_offset);
+            }
+            index_offset += 8;
+        }
+    }
+    glBindBuffer(GL_ARRAY_BUFFER, entity_vbo);
+    glBufferData(GL_ARRAY_BUFFER,
+                 sizeof(render::Vertex) * verts.size(),
+                 verts.data(),
+                 GL_STREAM_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, entity_ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                 sizeof(render::Index) * indices.size(),
+                 indices.data(),
+                 GL_STREAM_DRAW);
 }
 
 void IoClient::init_glfw_core()
