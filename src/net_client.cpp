@@ -103,7 +103,7 @@ void NetClient::get_server_init_data(serial::ServerInitData &sid)
 void NetClient::get_server_data(serial::ServerData &sd)
 {
     ENetEvent event;
-    if(enet_host_service(enet_client, &event, 5) > 0) //TODO timeout
+    if(enet_host_service(enet_client, &event, 50) > 0) //TODO timeout
     {
         sd.chunks.clear();
         sd.entities.clear();
