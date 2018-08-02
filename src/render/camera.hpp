@@ -7,6 +7,8 @@
 namespace render
 {
 
+//TODO for some reason functions that use rotations do uninitialized jumps,
+// tested without -ffast-math as well
 class Camera
 {
     public:

@@ -12,8 +12,8 @@ Client::Client() :
     game_tick(util::TickClock::Duration::zero()),
     net_client(conf.server.hostname, conf.server.port),
     io_client(conf, 60.0),
-    cd({{}, {0, 0}, false}),
-    sd({{}, {}, {0, 0, 0}})
+    sd({{}, {}, {0, 0, 0}}),
+    cd({{}, {0, 0}, false})
 {
     init_from_server();
     run();

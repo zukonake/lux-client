@@ -23,11 +23,11 @@
 IoClient::IoClient(data::Config const &config, F64 fps) :
     conf(config),
     map(*conf.db),
+    view_range(config.view_range),
     world_mat({1.0, 0.0, 0.0, 0.0},
               {0.0, 0.0, 1.0, 0.0},
               {0.0, 1.0, 0.0, 0.0},
-              {0.0, 0.0, 0.0, 1.0}),
-    view_range(config.view_range)
+              {0.0, 0.0, 0.0, 1.0})
 {
     //TODO gl initializer class?
     init_glfw_core();
