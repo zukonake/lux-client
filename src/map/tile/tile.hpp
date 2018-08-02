@@ -7,6 +7,7 @@ namespace map
 
 struct Tile
 {
+    Tile(TileType const *type) : type(type) { }
     TileType const *type;
 };
 

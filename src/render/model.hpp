@@ -1,18 +1,17 @@
 #pragma once
 
-#include <glad/glad.h>
-#include <glm/glm.hpp>
-//
 #include <lux/alias/vector.hpp>
+//
+#include <render/vertex.hpp>
+#include <render/index.hpp>
 
 namespace render
 {
 
 struct Model
 {
-    Vector<glm::vec3> vertices;
-    Vector<GLuint>    indices;
-    GLenum            primitive;
+    Vector<render::Vertex> vertices;
+    Vector<render::Index>  indices;
 };
 
 }

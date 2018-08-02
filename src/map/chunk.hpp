@@ -1,7 +1,12 @@
 #pragma once
 
-#include <lux/consts.hpp>
+#include <glad/glad.h>
 //
+#include <lux/alias/vector.hpp>
+#include <lux/common/chunk.hpp>
+//
+#include <render/vertex.hpp>
+#include <render/index.hpp>
 #include <map/tile/tile.hpp>
 
 namespace map
@@ -9,7 +14,12 @@ namespace map
 
 struct Chunk
 {
-    Tile tiles[consts::CHUNK_TILE_SIZE];
+    Vector<Tile> tiles;
+
+    Vector<render::Vertex> vertices;
+    Vector<render::Index>   indices;
+    GLuint vbo_id;
+    GLuint ebo_id;
 };
 
 }

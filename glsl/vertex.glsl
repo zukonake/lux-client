@@ -1,16 +1,15 @@
 #version 120
-attribute vec3 i_pos;
-attribute vec2 i_tex_pos;
-attribute vec4 i_color;
+attribute vec3 pos;
+attribute vec4 i_col;
 
-varying vec2 tex_pos;
-varying vec4 color;
+uniform mat4 projection;
+uniform mat4 view;
+uniform mat4 world;
 
-uniform vec2 tile_scale;
+varying vec4 col;
 
 void main()
 {
-    gl_Position = vec4(i_pos.xyz, 1.0);
-    tex_pos = i_tex_pos * tile_scale;
-    color   = i_color;
+    gl_Position = projection * view * world * vec4(pos, 1.0);
+    col = i_col;
 }
