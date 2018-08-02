@@ -102,11 +102,11 @@ void NetClient::get_server_init_data(serial::ServerInitData &sid)
 
 void NetClient::get_server_data(serial::ServerData &sd)
 {
-    sd.chunks.clear();   //TODO
-    sd.entities.clear(); //
     ENetEvent event;
-    while(enet_host_service(enet_client, &event, 0) > 0)
+    if(enet_host_service(enet_client, &event, 5) > 0) //TODO timeout
     {
+        sd.chunks.clear();
+        sd.entities.clear();
         if(event.type == ENET_EVENT_TYPE_RECEIVE)
         {
             auto *packet = event.packet;
@@ -115,6 +115,10 @@ void NetClient::get_server_data(serial::ServerData &sd)
             deserializer >> sd;
             enet_packet_destroy(packet);
         }
+    }
+    else
+    {
+        util::log("NET_CLIENT", util::WARN, "tick packet lost");
     }
 }
 
