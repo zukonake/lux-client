@@ -61,7 +61,7 @@ void IoClient::set_server_data(serial::ServerData const &sd)
         map.add_chunk(chunk);
     }
     build_entity_buffer(sd.player_pos, sd.entities);
-    render(sd.player_pos, sd.entities.size() - 1);
+    render(sd.player_pos, sd.entities.size() == 0 ? 0 : sd.entities.size() - 1);
     check_gl_error();
 }
 
@@ -193,6 +193,8 @@ void IoClient::render_chunk(chunk::Pos const &pos)
         glEnableVertexAttribArray(0);
         glEnableVertexAttribArray(1);
         glDrawElements(GL_TRIANGLES, chunk->indices.size(), render::INDEX_TYPE, 0);
+        glDisableVertexAttribArray(0); //TODO needed?
+        glDisableVertexAttribArray(1); // also in render_entities
     }
 }
 
@@ -206,7 +208,9 @@ void IoClient::render_entities(SizeT num)
         sizeof(render::Vertex), (void*)offsetof(render::Vertex, col));
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
-    glDrawElements(GL_TRIANGLES, num * 24, render::INDEX_TYPE, 0);
+    glDrawElements(GL_TRIANGLES, num * 36, render::INDEX_TYPE, 0);
+    glDisableVertexAttribArray(0);
+    glDisableVertexAttribArray(1);
 }
 
 void IoClient::check_gl_error()
