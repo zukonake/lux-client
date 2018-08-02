@@ -41,14 +41,24 @@ void Map::add_chunk(serial::ChunkData const &new_chunk)
     chunk::Pos const &chunk_pos = new_chunk.pos;
     if(chunks.count(chunk_pos) > 0) return;
 
-    auto &chunk = chunks[chunk_pos];
-
     util::log("MAP", util::TRACE, "adding new chunk %d, %d, %d",
         chunk_pos.x,
         chunk_pos.y,
         chunk_pos.z);
-    chunks[chunk_pos] = { };
-    //TODO optimize
+
+    auto &chunk = chunks[chunk_pos];
+    /* this creates a new chunk */
+    chunk.tiles.reserve(chunk::TILE_SIZE);
+    {
+        SizeT worst_case_len = chunk::TILE_SIZE / 2 +
+            (chunk::TILE_SIZE % 2 == 0 ? 0 : 1);
+        /* this is the size of a checkerboard pattern, the worst case for this
+         * algorithm.
+         */
+        chunk.vertices.reserve(worst_case_len * 6 * 4); //TODO magic numbers
+        chunk.indices.reserve(worst_case_len * 6 * 6);  //
+    }
+
     glGenBuffers(1, &chunk.vbo_id);
     glGenBuffers(1, &chunk.ebo_id);
 
@@ -102,7 +112,7 @@ void Map::add_chunk(serial::ChunkData const &new_chunk)
 
     for(SizeT i = 0; i < chunk::TILE_SIZE; ++i)
     {
-        chunk.tiles[i].type = db.tile_types.at(new_chunk.tiles[i].db_hash);
+        chunk.tiles.emplace_back(db.tile_types.at(new_chunk.tiles[i].db_hash));
         map::Pos map_pos = chunk::to_map_pos(chunk_pos, i);
         if(is_solid(map_pos))
         {

@@ -2,7 +2,7 @@
 
 #include <glad/glad.h>
 //
-#include <lux/alias/array.hpp>
+#include <lux/alias/vector.hpp>
 #include <lux/common/chunk.hpp>
 //
 #include <render/vertex.hpp>
@@ -14,7 +14,7 @@ namespace map
 
 struct Chunk
 {
-    Array<Tile, chunk::TILE_SIZE> tiles;
+    Vector<Tile> tiles;
 
     Vector<render::Vertex> vertices;
     Vector<render::Index>   indices;
