@@ -44,8 +44,8 @@ void Client::run()
         auto delta = game_tick.synchronize();
         if(delta < util::TickClock::Duration::zero())
         {
-            util::log("CLIENT", util::WARN, "game loop overhead of of %f seconds",
-                      std::abs(delta.count()));
+            util::log("CLIENT", util::WARN, "tick overhead of %.2f ticks",
+                      std::abs(delta / game_tick.get_tick_len()));
         }
     }
 }
