@@ -214,7 +214,16 @@ void IoClient::check_gl_error()
     GLenum error = glGetError();
     while(error != GL_NO_ERROR)
     {
-        util::log("OPEN_GL", util::ERROR, "%d", error);
+        String str;
+        switch(error)
+        {
+            case GL_INVALID_ENUM: str = "invalid enum"; break;
+            case GL_INVALID_VALUE: str = "invalid value"; break;
+            case GL_INVALID_OPERATION: str = "invalid operation"; break;
+            case GL_OUT_OF_MEMORY: str = "out of memory"; break;
+            default: str = "unknown"; break;
+        }
+        util::log("OPEN_GL", util::ERROR, "#%d - %s", error, str);
         error = glGetError();
     }
 }
