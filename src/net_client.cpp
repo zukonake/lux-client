@@ -103,7 +103,7 @@ void NetClient::get_server_init_data(serial::ServerInitData &sid)
 void NetClient::get_server_data(serial::ServerData &sd)
 {
     ENetEvent event;
-    if(enet_host_service(enet_client, &event, 50) > 0) //TODO timeout
+    if(enet_host_service(enet_client, &event, 0) > 0) //TODO timeout
     {
         sd.chunks.clear();
         sd.entities.clear();
@@ -127,7 +127,7 @@ void NetClient::set_client_data(serial::ClientData const &cd)
     serializer.reserve(serial::get_size(cd));
     serializer << cd;
     ENetPacket *packet =
-        enet_packet_create(serializer.get(), serializer.get_size(), 0);
+        enet_packet_create(serializer.get(), serializer.get_used(), 0);
     enet_peer_send(enet_server, 0, packet);
     enet_host_flush(enet_client); //TODO should this be here? benchmark
 }
