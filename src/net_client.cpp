@@ -90,6 +90,7 @@ void NetClient::get_server_init_data(serial::ServerInitData &sid)
         if(event.type == ENET_EVENT_TYPE_RECEIVE)
         {
             auto *packet = event.packet;
+            serial::clear_buffer(sid);
             deserializer.set_slice(packet->data,
                                    packet->data + packet->dataLength);
             deserializer >> sid;
@@ -105,11 +106,10 @@ void NetClient::get_server_data(serial::ServerData &sd)
     ENetEvent event;
     if(enet_host_service(enet_client, &event, 50) > 0) //TODO timeout
     {
-        sd.chunks.clear();
-        sd.entities.clear();
         if(event.type == ENET_EVENT_TYPE_RECEIVE)
         {
             auto *packet = event.packet;
+            serial::clear_buffer(sd);
             deserializer.set_slice(packet->data,
                                    packet->data + packet->dataLength);
             deserializer >> sd;
@@ -126,6 +126,7 @@ void NetClient::set_client_data(serial::ClientData const &cd)
 {
     serializer.reserve(serial::get_size(cd));
     serializer << cd;
+
     ENetPacket *packet =
         enet_packet_create(serializer.get(), serializer.get_used(), 0);
     enet_peer_send(enet_server, 0, packet);

@@ -4,6 +4,8 @@
 //
 #include <lux/alias/string.hpp>
 #include <lux/net/port.hpp>
+#include <lux/serial/serializer.hpp>
+#include <lux/serial/deserializer.hpp>
 
 namespace serial
 {
