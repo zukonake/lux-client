@@ -77,9 +77,12 @@ void NetClient::disconnect()
         {
             enet_packet_destroy(event.packet);
         }
+        else if(event.type == ENET_EVENT_TYPE_DISCONNECT)
+        {
+            util::log("NET_CLIENT", util::INFO, "disconnected from server");
+        }
     }
     enet_peer_reset(enet_server);
-    util::log("NET_CLIENT", util::INFO, "disconnected from server");
 }
 
 void NetClient::get_server_init_data(serial::ServerInitData &sid)
@@ -96,6 +99,10 @@ void NetClient::get_server_init_data(serial::ServerInitData &sid)
             deserializer >> sid;
             enet_packet_destroy(packet);
             return;
+        }
+        else if(event.type == ENET_EVENT_TYPE_DISCONNECT)
+        {
+            throw std::runtime_error("lost connection to server");
         }
     }
     throw std::runtime_error("couldn't fetch server init data");
@@ -114,6 +121,10 @@ void NetClient::get_server_data(serial::ServerData &sd)
                                    packet->data + packet->dataLength);
             deserializer >> sd;
             enet_packet_destroy(packet);
+        }
+        else if(event.type == ENET_EVENT_TYPE_DISCONNECT)
+        {
+            throw std::runtime_error("lost connection to server");
         }
     }
     else
