@@ -21,6 +21,10 @@
 #include "io_client.hpp"
 
 IoClient::IoClient(data::Config const &config, F64 fps) :
+    has_initialized(false),
+    sd({{}, {}, {0, 0, 0}}),
+    cd({{}, {0, 0}, false}),
+    tick_clock(util::TickClock::Duration(1.0 / fps)),
     conf(config),
     map(*conf.db),
     view_range(config.view_range),
@@ -29,79 +33,33 @@ IoClient::IoClient(data::Config const &config, F64 fps) :
               {0.0, 1.0, 0.0, 0.0},
               {0.0, 0.0, 0.0, 1.0})
 {
-    //TODO gl initializer class?
-    init_glfw_core();
-    init_glfw_window();
-    init_glad();
-
-    glfwSwapInterval(0);
-    // TODO opengl will actually need a separate thread probably
-
-    program.init(conf.vert_shader_path, conf.frag_shader_path);
-    glEnable(GL_DEPTH_TEST);
-
-    framebuffer_size_callback(glfw_window, 800, 600);
-    glGenBuffers(1, &entity_vbo);
-    glGenBuffers(1, &entity_ebo);
+    thread = std::thread(&IoClient::init, this);
 }
 
 IoClient::~IoClient()
 {
     glfwSetWindowShouldClose(glfw_window, GLFW_TRUE);
-    glfwTerminate();
+    thread.join();
 }
 
-void IoClient::set_server_data(serial::ServerData const &sd)
+void IoClient::set_server_data(serial::ServerData const &_sd)
 {
-    for(auto const &chunk : sd.chunks)
-    {
-        util::log("IO_CLIENT", util::DEBUG, "receiving chunk %d, %d, %d",
-                   chunk.pos.x, chunk.pos.y, chunk.pos.z);
-        map.add_chunk(chunk);
-    }
-    build_entity_buffer(sd.player_pos, sd.entities);
-    render(sd.player_pos, sd.entities.size() == 0 ? 0 : sd.entities.size() - 1);
-    check_gl_error();
+    std::lock_guard<std::mutex> lock(sd_mutex);
+    sd = _sd;
 }
 
-void IoClient::get_client_data(serial::ClientData &cd)
+void IoClient::get_client_data(serial::ClientData &_cd)
 {
-    cd.chunk_requests.clear();
-    std::copy(chunk_requests.begin(),
-              chunk_requests.end(),
-              std::back_inserter(cd.chunk_requests));
-    chunk_requests.clear();
-    cd.is_moving = false;
-    if(glfwGetKey(glfw_window, GLFW_KEY_A))
-    {
-        cd.character_dir.x = -1.0;
-        cd.is_moving = true;
-    }
-    else if(glfwGetKey(glfw_window, GLFW_KEY_D))
-    {
-        cd.character_dir.x = 1.0;
-        cd.is_moving = true;
-    }
-    else cd.character_dir.x = 0.0;
-    if(glfwGetKey(glfw_window, GLFW_KEY_W))
-    {
-        cd.character_dir.y = -1.0;
-        cd.is_moving = true;
-    }
-    else if(glfwGetKey(glfw_window, GLFW_KEY_S))
-    {
-        cd.character_dir.y = 1.0;
-        cd.is_moving = true;
-    }
-    else cd.character_dir.y = 0.0;
-    cd.character_dir =
-        glm::vec3(camera.get_rotation() * glm::vec4(cd.character_dir, 0.0, 1.0));
-    glfwPollEvents();
+    std::lock_guard<std::mutex> lock(cd_mutex);
+    _cd = cd;
 }
 
 bool IoClient::should_close()
 {
-    return glfwWindowShouldClose(glfw_window);
+    return has_initialized && glfwWindowShouldClose(glfw_window);
+    /* the sequence is important here, the glfw_window can be invalid when
+     * has_initialized is not true
+     */
 }
 
 void IoClient::framebuffer_size_callback(GLFWwindow* window, int width, int height)
@@ -139,7 +97,75 @@ void IoClient::mouse_callback(GLFWwindow* window, double xpos, double ypos)
     io_client->mouse_pos = glm::vec2(xpos, ypos);
 }
 
-void IoClient::render(entity::Pos const &pos, SizeT entities_num)
+void IoClient::run()
+{
+    while(!should_close())
+    {
+        tick_clock.start();
+        check_gl_error();
+        glfwPollEvents();
+        handle_server_data();
+        handle_client_data();
+        tick_clock.stop();
+        tick_clock.synchronize();
+    }
+    deinit();
+}
+
+void IoClient::handle_server_data()
+{
+    {
+        std::lock_guard<std::mutex> lock(sd_mutex);
+        for(auto const &chunk : sd.chunks)
+        {
+            util::log("IO_CLIENT", util::DEBUG, "receiving chunk %d, %d, %d",
+                       chunk.pos.x, chunk.pos.y, chunk.pos.z);
+            map.add_chunk(chunk);
+        }
+        build_entity_buffer(sd.player_pos, sd.entities);
+    }
+    render(sd.player_pos, sd.entities.size() == 0 ? 0 : sd.entities.size() - 1);
+    /* TODO render should be moved to run(), it should not take any values from
+     * sd, as sd must be locked before accessed
+     */
+}
+
+void IoClient::handle_client_data()
+{
+    std::lock_guard<std::mutex> lock(cd_mutex);
+    cd.chunk_requests.clear();
+    std::copy(chunk_requests.begin(),
+              chunk_requests.end(),
+              std::back_inserter(cd.chunk_requests));
+    chunk_requests.clear();
+    cd.is_moving = false;
+    if(glfwGetKey(glfw_window, GLFW_KEY_A))
+    {
+        cd.character_dir.x = -1.0;
+        cd.is_moving = true;
+    }
+    else if(glfwGetKey(glfw_window, GLFW_KEY_D))
+    {
+        cd.character_dir.x = 1.0;
+        cd.is_moving = true;
+    }
+    else cd.character_dir.x = 0.0;
+    if(glfwGetKey(glfw_window, GLFW_KEY_W))
+    {
+        cd.character_dir.y = -1.0;
+        cd.is_moving = true;
+    }
+    else if(glfwGetKey(glfw_window, GLFW_KEY_S))
+    {
+        cd.character_dir.y = 1.0;
+        cd.is_moving = true;
+    }
+    else cd.character_dir.y = 0.0;
+    cd.character_dir =
+        glm::vec3(camera.get_rotation() * glm::vec4(cd.character_dir, 0.0, 1.0));
+}
+
+void IoClient::render(entity::Pos pos, SizeT entities_num)
 {
     camera.teleport(glm::vec3(world_mat *
         glm::vec4(pos + glm::vec3(0.0, 0.0, 0.8), 1.0)));
@@ -281,6 +307,27 @@ void IoClient::build_entity_buffer(entity::Pos const &player_pos,
                  GL_STREAM_DRAW);
 }
 
+void IoClient::init()
+{
+    //TODO gl initializer class?
+    init_glfw_core();
+    init_glfw_window();
+    init_glad();
+
+    glfwSwapInterval(0);
+
+    program.init(conf.vert_shader_path, conf.frag_shader_path);
+    glEnable(GL_DEPTH_TEST);
+
+    framebuffer_size_callback(glfw_window, 800, 600);
+
+    glGenBuffers(1, &entity_vbo);
+    glGenBuffers(1, &entity_ebo);
+
+    has_initialized = true;
+    run();
+}
+
 void IoClient::init_glfw_core()
 {
     util::log("IO_CLIENT", util::DEBUG, "initializing GLFW core");
@@ -310,4 +357,10 @@ void IoClient::init_glad()
     {
         throw std::runtime_error("couldn't initialize GLAD");
     }
+}
+
+void IoClient::deinit()
+{
+    util::log("IO_CLIENT", util::DEBUG, "deinitializing");
+    glfwTerminate();
 }
