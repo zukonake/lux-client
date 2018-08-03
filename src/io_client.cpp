@@ -38,7 +38,6 @@ IoClient::IoClient(data::Config const &config, F64 fps) :
     // TODO opengl will actually need a separate thread probably
 
     program.init(conf.vert_shader_path, conf.frag_shader_path);
-    //init_tileset();
     glEnable(GL_DEPTH_TEST);
 
     framebuffer_size_callback(glfw_window, 800, 600);
@@ -312,49 +311,3 @@ void IoClient::init_glad()
         throw std::runtime_error("couldn't initialize GLAD");
     }
 }
-
-/*
-void IoClient::init_tileset()
-{
-    util::log("IO_CLIENT", util::DEBUG, "loading tileset texture %s", conf.tileset_path);
-
-    glGenTextures(1, &tileset_id);
-    glBindTexture(GL_TEXTURE_2D, tileset_id);
-    Vector<U8> image;
-    linear::Vec2<unsigned> image_size;
-    unsigned error = lodepng::decode(image,
-                                     image_size.x,
-                                     image_size.y,
-                                     String(conf.tileset_path));
-    tileset_size = (glm::vec2)image_size;
-
-    auto const &tile_size = conf.tile_tex_size;
-    glm::vec2 tile_scale = {tile_size.x / tileset_size.x, tile_size.y / tileset_size.y};
-    program.set_uniform("tile_scale", glUniform2f, tile_scale.x, tile_scale.y);
-
-    if(error) throw std::runtime_error("couldn't load tileset texture");
-
-    glTexImage2D(GL_TEXTURE_2D,
-                 0,
-                 GL_RGBA,
-                 tileset_size.x,
-                 tileset_size.y,
-                 0,
-                 GL_RGBA,
-                 GL_UNSIGNED_BYTE,
-                 image.data());
-
-    //glGenerateMipmap(GL_TEXTURE_2D);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-
-    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
-    // TODO ^ no mipmaps unless I find a way to generate them reliably
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    util::log("IO_CLIENT",
-              util::DEBUG,
-              "loaded tileset texture of size %ux%u",
-              tileset_size.x,
-              tileset_size.y);
-}*/

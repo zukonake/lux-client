@@ -51,7 +51,7 @@ class IoClient
     void init_glfw_core();
     void init_glfw_window();
     void init_glad();
-   // void init_tileset(); 
+
     GLFWwindow *glfw_window;
     data::Config const &conf;
     map::Map map;
