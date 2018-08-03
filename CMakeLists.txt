@@ -8,13 +8,28 @@ set(LUX_CLIENT_VERSION_PATCH 0)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR})
 set(THREADS_PREFER_PTHREAD_FLAG ON)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffast-math -Wall -Wextra")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
+set(CMAKE_CXX_FLAGS_DEBUG   "${CMAKE_CXX_FLAGS_DEBUG} -Og -pipe -fexceptions \
+    -fasynchronous-unwind-tables -fstack-protector-strong -D_GLIBCXX_ASSERTIONS\
+    -ftrapv")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Ofast -flto")
+set(CMAKE_CXX_STANDARD 17)
+
+if(CMAKE_BUILD_TYPE MATCHES "Release")
+    message(STATUS "enabling link-time optimizations")
+
+    set(CMAKE_AR "gcc-ar")
+    set(CMAKE_CXX_ARCHIVE_CREATE "<CMAKE_AR> qcs <TARGET> <LINK_FLAGS> <OBJECTS>")
+    set(CMAKE_CXX_ARCHIVE_FINISH true)
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -flto")
+endif()
 
 configure_file("${PROJECT_SOURCE_DIR}/config.h.in"
                "${PROJECT_BINARY_DIR}/include/config.h")
 
-include_directories("include" "deps/lux-shared/include"
-                    "src" "${PROJECT_BINARY_DIR}/include")
+include_directories(SYSTEM "include")
+include_directories("deps/lux-shared/include" "src"
+                    "${PROJECT_BINARY_DIR}/include")
 add_subdirectory("deps/lux-shared")
 add_subdirectory("deps/lodepng")
 
