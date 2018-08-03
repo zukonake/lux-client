@@ -38,7 +38,6 @@ IoClient::IoClient(data::Config const &config, F64 fps) :
 
 IoClient::~IoClient()
 {
-    glfwSetWindowShouldClose(glfw_window, GLFW_TRUE);
     thread.join();
 }
 
