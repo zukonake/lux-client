@@ -23,7 +23,7 @@
 IoClient::IoClient(data::Config const &config, F64 fps) :
     has_initialized(false),
     sd({{}, {}, {0, 0, 0}}),
-    cd({{}, {0, 0}, false}),
+    cd({{}, {0, 0}, false, false}),
     tick_clock(util::TickClock::Duration(1.0 / fps)),
     conf(config),
     map(*conf.db),
@@ -160,6 +160,11 @@ void IoClient::handle_client_data()
         cd.is_moving = true;
     }
     else cd.character_dir.y = 0.0;
+    if(glfwGetKey(glfw_window, GLFW_KEY_SPACE))
+    {
+        cd.is_jumping = true;
+    }
+    else cd.is_jumping = false;
     cd.character_dir =
         glm::vec3(camera.get_rotation() * glm::vec4(cd.character_dir, 0.0, 1.0));
 }
