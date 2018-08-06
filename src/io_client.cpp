@@ -323,6 +323,10 @@ void IoClient::init()
     program.init(conf.vert_shader_path, conf.frag_shader_path);
     glEnable(GL_DEPTH_TEST);
 
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+    glFrontFace(GL_CCW);
+
     framebuffer_size_callback(glfw_window, 800, 600);
 
     glGenBuffers(1, &entity_vbo);
