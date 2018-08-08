@@ -1,6 +1,6 @@
 #pragma once
 
-#include <glad/glad.h>
+#include <render/gl.hpp>
 //
 #include <lux/alias/vector.hpp>
 #include <lux/common/chunk.hpp>

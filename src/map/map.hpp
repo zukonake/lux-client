@@ -2,7 +2,7 @@
 
 #include <set>
 //
-#include <glad/glad.h>
+#include <render/gl.hpp>
 //
 #include <lux/alias/hash_map.hpp>
 #include <lux/alias/set.hpp>

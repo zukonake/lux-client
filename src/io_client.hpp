@@ -4,8 +4,7 @@
 #include <mutex>
 #include <atomic>
 //
-#include <glad/glad.h>
-#include <GLFW/glfw3.h>
+#include <render/gl.hpp>
 //
 #include <lux/alias/scalar.hpp>
 #include <lux/alias/set.hpp>

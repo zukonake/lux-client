@@ -1,7 +1,5 @@
 #pragma once
 
-#include <glad/glad.h>
-//
 #include <data/database.hpp>
 #include <data/config.hpp>
 #include <render/model.hpp>
@@ -43,8 +41,15 @@ data::Config const default_config =
     {16.0, 16.0},
     {32.0, 32.0},
     "tileset.png",
-    "glsl/vertex.glsl",
-    "glsl/fragment.glsl",
+#if   LUX_GL_VARIANT == LUX_GL_VARIANT_2_1
+    "glsl/vertex-2.1.glsl",
+    "glsl/fragment-2.1.glsl",
+#elif LUX_GL_VARIANT == LUX_GL_VARIANT_ES_2_0
+    "glsl/vertex-es-2.0.glsl",
+    "glsl/fragment-es-2.0.glsl",
+#else
+#   error "Unsupported GL variant selected"
+#endif
     {
         "localhost",
         31337
