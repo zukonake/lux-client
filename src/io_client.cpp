@@ -4,8 +4,8 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include <glad/glad.h>
-#include <GLFW/glfw3.h>
+#include <render/gl.hpp>
+#include <lodepng.h>
 //
 #include <lux/util/log.hpp>
 #include <lux/alias/string.hpp>
@@ -31,6 +31,10 @@ IoClient::IoClient(data::Config const &config) :
 
     program.init(conf.vert_shader_path, conf.frag_shader_path);
     glEnable(GL_DEPTH_TEST);
+
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+    glFrontFace(GL_CCW);
 
     framebuffer_size_callback(glfw_window, 800, 600);
 
@@ -217,9 +221,19 @@ void IoClient::init_glfw_core()
 void IoClient::init_glfw_window()
 {
     util::log("IO_CLIENT", util::DEBUG, "initializing GLFW window");
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2); //TODO log + magic number
+#if   LUX_GL_VARIANT == LUX_GL_VARIANT_2_1
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_ANY_PROFILE);
+#elif LUX_GL_VARIANT == LUX_GL_VARIANT_ES_2_0
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
+    glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_ANY_PROFILE);
+#else
+#   error "Unsupported GL variant selected"
+#endif
     glfw_window = glfwCreateWindow(800, 600, "Lux", NULL, NULL);
     glfwMakeContextCurrent(glfw_window);
     glfwSetWindowUserPointer(glfw_window, this);
@@ -232,7 +246,13 @@ void IoClient::init_glfw_window()
 void IoClient::init_glad()
 {
     util::log("IO_CLIENT", util::DEBUG, "initializing GLAD");
+#if   LUX_GL_VARIANT == LUX_GL_VARIANT_2_1
     if(gladLoadGLLoader((GLADloadproc)glfwGetProcAddress) == 0)
+#elif LUX_GL_VARIANT == LUX_GL_VARIANT_ES_2_0
+    if(gladLoadGLES2Loader((GLADloadproc)glfwGetProcAddress) == 0)
+#else
+#   error "Unsupported GL variant selected"
+#endif
     {
         throw std::runtime_error("couldn't initialize GLAD");
     }

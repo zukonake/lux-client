@@ -6,9 +6,13 @@ set(LUX_CLIENT_VERSION_MAJOR 0)
 set(LUX_CLIENT_VERSION_MINOR 0)
 set(LUX_CLIENT_VERSION_PATCH 0)
 
+set(LUX_GL_VARIANT_2_1    1)
+set(LUX_GL_VARIANT_ES_2_0 2)
+set(LUX_GL_VARIANT        ${LUX_GL_VARIANT_ES_2_0})
+
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR})
 set(THREADS_PREFER_PTHREAD_FLAG ON)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wundef")
 set(CMAKE_CXX_FLAGS_DEBUG   "${CMAKE_CXX_FLAGS_DEBUG} -Og -pipe -fexceptions \
     -fasynchronous-unwind-tables -fstack-protector-strong -D_GLIBCXX_ASSERTIONS\
     -ftrapv")
@@ -34,6 +38,13 @@ add_subdirectory("deps/lux-shared")
 add_subdirectory("deps/lodepng")
 
 file(GLOB_RECURSE SOURCES "src/*.cpp")
+if(${LUX_GL_VARIANT} EQUAL ${LUX_GL_VARIANT_2_1})
+    list(APPEND SOURCES "${PROJECT_SOURCE_DIR}/gl/glad-2.1.cpp")
+elseif(${LUX_GL_VARIANT} EQUAL ${LUX_GL_VARIANT_ES_2_0})
+    list(APPEND SOURCES "${PROJECT_SOURCE_DIR}/gl/glad-es-2.0.cpp")
+else()
+    message(FATAL_ERROR "Unsupported GL variant selected")
+endif()
 add_executable(lux-client ${SOURCES})
 
 find_package(Threads REQUIRED)
