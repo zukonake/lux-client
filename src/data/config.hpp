@@ -5,6 +5,7 @@
 #include <lux/alias/scalar.hpp>
 #include <lux/alias/string.hpp>
 #include <lux/net/port.hpp>
+#include <lux/alias/vec_2.hpp>
 #include <lux/alias/vec_3.hpp>
 
 namespace data
@@ -15,8 +16,10 @@ struct Database;
 struct Config
 {
     Database const *db;
-    String   vert_shader_path;
-    String   frag_shader_path;
+    String    vert_shader_path;
+    String    frag_shader_path;
+    Vec2<U16> tile_size;
+    String    tileset_path;
     struct
     {
         String hostname;

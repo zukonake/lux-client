@@ -116,21 +116,28 @@ void Map::add_chunk(net::server::Chunk const &new_chunk)
         map::Pos map_pos = chunk::to_map_pos(chunk_pos, i);
         if(is_solid(map_pos))
         {
-            map::Pos offsets[6] = {{-1,  0,  0},
-                                   { 1,  0,  0},
-                                   { 0, -1,  0},
-                                   { 0,  1,  0},
-                                   { 0,  0, -1},
-                                   { 0,  0,  1}};
+            const map::Pos offsets[6] =
+                {{-1,  0,  0},
+                 { 1,  0,  0},
+                 { 0, -1,  0},
+                 { 0,  1,  0},
+                 { 0,  0, -1},
+                 { 0,  0,  1}};
+            const render::TexPos tex_positions[4] =
+                {{0, 0},
+                 {1, 0},
+                 {1, 1},
+                 {0, 1}};
             for(SizeT side = 0; side < 6; ++side)
             {
                 if(!is_solid(map_pos + offsets[side]))
                 {
                     for(unsigned j = 0; j < 4; ++j)
                     {
-                        glm::vec4 col = glm::vec4(quads[side][j], 1.0);
-                        chunk.vertices.emplace_back((glm::vec3)map_pos +
-                                                    quads[side][j], col);
+                        glm::vec4 col = glm::vec4(1.0);
+                        chunk.vertices.emplace_back(
+                            (glm::vec3)map_pos + quads[side][j],col,
+                            chunk.tiles[i].type->tex_pos + tex_positions[j]);
                     }
                     for(auto const &idx : {0, 1, 2, 2, 3, 0})
                     {

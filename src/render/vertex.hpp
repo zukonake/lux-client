@@ -9,9 +9,11 @@ namespace render
 #pragma pack(push, 1)
 struct Vertex
 {
-    Vertex(glm::vec3 pos, glm::vec4 col) : pos(pos), col(col) { }
+    Vertex(glm::vec3 pos, glm::vec4 col, glm::vec2 tex_pos) :
+        pos(pos), col(col), tex_pos(tex_pos) { }
     glm::vec3 pos;
     glm::vec4 col;
+    glm::vec2 tex_pos;
 };
 #pragma pack(pop)
 

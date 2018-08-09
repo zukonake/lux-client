@@ -8,6 +8,7 @@
 #include <lux/common/chunk.hpp>
 //
 #include <data/config.hpp>
+#include <render/tileset.hpp>
 #include <render/program.hpp>
 #include <render/camera.hpp>
 #include <map/map.hpp>
@@ -54,6 +55,7 @@ class IoClient
     map::Map map;
     render::Program program;
     render::Camera  camera;
+    render::Tileset tileset;
     Vec3<U8> view_range;
 
     entity::Pos player_pos;

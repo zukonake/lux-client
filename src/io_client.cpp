@@ -30,6 +30,7 @@ IoClient::IoClient(data::Config const &config) :
     glfwSwapInterval(0);
 
     program.init(conf.vert_shader_path, conf.frag_shader_path);
+    glm::vec2 tileset_size = tileset.init(conf.tileset_path);
     glEnable(GL_DEPTH_TEST);
 
     glEnable(GL_CULL_FACE);
@@ -40,6 +41,9 @@ IoClient::IoClient(data::Config const &config) :
 
     program.set_uniform("world", glUniformMatrix4fv,
         1, GL_FALSE, glm::value_ptr(world_mat));
+    glm::vec2 tile_scale = {(F32)conf.tile_size.x / (F32)tileset_size.x,
+                            (F32)conf.tile_size.y / (F32)tileset_size.y};
+    program.set_uniform("tex_size", glUniform2f, tile_scale.x, tile_scale.y);
 }
 
 IoClient::~IoClient()
@@ -184,11 +188,15 @@ void IoClient::render_chunk(chunk::Pos const &pos)
             sizeof(render::Vertex), (void*)offsetof(render::Vertex, pos));
         glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE,
             sizeof(render::Vertex), (void*)offsetof(render::Vertex, col));
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE,
+            sizeof(render::Vertex), (void*)offsetof(render::Vertex, tex_pos));
         glEnableVertexAttribArray(0);
         glEnableVertexAttribArray(1);
+        glEnableVertexAttribArray(2);
         glDrawElements(GL_TRIANGLES, chunk->indices.size(), render::INDEX_TYPE, 0);
         glDisableVertexAttribArray(0);
         glDisableVertexAttribArray(1);
+        glDisableVertexAttribArray(2);
     }
 }
 

@@ -1,8 +1,8 @@
 #pragma once
 
+#include <config.h>
 #include <data/database.hpp>
 #include <data/config.hpp>
-#include <render/model.hpp>
 #include <map/tile/tile_type.hpp>
 
 map::TileType const void_tile =
@@ -47,30 +47,12 @@ data::Config const default_config =
 #else
 #   error "Unsupported GL variant selected"
 #endif
+    {16, 16},
+    "tileset.png",
     {
         "localhost",
         31337
     },
-    {2, 2, 2},
+    {2, 2, 1},
     "lux client"
-};
-
-render::Model const block_model =
-{
-    {
-        {{0.0, 0.0, 0.0}, {1.0, 0.0, 0.0, 1.0}}, //0
-        {{0.0, 0.0, 1.0}, {0.0, 1.0, 0.0, 1.0}}, //1
-        {{1.0, 0.0, 0.0}, {0.0, 0.0, 1.0, 1.0}}, //2
-        {{1.0, 0.0, 1.0}, {1.0, 1.0, 0.0, 1.0}}, //3
-        {{1.0, 1.0, 0.0}, {1.0, 1.0, 1.0, 1.0}}, //4
-        {{1.0, 1.0, 1.0}, {0.0, 1.0, 1.0, 1.0}}, //5
-        {{0.0, 1.0, 0.0}, {1.0, 0.0, 1.0, 1.0}}, //6
-        {{0.0, 1.0, 1.0}, {0.5, 0.5, 0.5, 1.0}}  //7
-    },
-    { 0, 1, 2, 1, 3, 2,
-      2, 3, 4, 3, 5, 4,
-      4, 5, 6, 5, 7, 6,
-      6, 7, 0, 7, 1, 0,
-      1, 3, 5, 1, 5, 7,
-      0, 4, 2, 4, 6, 0 }
 };
