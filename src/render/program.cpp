@@ -6,11 +6,6 @@
 namespace render
 {
 
-Program::~Program()
-{
-    glDeleteProgram(id);
-}
-
 void Program::init(String const &vert_path, String const &frag_path)
 {
     vert_id = load_shader(GL_VERTEX_SHADER  , vert_path);

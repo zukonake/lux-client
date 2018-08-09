@@ -12,7 +12,6 @@ class Program
 {
     public:
     Program() = default;
-    ~Program();
 
     void init(String const &vert_path, String const &frag_path);
     template<typename F, typename... Args>
