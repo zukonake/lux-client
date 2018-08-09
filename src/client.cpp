@@ -10,7 +10,8 @@ Client::Client() :
     game_tick(util::TickClock::Duration(1)),
     net_client(conf.server.hostname, conf.server.port),
     io_client(conf),
-    received_init(false)
+    received_init(false),
+    sent_init(false)
 {
     sp.tick = {{}, {0, 0, 0}};
     run();
@@ -50,12 +51,26 @@ void Client::receive_server_packets()
 
 void Client::send_client_packets()
 {
-    while(io_client.give_client_signal(cp))
+    if(!sent_init) //TODO move to Client::give_client_signal?
     {
+        util::log("SERVER", util::INFO, "initializing to server");
+        cp.type = net::client::Packet::INIT;
+        cp.init.conf.view_range = conf.view_range;
+        std::copy(conf.client_name.begin(), conf.client_name.end(),
+                  std::back_inserter(cp.init.client_name));
+        
         net_client.send(cp, ENET_PACKET_FLAG_RELIABLE);
+        sent_init = true;
     }
-    io_client.give_client_tick(cp);
-    net_client.send(cp, ENET_PACKET_FLAG_UNSEQUENCED);
+    else
+    {
+        while(io_client.give_client_signal(cp))
+        {
+            net_client.send(cp, ENET_PACKET_FLAG_RELIABLE);
+        }
+        io_client.give_client_tick(cp);
+        net_client.send(cp, ENET_PACKET_FLAG_UNSEQUENCED);
+    }
 }
 
 void Client::take_server_signal()
@@ -85,23 +100,21 @@ void Client::take_server_signal()
 void Client::init_from_server()
 {
     auto const &si = sp.init;
+    util::log("CLIENT", util::INFO, "received initialization data");
     if(si.chunk_size != chunk::SIZE) //TODO check ver?
     {
         throw std::runtime_error("incompatible chunk size");
     }
-    util::log("CLIENT", util::INFO, "received initialization data");
     String server_name(si.server_name.begin(), si.server_name.end());
     util::log("CLIENT", util::INFO, "server name: %s", server_name);
-    util::log("CLIENT", util::INFO, "tick rate: %.2f", si.tick_rate);
-    game_tick.set_rate(util::TickClock::Duration(1.f / si.tick_rate));
+    sp.conf = sp.init.conf;
+    change_config();
 }
 
 void Client::change_config()
 {
     auto const &sc = sp.conf;
     util::log("CLIENT", util::INFO, "changing configuration");
-    String server_name(sc.server_name.begin(), sc.server_name.end());
-    util::log("CLIENT", util::INFO, "server name: %s", server_name);
     util::log("CLIENT", util::INFO, "tick rate: %.2f", sc.tick_rate);
     game_tick.set_rate(util::TickClock::Duration(1.f / sc.tick_rate));
 }

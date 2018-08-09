@@ -3,7 +3,7 @@
 #include <glm/glm.hpp>
 //
 #include <lux/alias/scalar.hpp>
-#include <lux/alias/c_string.hpp>
+#include <lux/alias/string.hpp>
 #include <lux/net/port.hpp>
 #include <lux/alias/vec_3.hpp>
 
@@ -15,14 +15,15 @@ struct Database;
 struct Config
 {
     Database const *db;
-    CString   vert_shader_path;
-    CString   frag_shader_path;
+    String   vert_shader_path;
+    String   frag_shader_path;
     struct
     {
-        CString hostname;
+        String hostname;
         net::Port port;
     } server;
     Vec3<U8> view_range;
+    String   client_name;
 };
 
 }

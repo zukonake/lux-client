@@ -51,7 +51,8 @@ data::Config const default_config =
         "localhost",
         31337
     },
-    {1, 1, 1},
+    {2, 2, 2},
+    "lux client"
 };
 
 render::Model const block_model =

@@ -40,4 +40,5 @@ class Client
     NetClient net_client;
     IoClient   io_client;
     bool received_init;
+    bool sent_init;
 };
