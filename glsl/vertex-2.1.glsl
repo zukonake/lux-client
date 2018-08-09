@@ -1,5 +1,5 @@
 #version 120
-#define ENABLE_FOG
+//#define ENABLE_FOG
 
 attribute vec3 pos;
 attribute vec4 col;

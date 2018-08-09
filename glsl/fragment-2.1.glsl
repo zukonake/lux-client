@@ -1,5 +1,5 @@
 #version 120
-#define ENABLE_NOISE
+//#define ENABLE_NOISE
 
 varying vec2 f_tex_pos;
 varying vec4 f_col;
