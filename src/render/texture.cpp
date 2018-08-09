@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include <stdexcept>
 //
 #include <lodepng.h>
@@ -5,12 +6,12 @@
 #include <lux/alias/scalar.hpp>
 #include <lux/alias/vector.hpp>
 //
-#include "render/tileset.hpp"
+#include "render/texture.hpp"
 
 namespace render
 {
 
-Vec2<U32> Tileset::init(String const &path)
+Vec2<U32> Texture::load(String const &path)
 {
     glGenTextures(1, &id);
     glBindTexture(GL_TEXTURE_2D, id);
@@ -19,12 +20,12 @@ Vec2<U32> Tileset::init(String const &path)
     auto err = lodepng::decode(image, size.x, size.y, path);
     if(err) throw std::runtime_error("couldn't load tileset: " + path);
 
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, size.x, size.y,
-                 0, GL_RGBA, GL_UNSIGNED_BYTE, image.data());
-
     assert((size.x & (size.x - 1)) == 0); //assert powers of 2
     assert((size.y & (size.y - 1)) == 0); //
     assert(size.x == size.y); //only this is supported now
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, size.x, size.y,
+                 0, GL_RGBA, GL_UNSIGNED_BYTE, image.data());
 
     Vector<U8> mipmap_buf;
     for(U32 s = size.x / 2, i = 1; s > 0; s /= 2, ++i)
@@ -49,7 +50,7 @@ Vec2<U32> Tileset::init(String const &path)
     return size;
 }
 
-GLuint Tileset::get_id() const
+GLuint Texture::get_id() const
 {
     return id;
 }

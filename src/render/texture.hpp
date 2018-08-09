@@ -8,12 +8,12 @@
 namespace render
 {
 
-class Tileset
+class Texture
 {
     public:
-    Tileset() = default;
+    Texture() = default;
 
-    Vec2<U32> init(String const &path);
+    Vec2<U32> load(String const &path);
 
     GLuint get_id() const;
     private:

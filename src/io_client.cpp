@@ -30,7 +30,7 @@ IoClient::IoClient(data::Config const &config) :
     glfwSwapInterval(0);
 
     program.init(conf.vert_shader_path, conf.frag_shader_path);
-    glm::vec2 tileset_size = tileset.init(conf.tileset_path);
+    glm::vec2 tileset_size = tileset.load(conf.tileset_path);
     glEnable(GL_DEPTH_TEST);
 
     glEnable(GL_CULL_FACE);
