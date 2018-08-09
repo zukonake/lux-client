@@ -18,8 +18,8 @@ void main()
     gl_Position = projection * view * world * vec4(pos, 1.0);
     f_tex_pos = tex_pos * tex_size;
 #ifdef ENABLE_FOG
-    float fog = 1.0 - (gl_Position.z / 5.0);
-    f_col = col * min(1.0, max(0.0, fog));
+    float fog = clamp(1.0 - (gl_Position.z / 5.0), 0.0, 1.0);
+    f_col = col * vec4(fog, fog, fog, 1.0);
 #else
     f_col = col;
 #endif
