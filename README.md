@@ -6,7 +6,9 @@ Make sure you clone the submodules as well.
 
 Required libraries
   * enet
-  * OpenGL >=2.1
+  * OpenGL, one of:
+    * 2.1
+    * ES 2.0
   * GLFW
 
 ```
