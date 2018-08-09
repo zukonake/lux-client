@@ -1,7 +1,5 @@
-#include <cmath>
-//
 #include <lux/util/log.hpp>
-#include <lux/serial/server_init_data.hpp>
+#include <lux/common/chunk.hpp>
 //
 #include <data/config.hpp>
 #include <data/obj.hpp>
@@ -9,24 +7,13 @@
 
 Client::Client() :
     conf(default_config),
-    game_tick(util::TickClock::Duration::zero()),
+    game_tick(util::TickClock::Duration(1)),
     net_client(conf.server.hostname, conf.server.port),
-    io_client(conf, 60.0),
-    sd({{}, {}, {0, 0, 0}}),
-    cd({{}, {0, 0}, false, false})
+    io_client(conf),
+    received_init(false)
 {
-    init_from_server();
+    sp.tick = {{}, {0, 0, 0}};
     run();
-}
-
-void Client::init_from_server()
-{
-    serial::ServerInitData sid;
-    net_client.get_server_init_data(sid);
-    game_tick.set_rate(util::TickClock::Duration(1.f / sid.tick_rate));
-    String server_name(sid.server_name.begin(), sid.server_name.end());
-    util::log("CLIENT", util::INFO, "received init data from %s", server_name);
-    util::log("CLIENT", util::INFO, "game running on %.2f tick rate", sid.tick_rate);
 }
 
 bool Client::should_run()
@@ -39,7 +26,8 @@ void Client::run()
     while(should_run())
     {
         game_tick.start();
-        tick();
+        receive_server_packets();
+        send_client_packets();
         game_tick.stop();
         auto delta = game_tick.synchronize();
         if(delta < util::TickClock::Duration::zero())
@@ -50,10 +38,77 @@ void Client::run()
     }
 }
 
-void Client::tick()
+void Client::receive_server_packets()
 {
-    net_client.get_server_data(sd);
-    io_client.set_server_data(sd);
-    io_client.get_client_data(cd);
-    net_client.set_client_data(cd);
+    while(net_client.receive(sp))
+    {
+        take_server_signal();
+        io_client.take_server_signal(sp);
+    }
+    io_client.take_server_tick(sp.tick);
+}
+
+void Client::send_client_packets()
+{
+    while(io_client.give_client_signal(cp))
+    {
+        net_client.send(cp, ENET_PACKET_FLAG_RELIABLE);
+    }
+    io_client.give_client_tick(cp);
+    net_client.send(cp, ENET_PACKET_FLAG_UNSEQUENCED);
+}
+
+void Client::take_server_signal()
+{
+    if(!received_init) //TODO move to ctor?
+    {
+        if(sp.type == net::server::Packet::INIT)
+        {
+            init_from_server();
+            received_init = true;
+        }
+        else
+        {
+            throw std::runtime_error("server has not sent init data");
+        }
+    }
+    else if(sp.type == net::server::Packet::CONF)
+    {
+        change_config();
+    }
+    else if(sp.type == net::server::Packet::MSG)
+    {
+        display_msg();
+    }
+}
+
+void Client::init_from_server()
+{
+    auto const &si = sp.init;
+    if(si.chunk_size != chunk::SIZE) //TODO check ver?
+    {
+        throw std::runtime_error("incompatible chunk size");
+    }
+    util::log("CLIENT", util::INFO, "received initialization data");
+    String server_name(si.server_name.begin(), si.server_name.end());
+    util::log("CLIENT", util::INFO, "server name: %s", server_name);
+    util::log("CLIENT", util::INFO, "tick rate: %.2f", si.tick_rate);
+    game_tick.set_rate(util::TickClock::Duration(1.f / si.tick_rate));
+}
+
+void Client::change_config()
+{
+    auto const &sc = sp.conf;
+    util::log("CLIENT", util::INFO, "changing configuration");
+    String server_name(sc.server_name.begin(), sc.server_name.end());
+    util::log("CLIENT", util::INFO, "server name: %s", server_name);
+    util::log("CLIENT", util::INFO, "tick rate: %.2f", sc.tick_rate);
+    game_tick.set_rate(util::TickClock::Duration(1.f / sc.tick_rate));
+}
+
+void Client::display_msg()
+{
+    auto const &sm = sp.msg;
+    String msg_str(sm.log_msg.begin(), sm.log_msg.end());
+    util::log("CLIENT", sm.log_level, "message from server: %s", msg_str);
 }

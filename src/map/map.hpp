@@ -8,7 +8,6 @@
 #include <lux/alias/set.hpp>
 #include <lux/common/chunk.hpp>
 #include <lux/common/map.hpp>
-#include <lux/serial/server_data.hpp>
 //
 #include <map/chunk.hpp>
 
@@ -16,6 +15,8 @@ namespace data
 {
     struct Database;
 }
+
+namespace net::server { struct Chunk; }
 
 namespace map
 {
@@ -30,7 +31,7 @@ class Map
     Tile const *operator[](map::Pos const &pos) const;
     Chunk const *operator[](chunk::Pos const &pos) const;
 
-    void add_chunk(serial::ChunkData const &new_chunk);
+    void add_chunk(net::server::Chunk const &new_chunk);
     private:
 
     HashMap<chunk::Pos, Chunk> chunks;

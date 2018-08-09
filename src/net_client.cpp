@@ -1,15 +1,14 @@
 #include <stdexcept>
 //
 #include <lux/util/log.hpp>
-#include <lux/serial/server_init_data.hpp>
-#include <lux/serial/server_data.hpp>
-#include <lux/serial/client_data.hpp>
+#include <lux/net/server/packet.hpp>
+#include <lux/net/client/packet.hpp>
 //
 #include "net_client.hpp"
 
 NetClient::NetClient(String const &server_hostname, net::Port port)
 {
-    enet_client = enet_host_create(nullptr, 1, 1, 0, 0);
+    enet_client = enet_host_create(nullptr, 1, 2, 0, 0);
     if(enet_client == nullptr)
     {
         throw std::runtime_error("couldn't create ENet client host");
@@ -26,6 +25,43 @@ NetClient::~NetClient()
     enet_host_destroy(enet_client);
 }
 
+bool NetClient::receive(net::server::Packet &sp)
+{
+    ENetEvent event;
+    if(enet_host_service(enet_client, &event, TICK_TIMEOUT) > 0)
+    {
+        if(event.type == ENET_EVENT_TYPE_RECEIVE)
+        {
+            auto *pack = event.packet;
+            net::clear_buffer(sp);
+            deserializer.set_slice(pack->data, pack->data + pack->dataLength);
+            deserializer >> sp;
+            enet_packet_destroy(pack);
+            return true;
+        }
+        else if(event.type == ENET_EVENT_TYPE_DISCONNECT)
+        {
+            throw std::runtime_error("lost connection to server");
+        }
+    }
+    return false;
+}
+
+void NetClient::send(net::client::Packet &cp, U32 flags)
+{
+    //TODO packet buffer with enet_packet_resize
+    //TODO move to shared?
+    serializer.reserve(net::get_size(cp));
+    serializer << cp;
+
+    ENetPacket *pack =
+        enet_packet_create(serializer.get(),serializer.get_used(), flags);
+    enet_peer_send(enet_server, 0, pack);
+    enet_host_flush(enet_client);
+    net::clear_buffer(cp);
+}
+
+
 void NetClient::connect_to(ENetAddress *server_addr)
 {
     util::log("NET_CLIENT", util::INFO, "connecting to %u.%u.%u.%u:%u",
@@ -37,22 +73,19 @@ void NetClient::connect_to(ENetAddress *server_addr)
     enet_server = enet_host_connect(enet_client, server_addr, 1, 0);
     if(enet_server == nullptr)
     {
-        throw std::runtime_error("couldn't connect to server");
+        throw std::runtime_error("couldn't create enet host");
     }
     ENetEvent event;
     if(enet_host_service(enet_client, &event, CONNECT_TIMEOUT) > 0)
     {
         if(event.type != ENET_EVENT_TYPE_CONNECT)
         {
+            if(event.type == ENET_EVENT_TYPE_RECEIVE)
+            {
+                enet_packet_destroy(event.packet);
+            }
             enet_peer_reset(enet_server);
-            if(event.type == ENET_EVENT_TYPE_DISCONNECT)
-            {
-                throw std::runtime_error("server refused connection");
-            }
-            else
-            {
-                throw std::runtime_error("invalid server response");
-            }
+            throw std::runtime_error("invalid server response");
         }
         else
         {
@@ -62,7 +95,7 @@ void NetClient::connect_to(ENetAddress *server_addr)
     else
     {
         enet_peer_reset(enet_server);
-        throw std::runtime_error("server connection failed");
+        throw std::runtime_error("server connection timed out");
     }
 }
 
@@ -85,61 +118,4 @@ void NetClient::disconnect()
     enet_peer_reset(enet_server);
 }
 
-void NetClient::get_server_init_data(serial::ServerInitData &sid)
-{
-    ENetEvent event;
-    while(enet_host_service(enet_client, &event, INIT_TIMEOUT) > 0)
-    {
-        if(event.type == ENET_EVENT_TYPE_RECEIVE)
-        {
-            auto *packet = event.packet;
-            serial::clear_buffer(sid);
-            deserializer.set_slice(packet->data,
-                                   packet->data + packet->dataLength);
-            deserializer >> sid;
-            enet_packet_destroy(packet);
-            return;
-        }
-        else if(event.type == ENET_EVENT_TYPE_DISCONNECT)
-        {
-            throw std::runtime_error("lost connection to server");
-        }
-    }
-    throw std::runtime_error("couldn't fetch server init data");
-}
 
-void NetClient::get_server_data(serial::ServerData &sd)
-{
-    ENetEvent event;
-    if(enet_host_service(enet_client, &event, 50) > 0) //TODO timeout
-    {
-        if(event.type == ENET_EVENT_TYPE_RECEIVE)
-        {
-            auto *packet = event.packet;
-            serial::clear_buffer(sd);
-            deserializer.set_slice(packet->data,
-                                   packet->data + packet->dataLength);
-            deserializer >> sd;
-            enet_packet_destroy(packet);
-        }
-        else if(event.type == ENET_EVENT_TYPE_DISCONNECT)
-        {
-            throw std::runtime_error("lost connection to server");
-        }
-    }
-    else
-    {
-        util::log("NET_CLIENT", util::WARN, "tick packet lost");
-    }
-}
-
-void NetClient::set_client_data(serial::ClientData const &cd)
-{
-    serializer.reserve(serial::get_size(cd));
-    serializer << cd;
-
-    ENetPacket *packet =
-        enet_packet_create(serializer.get(), serializer.get_used(), 0);
-    enet_peer_send(enet_server, 0, packet);
-    enet_host_flush(enet_client); //TODO should this be here? benchmark
-}

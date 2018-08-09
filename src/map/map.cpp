@@ -2,6 +2,7 @@
 //
 #include <lux/alias/set.hpp>
 #include <lux/util/log.hpp>
+#include <lux/net/server/chunk.hpp>
 //
 #include <data/database.hpp>
 #include <data/obj.hpp>
@@ -35,9 +36,8 @@ Chunk const *Map::operator[](chunk::Pos const &pos) const
     else return &chunks.at(pos);
 }
 
-void Map::add_chunk(serial::ChunkData const &new_chunk)
+void Map::add_chunk(net::server::Chunk const &new_chunk)
 {
-    using namespace linear;
     chunk::Pos const &chunk_pos = new_chunk.pos;
     if(chunks.count(chunk_pos) > 0) return;
 

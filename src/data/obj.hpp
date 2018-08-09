@@ -40,9 +40,6 @@ data::Database const default_db =
 data::Config const default_config =
 {
     &default_db,
-    {16.0, 16.0},
-    {32.0, 32.0},
-    "tileset.png",
     "glsl/vertex.glsl",
     "glsl/fragment.glsl",
     {

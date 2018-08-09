@@ -1,30 +1,20 @@
-#include <cstring>
 #include <stdexcept>
-#include <sstream>
 #include <fstream>
-#include <algorithm>
 //
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
-#include <lodepng.h>
 //
 #include <lux/util/log.hpp>
-#include <lux/alias/c_string.hpp>
 #include <lux/alias/string.hpp>
-#include <lux/linear/vec_2.hpp>
-#include <lux/serial/server_data.hpp>
-#include <lux/serial/client_data.hpp>
+#include <lux/net/server/packet.hpp>
+#include <lux/net/client/packet.hpp>
 //
 #include "io_client.hpp"
 
-IoClient::IoClient(data::Config const &config, F64 fps) :
-    has_initialized(false),
-    sd({{}, {}, {0, 0, 0}}),
-    cd({{}, {0, 0}, false, false}),
-    tick_clock(util::TickClock::Duration(1.0 / fps)),
+IoClient::IoClient(data::Config const &config) :
     conf(config),
     map(*conf.db),
     view_range(config.view_range),
@@ -33,42 +23,96 @@ IoClient::IoClient(data::Config const &config, F64 fps) :
               {0.0, 1.0, 0.0, 0.0},
               {0.0, 0.0, 0.0, 1.0})
 {
-    thread = std::thread(&IoClient::init, this);
+    init_glfw_core();
+    init_glfw_window();
+    init_glad();
+
+    glfwSwapInterval(0);
+
+    program.init(conf.vert_shader_path, conf.frag_shader_path);
+    glEnable(GL_DEPTH_TEST);
+
+    framebuffer_size_callback(glfw_window, 800, 600);
+
+    program.set_uniform("world", glUniformMatrix4fv,
+        1, GL_FALSE, glm::value_ptr(world_mat));
 }
 
 IoClient::~IoClient()
 {
-    thread.join();
+    glfwTerminate();
 }
 
-void IoClient::set_server_data(serial::ServerData const &_sd)
+void IoClient::take_server_tick(net::server::Tick const &st)
 {
-    std::lock_guard<std::mutex> lock(sd_mutex);
-    sd = _sd;
+    player_pos = st.player_pos;
+    check_gl_error();
+    glfwPollEvents();
+    glFlush();
+    render();
 }
 
-void IoClient::get_client_data(serial::ClientData &_cd)
+void IoClient::take_server_signal(net::server::Packet const &sp)
 {
-    std::lock_guard<std::mutex> lock(cd_mutex);
-    _cd = cd;
+    if(sp.type == net::server::Packet::MAP)
+    {
+        for(auto const &chunk : sp.map.chunks)
+        {
+            map.add_chunk(chunk);
+        }
+    }
+}
+
+void IoClient::give_client_tick(net::client::Packet &cp)
+{
+    cp.type = net::client::Packet::TICK;
+    cp.tick.is_moving = false;
+    if(glfwGetKey(glfw_window, GLFW_KEY_A))
+    {
+        cp.tick.character_dir.x = -1.0;
+        cp.tick.is_moving = true;
+    }
+    else if(glfwGetKey(glfw_window, GLFW_KEY_D))
+    {
+        cp.tick.character_dir.x = 1.0;
+        cp.tick.is_moving = true;
+    }
+    else cp.tick.character_dir.x = 0.0;
+    if(glfwGetKey(glfw_window, GLFW_KEY_W))
+    {
+        cp.tick.character_dir.y = -1.0;
+        cp.tick.is_moving = true;
+    }
+    else if(glfwGetKey(glfw_window, GLFW_KEY_S))
+    {
+        cp.tick.character_dir.y = 1.0;
+        cp.tick.is_moving = true;
+    }
+    else cp.tick.character_dir.y = 0.0;
+    if(glfwGetKey(glfw_window, GLFW_KEY_SPACE))
+    {
+        cp.tick.is_jumping = true;
+    }
+    else cp.tick.is_jumping = false;
+    cp.tick.character_dir =
+        glm::vec3(camera.get_rotation() * glm::vec4(cp.tick.character_dir, 0.0, 1.0));
+}
+
+bool IoClient::give_client_signal(net::client::Packet &cp)
+{
+    return false;
 }
 
 bool IoClient::should_close()
 {
-    return has_initialized && glfwWindowShouldClose(glfw_window);
-    /* the sequence is important here, the glfw_window can be invalid when
-     * has_initialized is not true
-     */
+    return glfwWindowShouldClose(glfw_window);
 }
 
 void IoClient::framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
     glViewport(0, 0, width, height);
     IoClient *io_client = (IoClient *)glfwGetWindowUserPointer(window);
-    glm::mat4 projection =
-        glm::perspective(glm::radians(120.f), (float)width/(float)height, 0.1f, 40.0f);
-    io_client->program.set_uniform("projection", glUniformMatrix4fv,
-        1, GL_FALSE, glm::value_ptr(projection));
+    io_client->set_projection((F32)width/(F32)height);
     util::log("IO_CLIENT", util::DEBUG, "screen size change to %ux%u", width, height);
 }
 
@@ -96,122 +140,39 @@ void IoClient::mouse_callback(GLFWwindow* window, double xpos, double ypos)
     io_client->mouse_pos = glm::vec2(xpos, ypos);
 }
 
-void IoClient::run()
-{
-    while(!should_close())
-    {
-        tick_clock.start();
-        check_gl_error();
-        glfwPollEvents();
-        handle_server_data();
-        handle_client_data();
-        tick_clock.stop();
-        tick_clock.synchronize();
-    }
-    deinit();
-}
-
-void IoClient::handle_server_data()
-{
-    {
-        std::lock_guard<std::mutex> lock(sd_mutex);
-        for(auto const &chunk : sd.chunks)
-        {
-            util::log("IO_CLIENT", util::DEBUG, "receiving chunk %d, %d, %d",
-                       chunk.pos.x, chunk.pos.y, chunk.pos.z);
-            map.add_chunk(chunk);
-        }
-        build_entity_buffer(sd.player_pos, sd.entities);
-    }
-    render(sd.player_pos, sd.entities.size() == 0 ? 0 : sd.entities.size() - 1);
-    /* TODO render should be moved to run(), it should not take any values from
-     * sd, as sd must be locked before accessed
-     */
-}
-
-void IoClient::handle_client_data()
-{
-    std::lock_guard<std::mutex> lock(cd_mutex);
-    cd.chunk_requests.clear();
-    std::copy(chunk_requests.begin(),
-              chunk_requests.end(),
-              std::back_inserter(cd.chunk_requests));
-    chunk_requests.clear();
-    cd.is_moving = false;
-    if(glfwGetKey(glfw_window, GLFW_KEY_A))
-    {
-        cd.character_dir.x = -1.0;
-        cd.is_moving = true;
-    }
-    else if(glfwGetKey(glfw_window, GLFW_KEY_D))
-    {
-        cd.character_dir.x = 1.0;
-        cd.is_moving = true;
-    }
-    else cd.character_dir.x = 0.0;
-    if(glfwGetKey(glfw_window, GLFW_KEY_W))
-    {
-        cd.character_dir.y = -1.0;
-        cd.is_moving = true;
-    }
-    else if(glfwGetKey(glfw_window, GLFW_KEY_S))
-    {
-        cd.character_dir.y = 1.0;
-        cd.is_moving = true;
-    }
-    else cd.character_dir.y = 0.0;
-    if(glfwGetKey(glfw_window, GLFW_KEY_SPACE))
-    {
-        cd.is_jumping = true;
-    }
-    else cd.is_jumping = false;
-    cd.character_dir =
-        glm::vec3(camera.get_rotation() * glm::vec4(cd.character_dir, 0.0, 1.0));
-}
-
-void IoClient::render(entity::Pos pos, SizeT entities_num)
+void IoClient::render()
 {
     camera.teleport(glm::vec3(world_mat *
-        glm::vec4(pos + glm::vec3(0.0, 0.0, 0.8), 1.0)));
-    program.set_uniform("world", glUniformMatrix4fv,
-        1, GL_FALSE, glm::value_ptr(world_mat));
+        glm::vec4(player_pos + glm::vec3(0.0, 0.0, 0.8), 1.0)));
     program.set_uniform("view", glUniformMatrix4fv,
         1, GL_FALSE, glm::value_ptr(camera.get_view()));
-    chunk_requests.clear();
     glClearColor(0.0, 0.0, 0.0, 1.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    chunk::Pos index;
-    chunk::Pos center = chunk::to_pos(pos); //TODO map::to_pos from entity::Pos
-    for(index.z = center.z - view_range.z;
-        index.z <= center.z + view_range.z;
-        ++index.z)
+    chunk::Pos iter;
+    chunk::Pos center = chunk::to_pos(player_pos); //TODO entity::to_pos
+    for(iter.z = center.z - view_range.z;  //TODO render all chunks instead
+        iter.z <= center.z + view_range.z; // server will handle the loading
+        ++iter.z)
     {
-        for(index.y = center.y - view_range.y;
-            index.y <= center.y + view_range.y;
-            ++index.y)
+        for(iter.y = center.y - view_range.y;
+            iter.y <= center.y + view_range.y;
+            ++iter.y)
         {
-            for(index.x = center.x - view_range.x;
-                index.x <= center.x + view_range.x;
-                ++index.x)
+            for(iter.x = center.x - view_range.x;
+                iter.x <= center.x + view_range.x;
+                ++iter.x)
             {
-                render_chunk(index);
+                render_chunk(iter);
             }
         }
     }
-    render_entities(entities_num);
     glfwSwapBuffers(glfw_window);
 }
 
 void IoClient::render_chunk(chunk::Pos const &pos)
 {
     map::Chunk const *chunk = map[pos];
-    if(chunk == nullptr)
-    {
-        util::log("IO_CLIENT", util::DEBUG, "requesting chunk %d, %d, %d",
-                   pos.x, pos.y, pos.z);
-        chunk_requests.insert(pos);
-    }
-    else
+    if(chunk != nullptr)
     {
         glBindBuffer(GL_ARRAY_BUFFER, chunk->vbo_id);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, chunk->ebo_id);
@@ -222,24 +183,9 @@ void IoClient::render_chunk(chunk::Pos const &pos)
         glEnableVertexAttribArray(0);
         glEnableVertexAttribArray(1);
         glDrawElements(GL_TRIANGLES, chunk->indices.size(), render::INDEX_TYPE, 0);
-        glDisableVertexAttribArray(0); //TODO needed?
-        glDisableVertexAttribArray(1); // also in render_entities
+        glDisableVertexAttribArray(0);
+        glDisableVertexAttribArray(1);
     }
-}
-
-void IoClient::render_entities(SizeT num)
-{
-    glBindBuffer(GL_ARRAY_BUFFER        , entity_vbo);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, entity_ebo);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE,
-        sizeof(render::Vertex), (void*)offsetof(render::Vertex, pos));
-    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE,
-        sizeof(render::Vertex), (void*)offsetof(render::Vertex, col));
-    glEnableVertexAttribArray(0);
-    glEnableVertexAttribArray(1);
-    glDrawElements(GL_TRIANGLES, num * 36, render::INDEX_TYPE, 0);
-    glDisableVertexAttribArray(0);
-    glDisableVertexAttribArray(1);
 }
 
 void IoClient::check_gl_error()
@@ -261,77 +207,6 @@ void IoClient::check_gl_error()
     }
 }
 
-void IoClient::build_entity_buffer(entity::Pos const &player_pos,
-                                   Vector<entity::Pos> const &entities)
-{
-    glm::vec3 model[8] =
-    {
-        {0.0, 0.0, 0.0},
-        {0.0, 0.8, 0.0},
-        {0.0, 0.8, 1.7},
-        {0.0, 0.0, 1.7},
-        {0.8, 0.0, 0.0},
-        {0.8, 0.8, 0.0},
-        {0.8, 0.8, 1.7},
-        {0.8, 0.0, 1.7},
-    };
-    Vector<render::Vertex> verts;
-    Vector<render::Index>  indices;
-    render::Index index_offset = 0;
-    for(auto const &entity : entities)
-    {
-        if(entity != player_pos)
-        {
-            for(auto const &vert : model)
-            {
-                verts.push_back({entity + vert, {0.5, 0.0, 0.0, 1.0}});
-            }
-            for(auto const &idx : {0, 1, 2, 0, 3, 2,
-                                   4, 5, 6, 4, 7, 6,
-                                   0, 4, 7, 0, 3, 7,
-                                   1, 5, 6, 1, 2, 6,
-                                   0, 1, 5, 0, 4, 5,
-                                   3, 2, 6, 3, 7, 6})
-            {
-                indices.emplace_back(idx + index_offset);
-            }
-            index_offset += 8;
-        }
-    }
-    glBindBuffer(GL_ARRAY_BUFFER, entity_vbo);
-    glBufferData(GL_ARRAY_BUFFER,
-                 sizeof(render::Vertex) * verts.size(),
-                 verts.data(),
-                 GL_STREAM_DRAW);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, entity_ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-                 sizeof(render::Index) * indices.size(),
-                 indices.data(),
-                 GL_STREAM_DRAW);
-}
-
-void IoClient::init()
-{
-    //TODO gl initializer class?
-    init_glfw_core();
-    init_glfw_window();
-    init_glad();
-
-    glfwSwapInterval(0);
-
-    program.init(conf.vert_shader_path, conf.frag_shader_path);
-    glEnable(GL_DEPTH_TEST);
-
-    framebuffer_size_callback(glfw_window, 800, 600);
-
-    glGenBuffers(1, &entity_vbo);
-    glGenBuffers(1, &entity_ebo);
-
-    has_initialized = true;
-    run();
-}
-
 void IoClient::init_glfw_core()
 {
     util::log("IO_CLIENT", util::DEBUG, "initializing GLFW core");
@@ -342,7 +217,7 @@ void IoClient::init_glfw_core()
 void IoClient::init_glfw_window()
 {
     util::log("IO_CLIENT", util::DEBUG, "initializing GLFW window");
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2); //TODO log + magic number
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_ANY_PROFILE);
     glfw_window = glfwCreateWindow(800, 600, "Lux", NULL, NULL);
@@ -363,8 +238,10 @@ void IoClient::init_glad()
     }
 }
 
-void IoClient::deinit()
+void IoClient::set_projection(F32 width_to_height)
 {
-    util::log("IO_CLIENT", util::DEBUG, "deinitializing");
-    glfwTerminate();
+    glm::mat4 projection =
+        glm::perspective(glm::radians(FOV), width_to_height, Z_NEAR, Z_FAR);
+    program.set_uniform("projection", glUniformMatrix4fv,
+        1, GL_FALSE, glm::value_ptr(projection));
 }
