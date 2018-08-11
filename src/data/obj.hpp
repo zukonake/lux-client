@@ -47,8 +47,9 @@ data::Config const default_config =
 #else
 #   error "Unsupported GL variant selected"
 #endif
-    {16, 16},
     "tileset.png",
+    {800, 600},
+    {16, 16},
     {
         "localhost",
         31337

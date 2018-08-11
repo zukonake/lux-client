@@ -11,31 +11,21 @@
 //
 #include <map/chunk.hpp>
 
-namespace data
-{
-    struct Database;
-}
-
+namespace data { struct Database; }
 namespace net::server { struct Chunk; }
-
-namespace map
-{
-
-struct Tile;
+namespace map { struct Tile; }
 
 class Map
 {
     public:
     Map(data::Database const &db);
 
-    Tile const *operator[](map::Pos const &pos) const;
-    Chunk const *operator[](chunk::Pos const &pos) const;
+    map::Tile  const *operator[](map::Pos   const &pos) const;
+    map::Chunk const *operator[](chunk::Pos const &pos) const;
 
     void add_chunk(net::server::Chunk const &new_chunk);
     private:
 
-    HashMap<chunk::Pos, Chunk> chunks;
+    HashMap<chunk::Pos, map::Chunk> chunks;
     data::Database const &db;
 };
-
-}

@@ -4,6 +4,7 @@
 #include <lux/net/server/packet.hpp>
 #include <lux/net/client/packet.hpp>
 //
+#include <gl_initializer.hpp>
 #include <net_client.hpp>
 #include <io_client.hpp>
 
@@ -26,7 +27,7 @@ class Client
     void receive_server_packets();
     void send_client_packets();
 
-    void take_server_signal();
+    void take_ss();
     void change_config();
     void display_msg();
     void init_from_server();
@@ -37,8 +38,10 @@ class Client
     net::server::Packet sp;
     net::client::Packet cp;
 
+    GlInitializer  gl_initializer;
     NetClient net_client;
     IoClient   io_client;
+
     bool received_init;
     bool sent_init;
 };

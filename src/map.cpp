@@ -9,25 +9,22 @@
 #include <map/tile/tile_type.hpp>
 #include "map.hpp"
 
-namespace map
-{
-
 Map::Map(data::Database const &db) :
     db(db)
 {
 
 }
 
-Tile const *Map::operator[](map::Pos const &pos) const
+map::Tile const *Map::operator[](map::Pos const &pos) const
 {
     chunk::Pos   chunk_pos   = chunk::to_pos(pos);
     chunk::Index chunk_index = chunk::to_index(pos);
-    Chunk const *chunk_ptr   = this->operator[](chunk_pos);
+    map::Chunk const *chunk_ptr   = this->operator[](chunk_pos);
     if(chunk_ptr != nullptr) return &chunk_ptr->tiles[chunk_index];
     else return nullptr;
 }
 
-Chunk const *Map::operator[](chunk::Pos const &pos) const
+map::Chunk const *Map::operator[](chunk::Pos const &pos) const
 {
     if(chunks.count(pos) == 0)
     {
@@ -132,6 +129,4 @@ void Map::add_chunk(net::server::Chunk const &new_chunk)
                  sizeof(render::Index) * chunk.indices.size(),
                  chunk.indices.data(),
                  GL_STATIC_DRAW);
-}
-
 }

@@ -8,8 +8,9 @@
 Client::Client() :
     conf(default_config),
     game_tick(util::TickClock::Duration(1)),
+    gl_initializer(conf.window_size),
     net_client(conf.server.hostname, conf.server.port),
-    io_client(conf),
+    io_client(gl_initializer.get_window(), conf),
     received_init(false),
     sent_init(false)
 {
@@ -43,10 +44,10 @@ void Client::receive_server_packets()
 {
     while(net_client.receive(sp))
     {
-        take_server_signal();
-        io_client.take_server_signal(sp);
+        take_ss();
+        io_client.dispatch_signal(sp);
     }
-    io_client.take_server_tick(sp.tick);
+    io_client.dispatch_tick(sp.tick);
 }
 
 void Client::send_client_packets()
@@ -58,22 +59,23 @@ void Client::send_client_packets()
         cp.init.conf.view_range = conf.view_range;
         std::copy(conf.client_name.begin(), conf.client_name.end(),
                   std::back_inserter(cp.init.client_name));
-        
+
         net_client.send(cp, ENET_PACKET_FLAG_RELIABLE);
         sent_init = true;
     }
     else
     {
-        while(io_client.give_client_signal(cp))
+        while(io_client.gather_signal(cp))
         {
             net_client.send(cp, ENET_PACKET_FLAG_RELIABLE);
         }
-        io_client.give_client_tick(cp);
+        cp.type = net::client::Packet::TICK;
+        io_client.gather_tick(cp.tick);
         net_client.send(cp, ENET_PACKET_FLAG_UNSEQUENCED);
     }
 }
 
-void Client::take_server_signal()
+void Client::take_ss()
 {
     if(!received_init) //TODO move to ctor?
     {

@@ -8,57 +8,32 @@
 #include <lux/common/chunk.hpp>
 //
 #include <data/config.hpp>
-#include <render/texture.hpp>
-#include <render/program.hpp>
-#include <render/camera.hpp>
-#include <map/map.hpp>
+#include <io_node.hpp>
+#include <renderer.hpp>
+#include <entity_controller.hpp>
+//#include <debug_interface.hpp>
 
 namespace net::server { struct Packet; }
 namespace net::client { struct Packet; }
 
-class IoClient
+class IoClient : public IoNode
 {
-    public:
-    IoClient(data::Config const &config);
-    ~IoClient();
-
-    void take_server_tick(net::server::Tick const &);
-    void take_server_signal(net::server::Packet const &);
-    void give_client_tick(net::client::Packet &);
-    bool give_client_signal(net::client::Packet &);
+public:
+    IoClient(GLFWwindow *win, data::Config const &conf);
 
     bool should_close();
-    private:
-    static constexpr F32 FOV    = 120.f;
-    static constexpr F32 Z_NEAR = 0.1f;
-    static constexpr F32 Z_FAR  = 40.1f;
-
-    static void framebuffer_size_callback(GLFWwindow* window, int width, int height);
-    static void error_callback(int err, const char* desc);
-    static void key_callback(GLFWwindow *window, int key, int scancode, int action, int mode);
-    static void mouse_callback(GLFWwindow* window, double xpos, double ypos);
-
-    void render();
-    void render_chunk(chunk::Pos const &pos);
+protected:
+    virtual void take_st(net::server::Tick const &) override;
+    virtual void give_ct(net::client::Tick &)       override;
+private:
+    static void window_resize_cb(GLFWwindow* window, int width, int height);
+    static void key_cb(GLFWwindow *window, int key, int scancode, int action, int mode);
+    static void mouse_cb(GLFWwindow* window, int button, int action, int mode);
+    static void glfw_error_cb(int err, const char* desc);
 
     void check_gl_error();
 
-    void init_glfw_core();
-    void init_glfw_window();
-    void init_glad();
-
-    void set_projection(F32 width_to_height);
-
-    GLFWwindow *glfw_window;
-
-    data::Config const &conf;
-    map::Map map;
-    render::Program program;
-    render::Camera  camera;
-    render::Texture tileset;
-    Vec3<U8> view_range;
-
-    entity::Pos player_pos;
-    glm::vec2 mouse_pos;
-    glm::mat4 world_mat;
+    Renderer         renderer;
+    EntityController entity_controller;
+    //DebugInterface debug_interface;
 };
