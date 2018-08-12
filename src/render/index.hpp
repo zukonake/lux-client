@@ -7,7 +7,7 @@
 namespace render
 {
 
-const GLenum INDEX_TYPE = GL_UNSIGNED_SHORT;
-typedef U16 Index;
+const GLenum INDEX_TYPE = GL_UNSIGNED_INT;
+typedef U32 Index;
 
 }
