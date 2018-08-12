@@ -15,16 +15,16 @@ Map::Map(data::Database const &db) :
 
 }
 
-map::Tile const *Map::operator[](map::Pos const &pos) const
+map::Tile const *Map::get_tile(MapPos const &pos) const
 {
-    chunk::Pos   chunk_pos   = chunk::to_pos(pos);
-    chunk::Index chunk_index = chunk::to_index(pos);
-    map::Chunk const *chunk_ptr   = this->operator[](chunk_pos);
-    if(chunk_ptr != nullptr) return &chunk_ptr->tiles[chunk_index];
+    ChkPos chunk_pos   = to_chk_pos(pos);
+    ChkIdx chunk_idx = to_chk_idx(pos);
+    map::Chunk const *chunk_ptr = get_chunk(chunk_pos);
+    if(chunk_ptr != nullptr) return &chunk_ptr->tiles[chunk_idx];
     else return nullptr;
 }
 
-map::Chunk const *Map::operator[](chunk::Pos const &pos) const
+map::Chunk const *Map::get_chunk(ChkPos const &pos) const
 {
     if(chunks.count(pos) == 0)
     {
@@ -35,7 +35,7 @@ map::Chunk const *Map::operator[](chunk::Pos const &pos) const
 
 void Map::add_chunk(net::server::Chunk const &new_chunk)
 {
-    chunk::Pos const &chunk_pos = new_chunk.pos;
+    ChkPos const &chunk_pos = new_chunk.pos;
     if(chunks.count(chunk_pos) > 0) return;
 
     util::log("MAP", util::TRACE, "adding new chunk %d, %d, %d",
@@ -45,10 +45,10 @@ void Map::add_chunk(net::server::Chunk const &new_chunk)
 
     auto &chunk = chunks[chunk_pos];
     /* this creates a new chunk */
-    chunk.tiles.reserve(chunk::TILE_SIZE);
+    chunk.tiles.reserve(CHK_VOLUME);
     {
-        SizeT worst_case_len = chunk::TILE_SIZE / 2 +
-            (chunk::TILE_SIZE % 2 == 0 ? 0 : 1);
+        SizeT worst_case_len = CHK_VOLUME / 2 +
+            (CHK_VOLUME % 2 == 0 ? 0 : 1);
         /* this is the size of a checkerboard pattern, the worst case for this
          * algorithm.
          */
@@ -70,7 +70,7 @@ void Map::add_chunk(net::server::Chunk const &new_chunk)
          {{0.0, 1.0, 0.0}, {1.0, 1.0, 0.0}, {1.0, 1.0, 1.0}, {0.0, 1.0, 1.0}},
          {{0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, {1.0, 1.0, 0.0}, {0.0, 1.0, 0.0}},
          {{0.0, 0.0, 1.0}, {0.0, 1.0, 1.0}, {1.0, 1.0, 1.0}, {1.0, 0.0, 1.0}}};
-    const map::Pos offsets[6] =
+    const MapPos offsets[6] =
         {{-1,  0,  0}, { 1,  0,  0},
          { 0, -1,  0}, { 0,  1,  0},
          { 0,  0, -1}, { 0,  0,  1}};
@@ -81,22 +81,22 @@ void Map::add_chunk(net::server::Chunk const &new_chunk)
 
     const Hash void_hash = std::hash<String>()("void"); //TODO constexpr
 
-    bool solid_map[chunk::TILE_SIZE];
-    for(SizeT i = 0; i < chunk::TILE_SIZE; ++i)
+    bool solid_map[CHK_VOLUME];
+    for(SizeT i = 0; i < CHK_VOLUME; ++i)
     {
         chunk.tiles.emplace_back(db.tile_types.at(new_chunk.tiles[i].db_hash));
         solid_map[i] = new_chunk.tiles[i].db_hash != void_hash;
     }
-    for(SizeT i = 0; i < chunk::TILE_SIZE; ++i)
+    for(SizeT i = 0; i < CHK_VOLUME; ++i)
     {
+        MapPos map_pos = to_map_pos(chunk_pos, i);
         if(solid_map[i])
         {
-            map::Pos map_pos = chunk::to_map_pos(chunk_pos, i);
             for(SizeT side = 0; side < 6; ++side)
             {
-                map::Pos side_pos = map_pos + offsets[side];
-                if(chunk::to_pos(side_pos) != chunk_pos ||
-                   !solid_map[chunk::to_index(side_pos)])
+                MapPos side_pos = map_pos + offsets[side];
+                if(to_chk_pos(side_pos) != chunk_pos ||
+                   !solid_map[to_chk_idx(side_pos)])
                 {
                     for(unsigned j = 0; j < 4; ++j)
                     {

@@ -1,5 +1,5 @@
 #include <lux/util/log.hpp>
-#include <lux/common/chunk.hpp>
+#include <lux/common/map.hpp>
 //
 #include <data/config.hpp>
 #include <data/obj.hpp>
@@ -103,7 +103,7 @@ void Client::init_from_server()
 {
     auto const &si = sp.init;
     util::log("CLIENT", util::INFO, "received initialization data");
-    if(si.chunk_size != chunk::SIZE) //TODO check ver?
+    if(si.chunk_size != CHK_SIZE) //TODO check ver?
     {
         throw std::runtime_error("incompatible chunk size");
     }

@@ -2,7 +2,7 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 //
-#include <lux/common/chunk.hpp>
+#include <lux/common/map.hpp>
 #include <lux/net/server/packet.hpp>
 #include <lux/net/client/packet.hpp>
 //
@@ -74,8 +74,8 @@ void Renderer::render_world(entity::Pos const &player_pos)
     glClearColor(0.0, 0.0, 0.0, 1.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    chunk::Pos iter;
-    chunk::Pos center = chunk::to_pos(player_pos); //TODO entity::to_pos
+    ChkPos iter;
+    ChkPos center = to_chk_pos(glm::round(player_pos));
     for(iter.z = center.z - view_range.z;  //TODO render all chunks instead
         iter.z <= center.z + view_range.z; // server will handle the loading
         ++iter.z)
@@ -94,9 +94,9 @@ void Renderer::render_world(entity::Pos const &player_pos)
     }
 }
 
-void Renderer::render_chunk(chunk::Pos const &pos)
+void Renderer::render_chunk(ChkPos const &pos)
 {
-    map::Chunk const *chunk = map[pos];
+    map::Chunk const *chunk = map.get_chunk(pos);
     if(chunk != nullptr)
     {
         glBindBuffer(GL_ARRAY_BUFFER, chunk->vbo_id);

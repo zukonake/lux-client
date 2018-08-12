@@ -2,11 +2,6 @@
 
 #include <render/gl.hpp>
 //
-#include <lux/alias/scalar.hpp>
-#include <lux/alias/set.hpp>
-#include <lux/alias/vec_3.hpp>
-#include <lux/common/chunk.hpp>
-//
 #include <data/config.hpp>
 #include <io_node.hpp>
 #include <renderer.hpp>

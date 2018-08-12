@@ -3,7 +3,6 @@
 #include <render/gl.hpp>
 //
 #include <lux/alias/vector.hpp>
-#include <lux/common/chunk.hpp>
 //
 #include <render/vertex.hpp>
 #include <render/index.hpp>

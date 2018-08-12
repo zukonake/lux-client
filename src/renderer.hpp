@@ -30,7 +30,7 @@ private:
     static constexpr F32 Z_FAR  = 40.f;
 
     void render_world(entity::Pos const &player_pos);
-    void render_chunk(chunk::Pos const &chunk_pos);
+    void render_chunk(ChkPos const &chunk_pos);
 
     void update_view(entity::Pos const &player_pos);
     void update_projection(F32 width_to_height);

@@ -6,7 +6,6 @@
 //
 #include <lux/alias/hash_map.hpp>
 #include <lux/alias/set.hpp>
-#include <lux/common/chunk.hpp>
 #include <lux/common/map.hpp>
 //
 #include <map/chunk.hpp>
@@ -20,12 +19,12 @@ class Map
     public:
     Map(data::Database const &db);
 
-    map::Tile  const *operator[](map::Pos   const &pos) const;
-    map::Chunk const *operator[](chunk::Pos const &pos) const;
+    map::Tile  const *get_tile(MapPos const &pos) const;
+    map::Chunk const *get_chunk(ChkPos const &pos) const;
 
     void add_chunk(net::server::Chunk const &new_chunk);
     private:
 
-    HashMap<chunk::Pos, map::Chunk> chunks;
+    HashMap<ChkPos, map::Chunk> chunks;
     data::Database const &db;
 };
