@@ -62,13 +62,6 @@ void Map::add_chunk(net::server::Chunk const &new_chunk)
     /* MESHING BEGINS */
     // TODO put it into another function
 
-    auto is_solid = [&](map::Pos const &pos) -> bool
-    {
-        const Hash void_hash = std::hash<String>()("void");
-        if(chunk::to_pos(pos) != chunk_pos) return false;
-        else return new_chunk.tiles[chunk::to_index(pos)].db_hash != void_hash;
-    };
-
     render::Index index_offset = 0;
     const glm::vec3 quads[6][4] =
         {{{0.0, 0.0, 0.0}, {0.0, 1.0, 0.0}, {0.0, 1.0, 1.0}, {0.0, 0.0, 1.0}},
@@ -86,21 +79,30 @@ void Map::add_chunk(net::server::Chunk const &new_chunk)
          {{1, 0}, {1, 1}, {0, 1}, {0, 0}}, {{0, 0}, {1, 0}, {1, 1}, {0, 1}},
          {{0, 0}, {1, 0}, {1, 1}, {0, 1}}, {{0, 0}, {1, 0}, {1, 1}, {0, 1}}};
 
+    const Hash void_hash = std::hash<String>()("void"); //TODO constexpr
+
+    bool solid_map[chunk::TILE_SIZE];
     for(SizeT i = 0; i < chunk::TILE_SIZE; ++i)
     {
         chunk.tiles.emplace_back(db.tile_types.at(new_chunk.tiles[i].db_hash));
-        map::Pos map_pos = chunk::to_map_pos(chunk_pos, i);
-        if(is_solid(map_pos))
+        solid_map[i] = new_chunk.tiles[i].db_hash != void_hash;
+    }
+    for(SizeT i = 0; i < chunk::TILE_SIZE; ++i)
+    {
+        if(solid_map[i])
         {
+            map::Pos map_pos = chunk::to_map_pos(chunk_pos, i);
             for(SizeT side = 0; side < 6; ++side)
             {
-                if(!is_solid(map_pos + offsets[side]))
+                map::Pos side_pos = map_pos + offsets[side];
+                if(chunk::to_pos(side_pos) != chunk_pos ||
+                   !solid_map[chunk::to_index(side_pos)])
                 {
                     for(unsigned j = 0; j < 4; ++j)
                     {
                         glm::vec4 col = glm::vec4(1.0);
                         chunk.vertices.emplace_back(
-                            (glm::vec3)map_pos + quads[side][j],col,
+                            (glm::vec3)map_pos + quads[side][j], col,
                             chunk.tiles[i].type->tex_pos +
                                 tex_positions[side][j]);
                     }
