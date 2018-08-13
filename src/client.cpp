@@ -56,7 +56,7 @@ void Client::send_client_packets()
     {
         util::log("SERVER", util::INFO, "initializing to server");
         cp.type = net::client::Packet::INIT;
-        cp.init.conf.view_range = conf.view_range;
+        cp.init.conf.load_range = conf.load_range;
         std::copy(conf.client_name.begin(), conf.client_name.end(),
                   std::back_inserter(cp.init.client_name));
 

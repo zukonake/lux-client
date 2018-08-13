@@ -26,12 +26,36 @@ map::TileType const stone_wall =
     {2, 0}
 };
 
+map::TileType const raw_stone =
+{
+    "raw_stone",
+    "Raw Stone",
+    {3, 0}
+};
+
+map::TileType const dirt =
+{
+    "dirt",
+    "Dirt",
+    {0, 1}
+};
+
+map::TileType const grass =
+{
+    "grass",
+    "Grass",
+    {1, 1}
+};
+
 data::Database const default_db =
 {
     {
         {std::hash<String>()(void_tile.id)  , &void_tile},
         {std::hash<String>()(stone_floor.id), &stone_floor},
-        {std::hash<String>()(stone_wall.id) , &stone_wall}
+        {std::hash<String>()(stone_wall.id) , &stone_wall},
+        {std::hash<String>()(raw_stone.id) , &raw_stone},
+        {std::hash<String>()(dirt.id) , &dirt},
+        {std::hash<String>()(grass.id) , &grass}
     }
 };
 
@@ -54,6 +78,7 @@ data::Config const default_config =
         "localhost",
         31337
     },
-    {2, 2, 1},
+    6,
+    6,
     "lux client"
 };

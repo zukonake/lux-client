@@ -1,3 +1,5 @@
+#include <cmath>
+//
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -71,24 +73,28 @@ void Renderer::render_world(entity::Pos const &player_pos)
 {
     update_view(player_pos);
 
-    glClearColor(0.0, 0.0, 0.0, 1.0);
+    glClearColor(0.3, 0.6, 1.0, 1.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     ChkPos iter;
     ChkPos center = to_chk_pos(glm::round(player_pos));
-    for(iter.z = center.z - view_range.z;  //TODO render all chunks instead
-        iter.z <= center.z + view_range.z; // server will handle the loading
+    for(iter.z = center.z - view_range;  //TODO render all chunks instead
+        iter.z <= center.z + view_range; // server will handle the loading
         ++iter.z)
     {
-        for(iter.y = center.y - view_range.y;
-            iter.y <= center.y + view_range.y;
+        for(iter.y = center.y - view_range;
+            iter.y <= center.y + view_range;
             ++iter.y)
         {
-            for(iter.x = center.x - view_range.x;
-                iter.x <= center.x + view_range.x;
+            for(iter.x = center.x - view_range;
+                iter.x <= center.x + view_range;
                 ++iter.x)
             {
-                render_chunk(iter);
+                if(glm::distance((Vec3<F32>)iter, (Vec3<F32>)center)
+                       <= view_range)
+                {
+                    render_chunk(iter);
+                }
             }
         }
     }

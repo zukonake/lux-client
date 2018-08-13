@@ -1,6 +1,6 @@
 #version 120
-#define ENABLE_FOG
-#define ENABLE_FOG_SPHERICAL
+//#define ENABLE_FOG
+//#define ENABLE_FOG_SPHERICAL
 
 attribute vec3 pos;
 attribute vec4 col;
@@ -15,7 +15,7 @@ varying vec2 f_tex_pos;
 varying vec4 f_col;
 
 const float PI_2 = 1.57079632679489661923;
-const float FOG_DISTANCE = 4.0;
+const float FOG_DISTANCE = 80.0;
 
 void main()
 {

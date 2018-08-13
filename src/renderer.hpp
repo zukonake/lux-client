@@ -27,7 +27,7 @@ protected:
 private:
     static constexpr F32 FOV    = 120.f;
     static constexpr F32 Z_NEAR = 0.1f;
-    static constexpr F32 Z_FAR  = 40.f;
+    static constexpr F32 Z_FAR  = 100.f;
 
     void render_world(entity::Pos const &player_pos);
     void render_chunk(ChkPos const &chunk_pos);
@@ -36,7 +36,7 @@ private:
     void update_projection(F32 width_to_height);
 
     Map map;
-    Vec3<U8>  view_range;
+    F32 view_range;
     Vec2<I32> last_mouse_pos;
     glm::mat4 world_mat;
     render::Camera camera;

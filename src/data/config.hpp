@@ -26,7 +26,8 @@ struct Config
         String hostname;
         net::Port port;
     } server;
-    Vec3<U8> view_range;
+    F32 view_range;
+    F32 load_range;
     String   client_name;
 };
 
