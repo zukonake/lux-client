@@ -1,12 +1,29 @@
 #include <lux/util/log.hpp>
 #include <lux/common/map.hpp>
 //
-#include <data/config.hpp>
-#include <data/obj.hpp>
 #include "client.hpp"
 
 Client::Client() :
-    conf(default_config),
+    conf({&db,
+#if   LUX_GL_VARIANT == LUX_GL_VARIANT_2_1
+          "glsl/vertex-2.1.glsl",
+          "glsl/fragment-2.1.glsl",
+#elif LUX_GL_VARIANT == LUX_GL_VARIANT_ES_2_0
+          "glsl/vertex-es-2.0.glsl",
+          "glsl/fragment-es-2.0.glsl",
+#else
+#   error "Unsupported GL variant selected"
+#endif
+          "tileset.png",
+          {800, 600},
+          {16, 16},
+          {
+              "localhost",
+              31337
+          },
+          6,
+          6,
+          "lux client"}),
     game_tick(util::TickClock::Duration(1)),
     gl_initializer(conf.window_size),
     net_client(conf.server.hostname, conf.server.port),

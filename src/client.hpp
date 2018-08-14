@@ -4,11 +4,12 @@
 #include <lux/net/server/packet.hpp>
 #include <lux/net/client/packet.hpp>
 //
+#include <data/database.hpp>
+#include <data/config.hpp>
 #include <gl_initializer.hpp>
 #include <net_client.hpp>
 #include <io_client.hpp>
 
-namespace data { struct Config; }
 namespace net::server
 {
     struct Tick;
@@ -32,7 +33,8 @@ class Client
     void display_msg();
     void init_from_server();
 
-    data::Config const &conf;
+    data::Database db;
+    data::Config conf;
     util::TickClock game_tick;
 
     net::server::Packet sp;

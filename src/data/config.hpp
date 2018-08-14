@@ -11,7 +11,7 @@
 namespace data
 {
 
-struct Database;
+class Database;
 
 struct Config
 {

@@ -10,7 +10,7 @@
 //
 #include <map/chunk.hpp>
 
-namespace data { struct Database; }
+namespace data { class Database; }
 namespace net::server { struct Chunk; }
 namespace map { struct Tile; }
 

@@ -5,7 +5,6 @@
 #include <lux/net/server/chunk.hpp>
 //
 #include <data/database.hpp>
-#include <data/obj.hpp>
 #include <map/tile/tile_type.hpp>
 #include "map.hpp"
 
@@ -79,13 +78,13 @@ void Map::add_chunk(net::server::Chunk const &new_chunk)
          {{1, 0}, {1, 1}, {0, 1}, {0, 0}}, {{0, 0}, {1, 0}, {1, 1}, {0, 1}},
          {{0, 0}, {1, 0}, {1, 1}, {0, 1}}, {{0, 0}, {1, 0}, {1, 1}, {0, 1}}};
 
-    const Hash void_hash = std::hash<String>()("void"); //TODO constexpr
+    const tile::Id void_id = db.get_tile_id("void"); //TODO constexpr
 
     bool solid_map[CHK_VOLUME];
     for(SizeT i = 0; i < CHK_VOLUME; ++i)
     {
-        chunk.tiles.emplace_back(db.tile_types.at(new_chunk.tiles[i].db_hash));
-        solid_map[i] = new_chunk.tiles[i].db_hash != void_hash;
+        chunk.tiles.emplace_back(&db.get_tile(new_chunk.tiles[i].id));
+        solid_map[i] = new_chunk.tiles[i].id != void_id;
     }
     for(SizeT i = 0; i < CHK_VOLUME; ++i)
     {
