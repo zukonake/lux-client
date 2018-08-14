@@ -8,6 +8,7 @@
 #include <lux/net/server/packet.hpp>
 #include <lux/net/client/packet.hpp>
 //
+#include <config.h>
 #include <data/config.hpp>
 #include "renderer.hpp"
 
@@ -32,6 +33,9 @@ Renderer::Renderer(GLFWwindow *win, data::Config const &conf) :
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
     glFrontFace(GL_CCW);
+#ifdef LUX_WIREFRAME
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+#endif
 
     program.set_uniform("tex_size", glUniform2f, tile_scale.x, tile_scale.y);
     program.set_uniform("world", glUniformMatrix4fv,
