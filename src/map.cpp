@@ -45,66 +45,78 @@ void Map::add_chunk(net::server::Chunk const &new_chunk)
     auto &chunk = chunks[chunk_pos];
     /* this creates a new chunk */
     chunk.tiles.reserve(CHK_VOLUME);
+
+    for(SizeT i = 0; i < CHK_VOLUME; ++i)
     {
-        SizeT worst_case_len = CHK_VOLUME / 2 +
-            (CHK_VOLUME % 2 == 0 ? 0 : 1);
-        /* this is the size of a checkerboard pattern, the worst case for this
-         * algorithm.
-         */
-        chunk.vertices.reserve(worst_case_len * 6 * 4); //TODO magic numbers
-        chunk.indices.reserve(worst_case_len * 6 * 6);  //
+        chunk.tiles.emplace_back(&db.get_tile(new_chunk.tiles[i].id));
     }
 
-    /* MESHING BEGINS */
-    // TODO put it into another function
+}
 
-    render::Index index_offset = 0;
-    const glm::vec3 quads[6][4] =
+void Map::try_mesh(ChkPos const &pos)
+{
+    constexpr glm::vec3 quads[6][4] =
         {{{0.0, 0.0, 0.0}, {0.0, 1.0, 0.0}, {0.0, 1.0, 1.0}, {0.0, 0.0, 1.0}},
          {{1.0, 0.0, 0.0}, {1.0, 0.0, 1.0}, {1.0, 1.0, 1.0}, {1.0, 1.0, 0.0}},
          {{0.0, 0.0, 0.0}, {0.0, 0.0, 1.0}, {1.0, 0.0, 1.0}, {1.0, 0.0, 0.0}},
          {{0.0, 1.0, 0.0}, {1.0, 1.0, 0.0}, {1.0, 1.0, 1.0}, {0.0, 1.0, 1.0}},
          {{0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, {1.0, 1.0, 0.0}, {0.0, 1.0, 0.0}},
          {{0.0, 0.0, 1.0}, {0.0, 1.0, 1.0}, {1.0, 1.0, 1.0}, {1.0, 0.0, 1.0}}};
-    const MapPos offsets[6] =
+    constexpr MapPos offsets[6] =
         {{-1,  0,  0}, { 1,  0,  0},
          { 0, -1,  0}, { 0,  1,  0},
          { 0,  0, -1}, { 0,  0,  1}};
-    const render::TexPos tex_positions[6][4] =
+    constexpr render::TexPos tex_positions[6][4] =
         {{{0, 0}, {1, 0}, {1, 1}, {0, 1}}, {{1, 0}, {1, 1}, {0, 1}, {0, 0}},
          {{1, 0}, {1, 1}, {0, 1}, {0, 0}}, {{0, 0}, {1, 0}, {1, 1}, {0, 1}},
          {{0, 0}, {1, 0}, {1, 1}, {0, 1}}, {{0, 0}, {1, 0}, {1, 1}, {0, 1}}};
 
-    const tile::Id void_id = db.get_tile_id("void"); //TODO constexpr
-
-    bool solid_map[CHK_VOLUME];
-    for(SizeT i = 0; i < CHK_VOLUME; ++i)
+    for(SizeT side = 0; side < 6; ++side)
     {
-        chunk.tiles.emplace_back(&db.get_tile(new_chunk.tiles[i].id));
-        solid_map[i] = new_chunk.tiles[i].id != void_id;
+        if(chunks.count(pos + (ChkPos)offsets[side]) == 0) return;
+        /* surrounding chunks need to be loaded to mesh */
     }
+    map::Chunk &chunk = chunks.at(pos);
+    chunk.mesh = new render::Mesh();
+    render::Mesh &mesh = *chunk.mesh;
+    {
+        SizeT worst_case_len = CHK_VOLUME / 2 +
+            (CHK_VOLUME % 2 == 0 ? 0 : 1);
+        /* this is the size of a checkerboard pattern, the worst case for this
+         * algorithm.
+         */
+        mesh.vertices.reserve(worst_case_len * 6 * 4); //TODO magic numbers
+        mesh.indices.reserve(worst_case_len * 6 * 6);  //
+    }
+
+    render::Index index_offset = 0;
+    tile::Id void_id = db.get_tile_id("void");
+
+    auto is_solid = [&] (MapPos const &pos)
+    {
+        return chunks[to_chk_pos(pos)].tiles[to_chk_idx(pos)].type->id != void_id;
+    };
+
     for(SizeT i = 0; i < CHK_VOLUME; ++i)
     {
-        MapPos map_pos = to_map_pos(chunk_pos, i);
-        if(solid_map[i])
+        MapPos map_pos = to_map_pos(pos, i);
+        if(is_solid(map_pos))
         {
             for(SizeT side = 0; side < 6; ++side)
             {
-                MapPos side_pos = map_pos + offsets[side];
-                if(to_chk_pos(side_pos) != chunk_pos ||
-                   !solid_map[to_chk_idx(side_pos)])
+                if(!is_solid(map_pos + offsets[side]))
                 {
                     for(unsigned j = 0; j < 4; ++j)
                     {
                         glm::vec4 col = glm::vec4(1.0);
-                        chunk.vertices.emplace_back(
+                        mesh.vertices.emplace_back(
                             (glm::vec3)map_pos + quads[side][j], col,
                             chunk.tiles[i].type->tex_pos +
                                 tex_positions[side][j]);
                     }
                     for(auto const &idx : {0, 1, 2, 2, 3, 0})
                     {
-                        chunk.indices.emplace_back(idx + index_offset);
+                        mesh.indices.emplace_back(idx + index_offset);
                     }
                     index_offset += 4;
                 }
@@ -113,28 +125,23 @@ void Map::add_chunk(net::server::Chunk const &new_chunk)
     }
     /* MESHING ENDS */
 
-    chunk.vertices.shrink_to_fit();
-    chunk.indices.shrink_to_fit();
+    mesh.vertices.shrink_to_fit();
+    mesh.indices.shrink_to_fit();
 
-    if(chunk.vertices.size() == 0)
-    {
-        chunks.erase(chunk_pos);
-    }
-    else
-    {
-        glGenBuffers(1, &chunk.vbo_id);
-        glGenBuffers(1, &chunk.ebo_id);
+    //TODO should empty chunks be ommited?
 
-        glBindBuffer(GL_ARRAY_BUFFER, chunk.vbo_id);
-        glBufferData(GL_ARRAY_BUFFER,
-                     sizeof(render::Vertex) * chunk.vertices.size(),
-                     chunk.vertices.data(),
-                     GL_STATIC_DRAW);
+    glGenBuffers(1, &mesh.vbo_id);
+    glGenBuffers(1, &mesh.ebo_id);
 
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, chunk.ebo_id);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-                     sizeof(render::Index) * chunk.indices.size(),
-                     chunk.indices.data(),
-                     GL_STATIC_DRAW);
-    }
+    glBindBuffer(GL_ARRAY_BUFFER, mesh.vbo_id);
+    glBufferData(GL_ARRAY_BUFFER,
+                 sizeof(render::Vertex) * mesh.vertices.size(),
+                 mesh.vertices.data(),
+                 GL_STATIC_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.ebo_id);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                 sizeof(render::Index) * mesh.indices.size(),
+                 mesh.indices.data(),
+                 GL_STATIC_DRAW);
 }

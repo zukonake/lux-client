@@ -105,23 +105,35 @@ void Renderer::render_chunk(ChkPos const &pos)
     map::Chunk const *chunk = map.get_chunk(pos);
     if(chunk != nullptr)
     {
-        glBindBuffer(GL_ARRAY_BUFFER, chunk->vbo_id);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, chunk->ebo_id);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE,
-            sizeof(render::Vertex), (void*)offsetof(render::Vertex, pos));
-        glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE,
-            sizeof(render::Vertex), (void*)offsetof(render::Vertex, col));
-        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE,
-            sizeof(render::Vertex), (void*)offsetof(render::Vertex, tex_pos));
-        glEnableVertexAttribArray(0);
-        glEnableVertexAttribArray(1);
-        glEnableVertexAttribArray(2);
-        glDrawElements(GL_TRIANGLES, chunk->indices.size(), render::INDEX_TYPE, 0);
-        glDisableVertexAttribArray(0);
-        glDisableVertexAttribArray(1);
-        glDisableVertexAttribArray(2);
+        if(chunk->mesh == nullptr)
+        {
+            map.try_mesh(pos);
+        }
+        else
+        {
+            render_mesh(*chunk->mesh);
+        }
     }
 
+}
+
+void Renderer::render_mesh(render::Mesh const &mesh)
+{
+    glBindBuffer(GL_ARRAY_BUFFER, mesh.vbo_id);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.ebo_id);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE,
+        sizeof(render::Vertex), (void*)offsetof(render::Vertex, pos));
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE,
+        sizeof(render::Vertex), (void*)offsetof(render::Vertex, col));
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE,
+        sizeof(render::Vertex), (void*)offsetof(render::Vertex, tex_pos));
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
+    glEnableVertexAttribArray(2);
+    glDrawElements(GL_TRIANGLES, mesh.indices.size(), render::INDEX_TYPE, 0);
+    glDisableVertexAttribArray(0);
+    glDisableVertexAttribArray(1);
+    glDisableVertexAttribArray(2);
 }
 
 void Renderer::update_view(entity::Pos const &player_pos)

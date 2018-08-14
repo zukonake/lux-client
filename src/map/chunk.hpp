@@ -1,11 +1,6 @@
 #pragma once
 
-#include <render/gl.hpp>
-//
-#include <lux/alias/vector.hpp>
-//
-#include <render/vertex.hpp>
-#include <render/index.hpp>
+#include <render/mesh.hpp>
 #include <map/tile/tile.hpp>
 
 namespace map
@@ -13,12 +8,13 @@ namespace map
 
 struct Chunk
 {
+    Chunk() : mesh(nullptr) { }
+    ~Chunk()
+    {
+        if(mesh != nullptr) delete mesh;
+    }
     Vector<Tile> tiles;
-
-    Vector<render::Vertex> vertices;
-    Vector<render::Index>   indices;
-    GLuint vbo_id;
-    GLuint ebo_id;
+    render::Mesh *mesh;
 };
 
 }

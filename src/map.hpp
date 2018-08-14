@@ -23,8 +23,8 @@ class Map
     map::Chunk const *get_chunk(ChkPos const &pos) const;
 
     void add_chunk(net::server::Chunk const &new_chunk);
+    void try_mesh(ChkPos const &pos);
     private:
-
     HashMap<ChkPos, map::Chunk> chunks;
     data::Database const &db;
 };

@@ -31,6 +31,7 @@ private:
 
     void render_world(entity::Pos const &player_pos);
     void render_chunk(ChkPos const &chunk_pos);
+    void render_mesh(render::Mesh const &mesh);
 
     void update_view(entity::Pos const &player_pos);
     void update_projection(F32 width_to_height);
