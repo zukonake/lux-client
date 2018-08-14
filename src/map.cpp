@@ -55,9 +55,6 @@ void Map::add_chunk(net::server::Chunk const &new_chunk)
         chunk.indices.reserve(worst_case_len * 6 * 6);  //
     }
 
-    glGenBuffers(1, &chunk.vbo_id);
-    glGenBuffers(1, &chunk.ebo_id);
-
     /* MESHING BEGINS */
     // TODO put it into another function
 
@@ -119,15 +116,25 @@ void Map::add_chunk(net::server::Chunk const &new_chunk)
     chunk.vertices.shrink_to_fit();
     chunk.indices.shrink_to_fit();
 
-    glBindBuffer(GL_ARRAY_BUFFER, chunk.vbo_id);
-    glBufferData(GL_ARRAY_BUFFER,
-                 sizeof(render::Vertex) * chunk.vertices.size(),
-                 chunk.vertices.data(),
-                 GL_STATIC_DRAW);
+    if(chunk.vertices.size() == 0)
+    {
+        chunks.erase(chunk_pos);
+    }
+    else
+    {
+        glGenBuffers(1, &chunk.vbo_id);
+        glGenBuffers(1, &chunk.ebo_id);
 
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, chunk.ebo_id);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-                 sizeof(render::Index) * chunk.indices.size(),
-                 chunk.indices.data(),
-                 GL_STATIC_DRAW);
+        glBindBuffer(GL_ARRAY_BUFFER, chunk.vbo_id);
+        glBufferData(GL_ARRAY_BUFFER,
+                     sizeof(render::Vertex) * chunk.vertices.size(),
+                     chunk.vertices.data(),
+                     GL_STATIC_DRAW);
+
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, chunk.ebo_id);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                     sizeof(render::Index) * chunk.indices.size(),
+                     chunk.indices.data(),
+                     GL_STATIC_DRAW);
+    }
 }
