@@ -38,6 +38,7 @@ private:
 
     Map map;
     F32 view_range;
+    glm::vec4 sky_color;
     Vec2<I32> last_mouse_pos;
     glm::mat4 world_mat;
     render::Camera camera;

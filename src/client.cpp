@@ -21,8 +21,9 @@ Client::Client() :
               "localhost",
               31337
           },
+          8,
           6,
-          6,
+          {0.3, 0.4, 0.5, 1.0},
           "lux client"}),
     game_tick(util::TickClock::Duration(1)),
     gl_initializer(conf.window_size),

@@ -16,6 +16,7 @@ Renderer::Renderer(GLFWwindow *win, data::Config const &conf) :
     IoNode(win),
     map(*conf.db),
     view_range(conf.view_range),
+    sky_color(conf.sky_color),
     world_mat({1.0, 0.0, 0.0, 0.0}, /* swapped z with y */
               {0.0, 0.0, 1.0, 0.0},
               {0.0, 1.0, 0.0, 0.0},
@@ -77,7 +78,7 @@ void Renderer::render_world(entity::Pos const &player_pos)
 {
     update_view(player_pos);
 
-    glClearColor(0.3, 0.6, 1.0, 1.0);
+    glClearColor(sky_color.r, sky_color.g, sky_color.b, sky_color.a);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     ChkPos iter;
