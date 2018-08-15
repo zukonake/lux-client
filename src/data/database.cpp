@@ -11,7 +11,8 @@ Database::Database()
     add_tile("stone_wall", "Stone Wall", render::TexPos(2, 0));
     add_tile("raw_stone", "Raw Stone", render::TexPos(3, 0));
     add_tile("dirt", "Dirt", render::TexPos(0, 1));
-    add_tile("grass", "Grass", render::TexPos(1, 1));
+    add_tile("gravel", "Gravel", render::TexPos(1, 1));
+    add_tile("grass", "Grass", render::TexPos(2, 1));
 }
 
 map::TileType const &Database::get_tile(String const &str_id) const
