@@ -28,6 +28,7 @@ struct Config
     } server;
     F32 view_range;
     F32 load_range;
+    F32 fov;
     glm::vec4 sky_color;
     String   client_name;
 };

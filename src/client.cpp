@@ -23,6 +23,7 @@ Client::Client() :
           },
           8,
           6,
+          120.f,
           {0.3, 0.4, 0.5, 1.0},
           "lux client"}),
     game_tick(util::TickClock::Duration(1)),

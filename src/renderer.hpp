@@ -25,9 +25,7 @@ protected:
     virtual void take_resize(Vec2<U32> const &size) override;
     virtual void give_ct(net::client::Tick &) override;
 private:
-    static constexpr F32 FOV    = 120.f;
     static constexpr F32 Z_NEAR = 0.1f;
-    static constexpr F32 Z_FAR  = 100.f;
 
     void render_world(entity::Pos const &player_pos);
     void render_chunk(ChkPos const &chunk_pos);
@@ -38,6 +36,9 @@ private:
 
     Map map;
     F32 view_range;
+    F32 z_far;
+    F32 fov;
+
     glm::vec4 sky_color;
     Vec2<I32> last_mouse_pos;
     glm::mat4 world_mat;

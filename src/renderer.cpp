@@ -3,6 +3,9 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/component_wise.hpp>
+#undef GLM_ENABLE_EXPERIMENTAL
 //
 #include <lux/common/map.hpp>
 #include <lux/net/server/packet.hpp>
@@ -16,6 +19,8 @@ Renderer::Renderer(GLFWwindow *win, data::Config const &conf) :
     IoNode(win),
     map(*conf.db),
     view_range(conf.view_range),
+    z_far(glm::compMax(CHK_SIZE) * conf.view_range),
+    fov(conf.fov),
     sky_color(conf.sky_color),
     world_mat({1.0, 0.0, 0.0, 0.0}, /* swapped z with y */
               {0.0, 0.0, 1.0, 0.0},
@@ -159,7 +164,7 @@ void Renderer::update_view(entity::Pos const &player_pos)
 void Renderer::update_projection(F32 width_to_height)
 {
     glm::mat4 projection =
-        glm::perspective(glm::radians(FOV), width_to_height, Z_NEAR, Z_FAR);
+        glm::perspective(glm::radians(fov), width_to_height, Z_NEAR, z_far);
     program.set_uniform("projection", glUniformMatrix4fv,
         1, GL_FALSE, glm::value_ptr(projection));
 }
