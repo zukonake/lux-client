@@ -42,6 +42,7 @@ Vec2<U32> Texture::load(String const &path)
                      0, GL_RGBA, GL_UNSIGNED_BYTE, mipmap_buf.data());
     }
 
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LOD, 4);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
