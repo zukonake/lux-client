@@ -34,6 +34,7 @@ Renderer::Renderer(GLFWwindow *win, data::Config const &conf) :
     glm::vec2 tileset_size = tileset.load(conf.tileset_path);
     glm::vec2 tile_scale = {(F32)conf.tile_size.x / (F32)tileset_size.x,
                             (F32)conf.tile_size.y / (F32)tileset_size.y};
+    tileset.generate_mipmaps(tileset_size.x / conf.tile_size.x);
 
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);

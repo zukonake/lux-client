@@ -2,7 +2,9 @@
 
 #include <render/gl.hpp>
 //
+#include <lux/alias/scalar.hpp>
 #include <lux/alias/string.hpp>
+#include <lux/alias/vector.hpp>
 #include <lux/alias/vec_2.hpp>
 
 namespace render
@@ -14,9 +16,12 @@ class Texture
     Texture() = default;
 
     Vec2<U32> load(String const &path);
+    void generate_mipmaps(U16 max_lvl);
 
     GLuint get_id() const;
     private:
+    Vector<U8> value;
+    Vec2<U32>   size;
 
     GLuint id;
 };
