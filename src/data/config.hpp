@@ -18,9 +18,12 @@ struct Config
     Database const *db;
     String    vert_shader_path;
     String    frag_shader_path;
+    String    interface_shader_path;
     String    tileset_path;
+    String    font_path;
     Vec2<U16> window_size;
     Vec2<U16> tile_size;
+    Vec2<U16> char_size;
     struct
     {
         String hostname;

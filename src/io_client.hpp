@@ -6,7 +6,7 @@
 #include <io_node.hpp>
 #include <renderer.hpp>
 #include <entity_controller.hpp>
-//#include <debug_interface.hpp>
+#include <debug_interface.hpp>
 
 namespace net::server { struct Packet; }
 namespace net::client { struct Packet; }
@@ -30,5 +30,5 @@ private:
 
     Renderer         renderer;
     EntityController entity_controller;
-    //DebugInterface debug_interface;
+    DebugInterface debug_interface;
 };

@@ -8,15 +8,19 @@ Client::Client() :
 #if   LUX_GL_VARIANT == LUX_GL_VARIANT_2_1
           "glsl/vertex-2.1.glsl",
           "glsl/fragment-2.1.glsl",
+          "glsl/interface-2.1",
 #elif LUX_GL_VARIANT == LUX_GL_VARIANT_ES_2_0
           "glsl/vertex-es-2.0.glsl",
           "glsl/fragment-es-2.0.glsl",
+          "glsl/interface-es-2.0",
 #else
 #   error "Unsupported GL variant selected"
 #endif
           "tileset.png",
+          "font.png",
           {800, 600},
           {16, 16},
+          {8, 8},
           {
               "localhost",
               31337

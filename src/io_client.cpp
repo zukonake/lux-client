@@ -10,10 +10,12 @@
 IoClient::IoClient(GLFWwindow *win, data::Config const &conf) :
     IoNode(win),
     renderer(win, conf),
-    entity_controller(win)
+    entity_controller(win),
+    debug_interface(win, renderer, conf)
 {
     IoNode::add_node(renderer);
     IoNode::add_node(entity_controller);
+    IoNode::add_node(debug_interface);
 
     glfwSetErrorCallback(glfw_error_cb); //move to gl_initializer?
     glfwSetWindowUserPointer(IoNode::win, this);

@@ -19,14 +19,18 @@ Renderer::Renderer(GLFWwindow *win, data::Config const &conf) :
     IoNode(win),
     map(*conf.db),
     view_range(conf.view_range),
-    z_far(glm::compMax(CHK_SIZE) * conf.view_range),
+    z_far(0.f),
     fov(conf.fov),
+    wireframe(false),
+    face_culling(true),
     sky_color(conf.sky_color),
     world_mat({1.0, 0.0, 0.0, 0.0}, /* swapped z with y */
               {0.0, 0.0, 1.0, 0.0},
               {0.0, 1.0, 0.0, 0.0},
               {0.0, 0.0, 0.0, 1.0})
 {
+    update_view_range();
+
     program.init(conf.vert_shader_path, conf.frag_shader_path);
     program.use();
     program.set_uniform("world", glUniformMatrix4fv,
@@ -37,25 +41,53 @@ Renderer::Renderer(GLFWwindow *win, data::Config const &conf) :
                             (F32)conf.tile_size.y / (F32)tileset_size.y};
     tileset.generate_mipmaps(tileset_size.x / conf.tile_size.x);
 
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_BACK);
-    glFrontFace(GL_CCW);
-#ifdef LUX_WIREFRAME
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-#endif
-
     program.set_uniform("tex_size", glUniform2f, tile_scale.x, tile_scale.y);
     program.set_uniform("world", glUniformMatrix4fv,
         1, GL_FALSE, glm::value_ptr(world_mat));
 
     glfwGetWindowSize(IoNode::win, &last_mouse_pos.x, &last_mouse_pos.y);
     last_mouse_pos /= 2.f;
+
+    glCullFace(GL_BACK);
+    glFrontFace(GL_CCW);
+}
+
+void Renderer::toggle_wireframe()
+{
+    wireframe = !wireframe;
+}
+
+void Renderer::toggle_face_culling()
+{
+    face_culling = !face_culling;
+}
+
+void Renderer::increase_view_range()
+{
+    view_range += 1.f;
+    update_view_range();
+}
+
+void Renderer::decrease_view_range()
+{
+    if(view_range >= 1.f)
+    {
+        view_range -= 1.f;
+        update_view_range();
+    }
 }
 
 void Renderer::take_st(net::server::Tick const &st)
 {
+    glEnable(GL_DEPTH_TEST);
+    if(face_culling) glEnable(GL_CULL_FACE);
+    if(wireframe) glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
     render_world(st.player_pos);
+
+    if(face_culling) glDisable(GL_CULL_FACE);
+    if(wireframe) glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    glDisable(GL_DEPTH_TEST);
 }
 
 void Renderer::take_ss(net::server::Packet const &sp)
@@ -173,4 +205,9 @@ void Renderer::update_projection(F32 width_to_height)
         glm::perspective(glm::radians(fov), width_to_height, Z_NEAR, z_far);
     program.set_uniform("projection", glUniformMatrix4fv,
         1, GL_FALSE, glm::value_ptr(projection));
+}
+
+void Renderer::update_view_range()
+{
+    z_far = glm::compMax(CHK_SIZE) * view_range;
 }
