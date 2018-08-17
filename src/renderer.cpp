@@ -29,12 +29,11 @@ Renderer::Renderer(GLFWwindow *win, data::Config const &conf) :
               {0.0, 1.0, 0.0, 0.0},
               {0.0, 0.0, 0.0, 1.0})
 {
-    update_view_range();
-
     program.init(conf.vert_shader_path, conf.frag_shader_path);
     program.use();
     program.set_uniform("world", glUniformMatrix4fv,
         1, GL_FALSE, glm::value_ptr(world_mat));
+    update_view_range();
 
     glm::vec2 tileset_size = tileset.load(conf.tileset_path);
     glm::vec2 tile_scale = {(F32)conf.tile_size.x / (F32)tileset_size.x,
@@ -210,4 +209,9 @@ void Renderer::update_projection(F32 width_to_height)
 void Renderer::update_view_range()
 {
     z_far = glm::compMax(CHK_SIZE) * view_range;
+
+    program.use();
+    Vec2<I32> screen_size;
+    glfwGetWindowSize(IoNode::win, &screen_size.x, &screen_size.y);
+    update_projection((F32)screen_size.x/(F32)screen_size.y);
 }
