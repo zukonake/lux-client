@@ -21,7 +21,7 @@ IoClient::IoClient(GLFWwindow *win, data::Config const &conf) :
     glfwSetKeyCallback(IoNode::win, key_cb);
     glfwSetMouseButtonCallback(IoNode::win, mouse_cb);
 
-    window_resize_cb(IoNode::win, window_size.x, window_size.y);
+    window_resize_cb(IoNode::win, conf.window_size.x, conf.window_size.y);
 }
 
 void IoClient::give_ct(net::client::Tick &)
