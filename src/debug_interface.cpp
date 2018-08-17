@@ -104,6 +104,7 @@ void DebugInterface::render_text(String const &str, Vec2<I32> const &base_pos)
             Vec2<U32> vert_pos = pos + (vert * char_scale);
             glm::vec2 ndc_pos = (((glm::vec2)(vert_pos * char_size) /
                                 (glm::vec2)screen_size) * 2.f) - glm::vec2(1, 1);
+            //TODO this should be moved to vert shader
             ndc_pos.y = -ndc_pos.y;
             vertices.emplace_back(ndc_pos, (glm::vec2)(char_pos + vert));
         }

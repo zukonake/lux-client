@@ -124,23 +124,6 @@ void Map::try_mesh(ChkPos const &pos)
             }
         }
     }
-#ifdef LUX_RENDER_CHUNK_BORDERS
-    for(SizeT side = 0; side < 6; ++side)
-    {
-        for(unsigned j = 0; j < 4; ++j)
-        {
-            glm::vec4 col = glm::vec4(1.0, 0.0, 0.0, 1.0);
-            mesh.vertices.emplace_back((glm::vec3)to_map_pos(pos, 0) +
-                (glm::vec3)quads[side][j] * (glm::vec3)CHK_SIZE, col,
-                render::TexPos(0, 0));
-        }
-        for(auto const &idx : {0, 1, 2, 2, 3, 0})
-        {
-            mesh.indices.emplace_back(idx + index_offset);
-        }
-        index_offset += 4;
-    }
-#endif
 
     mesh.vertices.shrink_to_fit();
     mesh.indices.shrink_to_fit();
