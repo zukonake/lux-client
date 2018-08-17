@@ -90,11 +90,12 @@ void Renderer::render_world(entity::Pos const &player_pos)
 
     glClearColor(sky_color.r, sky_color.g, sky_color.b, sky_color.a);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    //TODO move those to IoClient so it wont's conflict with other renderers
 
     ChkPos iter;
     ChkPos center = to_chk_pos(glm::round(player_pos));
-    for(iter.z = center.z - view_range;  //TODO render all chunks instead
-        iter.z <= center.z + view_range; // server will handle the loading
+    for(iter.z = center.z - view_range;
+        iter.z <= center.z + view_range;
         ++iter.z)
     {
         for(iter.y = center.y - view_range;
