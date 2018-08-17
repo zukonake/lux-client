@@ -28,6 +28,7 @@ private:
     Vec2<U32> screen_size;
     Vec2<U32> char_size;
     Vec2<U32> font_char_size;
+    U32       char_scale;
     Renderer &renderer;
 
     GLuint vbo_id;

@@ -24,6 +24,7 @@ struct Config
     Vec2<U16> window_size;
     Vec2<U16> tile_size;
     Vec2<U16> char_size;
+    U32       char_scale;
     struct
     {
         String hostname;

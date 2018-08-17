@@ -11,6 +11,7 @@ DebugInterface::DebugInterface(GLFWwindow *win, Renderer &renderer,
                                data::Config const &conf) :
     IoNode(win),
     char_size(conf.char_size),
+    char_scale(conf.char_scale),
     renderer(renderer)
 {
     program.init(conf.interface_shader_path + ".vert",
@@ -56,9 +57,9 @@ void DebugInterface::take_st(net::server::Tick const &st)
     program.use();
     font.use();
     //TODO optimize this, use buffer instead of separate draw calls?
-    render_text("x: " + std::to_string(st.player_pos.x), {0, 0});
-    render_text("y: " + std::to_string(st.player_pos.y), {0, 1});
-    render_text("z: " + std::to_string(st.player_pos.z), {0, 2});
+    render_text("x: " + std::to_string(st.player_pos.x), {1, 0});
+    render_text("y: " + std::to_string(st.player_pos.y), {1, 1});
+    render_text("z: " + std::to_string(st.player_pos.z), {1, 2});
     render_text("y - toggle wireframe mode", {-1, 0});
     render_text("u - toggle face culling  ", {-1, 1});
     render_text("i - increase view range  ", {-1, 2});
@@ -78,16 +79,20 @@ void DebugInterface::render_text(String const &str, Vec2<I32> const &base_pos)
     vertices.reserve(str.size() * 4);
     indices.reserve(str.size() * 6);
 
-    Vec2<U32> pos = base_pos;
+    Vec2<U32> pos;
     Vec2<U32> screen_char_size = screen_size / char_size;
     if(base_pos.x < 0)
     {
-        pos.x = screen_char_size.x - (std::abs(base_pos.x) + str.size());
+        pos.x = screen_char_size.x -
+                (std::abs(base_pos.x) + str.size() - 1) * char_scale;
     }
+    else pos.x = base_pos.x * char_scale;
     if(base_pos.y < 0)
     {
-        pos.y = screen_char_size.y - std::abs(base_pos.y);
+        pos.y = screen_char_size.y - std::abs(base_pos.y) * char_scale;
     }
+    else pos.y = base_pos.y * char_scale;
+
     render::Index index_offset = 0;
     constexpr Vec2<U32> verts[4] = {{0, 0}, {1, 0}, {0, 1}, {1, 1}};
 
@@ -96,7 +101,7 @@ void DebugInterface::render_text(String const &str, Vec2<I32> const &base_pos)
         Vec2<U32> char_pos = get_char_pos(character);
         for(auto const &vert : verts)
         {
-            Vec2<U32> vert_pos = pos + vert;
+            Vec2<U32> vert_pos = pos + (vert * char_scale);
             glm::vec2 ndc_pos = (((glm::vec2)(vert_pos * char_size) /
                                 (glm::vec2)screen_size) * 2.f) - glm::vec2(1, 1);
             ndc_pos.y = -ndc_pos.y;
@@ -107,7 +112,7 @@ void DebugInterface::render_text(String const &str, Vec2<I32> const &base_pos)
             indices.emplace_back(index_offset + idx);
         }
         index_offset += 4;
-        pos.x += 1;
+        pos.x += char_scale;
     }
 
     glBindBuffer(GL_ARRAY_BUFFER, vbo_id);
