@@ -17,6 +17,7 @@ class Texture
 
     Vec2<U32> load(String const &path);
     void generate_mipmaps(U16 max_lvl);
+    void use();
 
     GLuint get_id() const;
     private:

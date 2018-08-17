@@ -16,6 +16,7 @@ class Program
     void init(String const &vert_path, String const &frag_path);
     template<typename F, typename... Args>
     void set_uniform(String const &name, F const &gl_fun, Args const &...args);
+    void use();
 
     GLuint get_id() const;
     GLuint get_vert_id() const;

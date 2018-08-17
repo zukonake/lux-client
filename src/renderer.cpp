@@ -28,6 +28,7 @@ Renderer::Renderer(GLFWwindow *win, data::Config const &conf) :
               {0.0, 0.0, 0.0, 1.0})
 {
     program.init(conf.vert_shader_path, conf.frag_shader_path);
+    program.use();
     program.set_uniform("world", glUniformMatrix4fv,
         1, GL_FALSE, glm::value_ptr(world_mat));
 
@@ -77,11 +78,14 @@ void Renderer::give_ct(net::client::Tick &ct)
 
 void Renderer::take_resize(Vec2<U32> const &size)
 {
+    program.use();
     update_projection((F32)size.x/(F32)size.y);
 }
 
 void Renderer::render_world(entity::Pos const &player_pos)
 {
+    program.use();
+    tileset.use();
     update_view(player_pos);
 
     glClearColor(sky_color.r, sky_color.g, sky_color.b, sky_color.a);

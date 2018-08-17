@@ -25,9 +25,13 @@ void Program::init(String const &vert_path, String const &frag_path)
             throw std::runtime_error("program linking error: \n" + std::string(log));
         }
     }
-    glUseProgram(id);
     glDeleteShader(vert_id);
     glDeleteShader(frag_id);
+}
+
+void Program::use()
+{
+    glUseProgram(id);
 }
 
 GLuint Program::get_id() const

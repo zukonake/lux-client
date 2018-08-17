@@ -14,7 +14,7 @@ namespace render
 Vec2<U32> Texture::load(String const &path)
 {
     glGenTextures(1, &id);
-    glBindTexture(GL_TEXTURE_2D, id);
+    use();
 
     auto err = lodepng::decode(value, size.x, size.y, path);
     if(err) throw std::runtime_error("couldn't load tileset: " + path);
@@ -55,6 +55,11 @@ void Texture::generate_mipmaps(U16 levels)
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+}
+
+void Texture::use()
+{
+    glBindTexture(GL_TEXTURE_2D, id);
 }
 
 GLuint Texture::get_id() const
