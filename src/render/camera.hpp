@@ -1,14 +1,10 @@
 #pragma once
 
 #include <glm/glm.hpp>
-//
-#include <lux/alias/scalar.hpp>
 
 namespace render
 {
 
-//TODO for some reason functions that use rotations do uninitialized jumps,
-// tested without -ffast-math as well
 class Camera
 {
     public:

@@ -76,7 +76,7 @@ void Client::receive_server_packets()
 
 void Client::send_client_packets()
 {
-    if(!sent_init) //TODO move to Client::give_client_signal?
+    if(!sent_init) //TODO move to Client::give_cs?
     {
         util::log("SERVER", util::INFO, "initializing to server");
         cp.type = net::client::Packet::INIT;

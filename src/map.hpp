@@ -1,11 +1,8 @@
 #pragma once
 
-#include <set>
-//
 #include <render/gl.hpp>
 //
 #include <lux/alias/hash_map.hpp>
-#include <lux/alias/set.hpp>
 #include <lux/common/map.hpp>
 //
 #include <map/chunk.hpp>

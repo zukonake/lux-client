@@ -5,6 +5,7 @@
 #include <lux/util/log.hpp>
 #include <lux/alias/string.hpp>
 //
+#include <data/config.hpp>
 #include "io_client.hpp"
 
 IoClient::IoClient(GLFWwindow *win, data::Config const &conf) :

@@ -1,6 +1,5 @@
 #include <glm/glm.hpp>
 //
-#include <lux/alias/set.hpp>
 #include <lux/util/log.hpp>
 #include <lux/net/server/chunk.hpp>
 //
@@ -56,13 +55,13 @@ void Map::add_chunk(net::server::Chunk const &new_chunk)
 
 void Map::try_mesh(ChkPos const &pos)
 {
-    constexpr glm::vec3 quads[6][4] =
-        {{{0.0, 0.0, 0.0}, {0.0, 1.0, 0.0}, {0.0, 1.0, 1.0}, {0.0, 0.0, 1.0}},
-         {{1.0, 0.0, 0.0}, {1.0, 0.0, 1.0}, {1.0, 1.0, 1.0}, {1.0, 1.0, 0.0}},
-         {{0.0, 0.0, 0.0}, {0.0, 0.0, 1.0}, {1.0, 0.0, 1.0}, {1.0, 0.0, 0.0}},
-         {{0.0, 1.0, 0.0}, {1.0, 1.0, 0.0}, {1.0, 1.0, 1.0}, {0.0, 1.0, 1.0}},
-         {{0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, {1.0, 1.0, 0.0}, {0.0, 1.0, 0.0}},
-         {{0.0, 0.0, 1.0}, {0.0, 1.0, 1.0}, {1.0, 1.0, 1.0}, {1.0, 0.0, 1.0}}};
+    constexpr MapPos quads[6][4] =
+        {{{0, 0, 0}, {0, 1, 0}, {0, 1, 1}, {0, 0, 1}},
+         {{1, 0, 0}, {1, 0, 1}, {1, 1, 1}, {1, 1, 0}},
+         {{0, 0, 0}, {0, 0, 1}, {1, 0, 1}, {1, 0, 0}},
+         {{0, 1, 0}, {1, 1, 0}, {1, 1, 1}, {0, 1, 1}},
+         {{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}},
+         {{0, 0, 1}, {0, 1, 1}, {1, 1, 1}, {1, 0, 1}}};
     constexpr MapPos offsets[6] =
         {{-1,  0,  0}, { 1,  0,  0},
          { 0, -1,  0}, { 0,  1,  0},
@@ -86,8 +85,8 @@ void Map::try_mesh(ChkPos const &pos)
         /* this is the size of a checkerboard pattern, the worst case for this
          * algorithm.
          */
-        mesh.vertices.reserve(worst_case_len * 6 * 4); //TODO magic numbers
-        mesh.indices.reserve(worst_case_len * 6 * 6);  //
+        mesh.vertices.reserve(worst_case_len * 6 * 4);
+        mesh.indices.reserve(worst_case_len * 6 * 6);
     }
 
     render::Index index_offset = 0;
@@ -111,7 +110,7 @@ void Map::try_mesh(ChkPos const &pos)
                     {
                         glm::vec4 col = glm::vec4(1.0);
                         mesh.vertices.emplace_back(
-                            (glm::vec3)map_pos + quads[side][j], col,
+                            map_pos + quads[side][j], col,
                             chunk.tiles[i].type->tex_pos +
                                 tex_positions[side][j]);
                     }

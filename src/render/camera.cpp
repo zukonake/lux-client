@@ -1,4 +1,3 @@
-#include <cfloat>
 #include <algorithm>
 //
 #define GLM_ENABLE_EXPERIMENTAL

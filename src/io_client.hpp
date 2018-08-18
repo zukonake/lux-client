@@ -2,12 +2,12 @@
 
 #include <render/gl.hpp>
 //
-#include <data/config.hpp>
 #include <io_node.hpp>
 #include <renderer.hpp>
 #include <entity_controller.hpp>
 #include <debug_interface.hpp>
 
+namespace data { struct Config; }
 namespace net::server { struct Packet; }
 namespace net::client { struct Packet; }
 

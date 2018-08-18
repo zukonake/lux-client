@@ -1,5 +1,7 @@
 #pragma once
 
+#include <lux/alias/vector.hpp>
+//
 #include <render/mesh.hpp>
 #include <map/tile/tile.hpp>
 

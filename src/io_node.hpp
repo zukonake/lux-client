@@ -4,6 +4,7 @@
 //
 #include <lux/alias/scalar.hpp>
 #include <lux/alias/vector.hpp>
+#include <lux/alias/vec_2.hpp>
 
 namespace net::server { struct Tick; struct Packet; }
 namespace net::client { struct Tick; struct Packet; }

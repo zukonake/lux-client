@@ -3,7 +3,6 @@
 #include <glm/glm.hpp>
 //
 #include <lux/alias/scalar.hpp>
-#include <lux/alias/string.hpp>
 #include <lux/alias/vec_2.hpp>
 #include <lux/common/entity.hpp>
 //

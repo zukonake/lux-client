@@ -6,7 +6,7 @@
 #include <lux/alias/string.hpp>
 #include <lux/common/tile.hpp>
 
-namespace map    { struct TileType; }
+namespace map { struct TileType; }
 
 namespace data
 {
@@ -21,10 +21,10 @@ public:
 
     map::TileType const &get_tile(String const &str_id) const;
     map::TileType const &get_tile(tile::Id id) const;
-    tile::Id   const &get_tile_id(String const &str_id) const;
+    tile::Id const &get_tile_id(String const &str_id) const;
 private:
     Vector<map::TileType> tiles;
-    HashMap<String,   tile::Id> tiles_lookup;
+    HashMap<String, tile::Id> tiles_lookup;
 };
 
 template<typename... Args>

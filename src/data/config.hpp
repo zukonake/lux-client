@@ -6,7 +6,6 @@
 #include <lux/alias/string.hpp>
 #include <lux/net/port.hpp>
 #include <lux/alias/vec_2.hpp>
-#include <lux/alias/vec_3.hpp>
 
 namespace data
 {

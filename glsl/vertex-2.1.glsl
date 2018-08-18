@@ -21,7 +21,7 @@ const float FOG_DISTANCE = 80.0;
 void main()
 {
     gl_Position = wvp * vec4(pos, 1.0);
-    f_tex_pos = tex_pos * tex_size;
+    f_tex_pos = tex_pos * tex_size; //TODO precalculate?
 #ifdef ENABLE_FOG
 #   ifdef ENABLE_FOG_SPHERICAL
     vec2 rad = sin((gl_Position.xy / FOG_DISTANCE + vec2(1.0)) * PI_2);

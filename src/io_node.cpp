@@ -1,8 +1,3 @@
-#include <lux/net/server/tick.hpp>
-#include <lux/net/server/packet.hpp>
-#include <lux/net/client/tick.hpp>
-#include <lux/net/client/packet.hpp>
-//
 #include "io_node.hpp"
 
 IoNode::IoNode(GLFWwindow *_win) :
