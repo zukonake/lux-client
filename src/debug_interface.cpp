@@ -60,6 +60,7 @@ void DebugInterface::take_st(net::server::Tick const &st)
     render_text("x: " + std::to_string(st.player_pos.x), {1, 0});
     render_text("y: " + std::to_string(st.player_pos.y), {1, 1});
     render_text("z: " + std::to_string(st.player_pos.z), {1, 2});
+    render_text("view: " + std::to_string(renderer.get_view_range()), {1, 3});
     render_text("y - toggle wireframe mode", {-1, 0});
     render_text("u - toggle face culling  ", {-1, 1});
     render_text("i - increase view range  ", {-1, 2});

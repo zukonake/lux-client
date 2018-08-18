@@ -24,6 +24,7 @@ public:
     void toggle_face_culling();
     void increase_view_range();
     void decrease_view_range();
+    F32  get_view_range();
 protected:
     virtual void take_st(net::server::Tick const &) override;
     virtual void take_ss(net::server::Packet const &) override;

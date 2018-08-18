@@ -76,6 +76,11 @@ void Renderer::decrease_view_range()
     }
 }
 
+F32 Renderer::get_view_range()
+{
+    return view_range;
+}
+
 void Renderer::take_st(net::server::Tick const &st)
 {
     glEnable(GL_DEPTH_TEST);
