@@ -15,6 +15,8 @@ class DebugInterface : public IoNode
 {
 public:
     DebugInterface(GLFWwindow *win, Renderer &renderer, data::Config const &conf);
+
+    void set_tick_time(F64 time);
 protected:
     virtual void take_key(I32 key, I32 code, I32 action, I32 mods) override;
     virtual void take_st(net::server::Tick const &) override;
@@ -30,6 +32,7 @@ private:
     Vec2<U32> char_size;
     Vec2<U32> font_char_size;
     U32       char_scale;
+    F64       tick_time;
     bool      conf_signal_queued;
     Renderer &renderer;
 

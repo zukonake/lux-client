@@ -37,6 +37,11 @@ bool IoClient::should_close()
     return glfwWindowShouldClose(IoNode::win);
 }
 
+void IoClient::set_tick_time(F64 time)
+{
+    debug_interface.set_tick_time(time);
+}
+
 void IoClient::window_resize_cb(GLFWwindow* window, int width, int height)
 {
     glViewport(0, 0, width, height);

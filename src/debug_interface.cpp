@@ -12,6 +12,7 @@ DebugInterface::DebugInterface(GLFWwindow *win, Renderer &renderer,
     IoNode(win),
     char_size(conf.char_size),
     char_scale(conf.char_scale),
+    tick_time(0.0),
     conf_signal_queued(false),
     renderer(renderer)
 {
@@ -29,6 +30,11 @@ DebugInterface::DebugInterface(GLFWwindow *win, Renderer &renderer,
     Vec2<I32> screen_size_temp;
     glfwGetWindowSize(win, &screen_size_temp.x, &screen_size_temp.y);
     screen_size = screen_size_temp;
+}
+
+void DebugInterface::set_tick_time(F64 time)
+{
+    tick_time = time;
 }
 
 void DebugInterface::take_key(I32 key, I32 code, I32 action, I32 mods)
@@ -64,6 +70,7 @@ void DebugInterface::take_st(net::server::Tick const &st)
     render_text("y: " + std::to_string(st.player_pos.y), {1, 1});
     render_text("z: " + std::to_string(st.player_pos.z), {1, 2});
     render_text("view: " + std::to_string(renderer.get_view_range()), {1, 3});
+    render_text("tick: " + std::to_string(tick_time), {1, 4});
     render_text("y - toggle wireframe mode", {-1, 0});
     render_text("u - toggle face culling  ", {-1, 1});
     render_text("i - increase view range  ", {-1, 2});

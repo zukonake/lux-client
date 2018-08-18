@@ -17,6 +17,7 @@ public:
     IoClient(GLFWwindow *win, data::Config const &conf);
 
     bool should_close();
+    void set_tick_time(F64 time);
 protected:
     virtual void take_st(net::server::Tick const &) override;
     virtual void give_ct(net::client::Tick &)       override;

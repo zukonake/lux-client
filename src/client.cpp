@@ -49,18 +49,29 @@ bool Client::should_run()
 
 void Client::run()
 {
+    constexpr U32 TICK_DELTA_SAMPLING = 64;
+    U32 tick_sample = 0;
+    F64 delta_avg = 0;
     while(should_run())
     {
         game_tick.start();
+        if(tick_sample >= TICK_DELTA_SAMPLING)
+        {
+            io_client.set_tick_time(delta_avg / (F64)TICK_DELTA_SAMPLING);
+            delta_avg = 0;
+            tick_sample = 0;
+        }
         receive_server_packets();
         send_client_packets();
         game_tick.stop();
         auto delta = game_tick.synchronize();
+        delta_avg += delta.count();
         if(delta < util::TickClock::Duration::zero())
         {
             util::log("CLIENT", util::WARN, "tick overhead of %.2f ticks",
                       std::abs(delta / game_tick.get_tick_len()));
         }
+        tick_sample += 1;
     }
 }
 
