@@ -49,7 +49,7 @@ void Map::add_chunk(net::server::Chunk const &new_chunk)
 
     for(SizeT i = 0; i < CHK_VOLUME; ++i)
     {
-        chunk.tiles.emplace_back(&db.get_tile(new_chunk.tiles[i].id));
+        chunk.tiles.emplace_back(&db.get_tile(new_chunk.tile_ids[i]));
     }
 
 }
