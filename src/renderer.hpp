@@ -39,6 +39,7 @@ private:
 
     void update_view(entity::Pos const &player_pos);
     void update_projection(F32 width_to_height);
+    void update_wvp();
     void update_view_range();
 
     Map map;
@@ -51,6 +52,8 @@ private:
     glm::vec4 sky_color;
     Vec2<I32> last_mouse_pos;
     glm::mat4 world_mat;
+    glm::mat4 view_mat;
+    glm::mat4 projection_mat;
     render::Camera camera;
     render::Program program;
     render::Texture tileset;

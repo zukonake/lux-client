@@ -27,7 +27,9 @@ Renderer::Renderer(GLFWwindow *win, data::Config const &conf) :
     world_mat({1.0, 0.0, 0.0, 0.0}, /* swapped z with y */
               {0.0, 0.0, 1.0, 0.0},
               {0.0, 1.0, 0.0, 0.0},
-              {0.0, 0.0, 0.0, 1.0})
+              {0.0, 0.0, 0.0, 1.0}),
+    view_mat(1.f),
+    projection_mat(1.f)
 {
     program.init(conf.vert_shader_path, conf.frag_shader_path);
     program.use();
@@ -41,8 +43,6 @@ Renderer::Renderer(GLFWwindow *win, data::Config const &conf) :
     tileset.generate_mipmaps(tileset_size.x / conf.tile_size.x);
 
     program.set_uniform("tex_size", glUniform2f, tile_scale.x, tile_scale.y);
-    program.set_uniform("world", glUniformMatrix4fv,
-        1, GL_FALSE, glm::value_ptr(world_mat));
 
     glfwGetWindowSize(IoNode::win, &last_mouse_pos.x, &last_mouse_pos.y);
     last_mouse_pos /= 2.f;
@@ -199,16 +199,25 @@ void Renderer::update_view(entity::Pos const &player_pos)
     last_mouse_pos = mouse_pos;
     camera.teleport(glm::vec3(world_mat *
         glm::vec4(player_pos + glm::vec3(0.0, 0.0, 0.8), 1.0)));
+    view_mat = camera.get_view();
     program.set_uniform("view", glUniformMatrix4fv,
-        1, GL_FALSE, glm::value_ptr(camera.get_view()));
+        1, GL_FALSE, glm::value_ptr(view_mat));
+    update_wvp();
 }
 
 void Renderer::update_projection(F32 width_to_height)
 {
-    glm::mat4 projection =
+    projection_mat =
         glm::perspective(glm::radians(fov), width_to_height, Z_NEAR, z_far);
     program.set_uniform("projection", glUniformMatrix4fv,
-        1, GL_FALSE, glm::value_ptr(projection));
+        1, GL_FALSE, glm::value_ptr(projection_mat));
+    update_wvp();
+}
+
+void Renderer::update_wvp()
+{
+    program.set_uniform("wvp", glUniformMatrix4fv,
+        1, GL_FALSE, glm::value_ptr(projection_mat * view_mat * world_mat));
 }
 
 void Renderer::update_view_range()

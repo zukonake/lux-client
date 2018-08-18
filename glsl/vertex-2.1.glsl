@@ -9,6 +9,7 @@ attribute vec2 tex_pos;
 uniform mat4 projection;
 uniform mat4 view;
 uniform mat4 world;
+uniform mat4 wvp;
 uniform vec2 tex_size;
 
 varying vec2 f_tex_pos;
@@ -19,7 +20,7 @@ const float FOG_DISTANCE = 80.0;
 
 void main()
 {
-    gl_Position = projection * view * world * vec4(pos, 1.0);
+    gl_Position = wvp * vec4(pos, 1.0);
     f_tex_pos = tex_pos * tex_size;
 #ifdef ENABLE_FOG
 #   ifdef ENABLE_FOG_SPHERICAL
