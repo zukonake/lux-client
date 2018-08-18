@@ -6,6 +6,6 @@
 namespace render
 {
 
-typedef Vec2<U16> TexPos;
+typedef Vec2<U32> TexPos;
 
 }

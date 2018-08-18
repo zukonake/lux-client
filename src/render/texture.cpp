@@ -30,7 +30,7 @@ Vec2<U32> Texture::load(String const &path)
     return size;
 }
 
-void Texture::generate_mipmaps(U16 levels)
+void Texture::generate_mipmaps(U32 levels)
 {
     assert((size.x & (size.x - 1)) == 0); //assert powers of 2
     assert((size.y & (size.y - 1)) == 0); //
