@@ -220,7 +220,7 @@ void Renderer::update_wvp()
 
 void Renderer::update_view_range()
 {
-    z_far = glm::compMax(CHK_SIZE) * view_range;
+    z_far = glm::compMax(CHK_SIZE) * (view_range + 1);
 
     program.use();
     Vec2<I32> screen_size;
