@@ -1,5 +1,5 @@
+#include <lux/net/client/packet.hpp>
 #include <lux/net/server/tick.hpp>
-#include <iostream>
 //
 #include <render/interface_vertex.hpp>
 #include <render/index.hpp>
@@ -12,6 +12,7 @@ DebugInterface::DebugInterface(GLFWwindow *win, Renderer &renderer,
     IoNode(win),
     char_size(conf.char_size),
     char_scale(conf.char_scale),
+    conf_signal_queued(false),
     renderer(renderer)
 {
     program.init(conf.interface_shader_path + ".vert",
@@ -45,10 +46,12 @@ void DebugInterface::take_key(I32 key, I32 code, I32 action, I32 mods)
     else if(key == GLFW_KEY_I && action == GLFW_PRESS)
     {
         renderer.increase_view_range();
+        conf_signal_queued = true;
     }
     else if(key == GLFW_KEY_O && action == GLFW_PRESS)
     {
         renderer.decrease_view_range();
+        conf_signal_queued = true;
     }
 }
 
@@ -65,6 +68,18 @@ void DebugInterface::take_st(net::server::Tick const &st)
     render_text("u - toggle face culling  ", {-1, 1});
     render_text("i - increase view range  ", {-1, 2});
     render_text("o - decrease view range  ", {-1, 3});
+}
+
+bool DebugInterface::give_cs(net::client::Packet &cs)
+{
+    if(conf_signal_queued)
+    {
+        cs.type = net::client::Packet::CONF;
+        cs.conf.load_range = renderer.get_view_range() + 1.f;
+        conf_signal_queued = false;
+        return true;
+    }
+    return false;
 }
 
 void DebugInterface::take_resize(Vec2<U32> const &size)
