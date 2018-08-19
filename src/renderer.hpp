@@ -53,6 +53,7 @@ private:
     glm::mat4 world_mat;
     glm::mat4 view_mat;
     glm::mat4 projection_mat;
+    glm::mat4 wvp_mat;
     render::Camera camera;
     render::Program program;
     render::Texture tileset;

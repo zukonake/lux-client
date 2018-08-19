@@ -128,25 +128,52 @@ void Renderer::render_world(entity::Pos const &player_pos)
 
     ChkPos iter;
     ChkPos center = to_chk_pos(glm::round(player_pos));
-    for(iter.z = center.z - view_range;
+    Vector<ChkPos> render_queue;
+
+    for(iter.z  = center.z - view_range;
         iter.z <= center.z + view_range;
         ++iter.z)
     {
-        for(iter.y = center.y - view_range;
+        for(iter.y  = center.y - view_range;
             iter.y <= center.y + view_range;
             ++iter.y)
         {
-            for(iter.x = center.x - view_range;
+            for(iter.x  = center.x - view_range;
                 iter.x <= center.x + view_range;
                 ++iter.x)
             {
-                if(glm::distance((Vec3<F32>)iter, (Vec3<F32>)center)
-                       <= view_range)
+                bool visible = false;
+                for(U32 i = 0; i <= 0b111; ++i)
                 {
-                    render_chunk(iter);
+                    MapPos pos = to_map_pos(iter, IdxPos(CHK_SIZE - 1u) *
+                                 IdxPos(i & 1, (i & 2) >> 1, (i & 4) >> 2));
+                    glm::vec4 v_pos = wvp_mat * glm::vec4(pos, 1.f);
+                    if(v_pos.x > -v_pos.w && v_pos.x < v_pos.w &&
+                       v_pos.y > -v_pos.w && v_pos.y < v_pos.w &&
+                       v_pos.z > 0        && v_pos.z < v_pos.w)
+                    {
+                        visible = true;
+                        break;
+                    }
                 }
+                if(visible) render_queue.push_back(iter);
             }
         }
+    }
+    auto f_point = [&] (Vec3<F32> const &p) -> Vec3<F32>
+    {
+        return p + Vec3<F32>(0.5, 0.5, 0.5);
+    };
+    Vec3<F32> f_center = f_point(center);
+    auto distance_sort = [&] (Vec3<F32> const &a, Vec3<F32> const &b) -> bool
+    {
+        return glm::distance(f_point(a), f_center) <
+               glm::distance(f_point(b), f_center);
+    };
+    std::sort(render_queue.begin(), render_queue.end(), distance_sort);
+    for(auto const &chunk : render_queue)
+    {
+        render_chunk(chunk);
     }
 }
 
@@ -214,8 +241,9 @@ void Renderer::update_projection(F32 width_to_height)
 
 void Renderer::update_wvp()
 {
+    wvp_mat = projection_mat * view_mat * world_mat;
     program.set_uniform("wvp", glUniformMatrix4fv,
-        1, GL_FALSE, glm::value_ptr(projection_mat * view_mat * world_mat));
+        1, GL_FALSE, glm::value_ptr(wvp_mat));
 }
 
 void Renderer::update_view_range()
