@@ -49,6 +49,14 @@ void DebugInterface::take_key(I32 key, I32 code, I32 action, I32 mods)
     {
         renderer.toggle_face_culling();
     }
+    else if(key == GLFW_KEY_H && action == GLFW_PRESS)
+    {
+        renderer.toggle_frustrum_culling();
+    }
+    else if(key == GLFW_KEY_J && action == GLFW_PRESS)
+    {
+        renderer.toggle_distance_sorting();
+    }
     else if(key == GLFW_KEY_I && action == GLFW_PRESS)
     {
         renderer.increase_view_range();
@@ -71,10 +79,12 @@ void DebugInterface::take_st(net::server::Tick const &st)
     render_text("z: " + std::to_string(st.player_pos.z), {1, 2});
     render_text("view: " + std::to_string(renderer.get_view_range()), {1, 3});
     render_text("tick: " + std::to_string(tick_time), {1, 4});
-    render_text("y - toggle wireframe mode", {-1, 0});
-    render_text("u - toggle face culling  ", {-1, 1});
-    render_text("i - increase view range  ", {-1, 2});
-    render_text("o - decrease view range  ", {-1, 3});
+    render_text("y - toggle wireframe mode  ", {-1, 0});
+    render_text("u - toggle face culling    ", {-1, 1});
+    render_text("h - toggle frustrum culling", {-1, 2});
+    render_text("j - toggle distance sorting", {-1, 3});
+    render_text("i - increase view range    ", {-1, 4});
+    render_text("o - decrease view range    ", {-1, 5});
 }
 
 bool DebugInterface::give_cs(net::client::Packet &cs)

@@ -21,6 +21,8 @@ public:
 
     void toggle_wireframe();
     void toggle_face_culling();
+    void toggle_frustrum_culling();
+    void toggle_distance_sorting();
     void increase_view_range();
     void decrease_view_range();
     F32  get_view_range();
@@ -47,6 +49,8 @@ private:
     F32 fov;
     bool wireframe;
     bool face_culling;
+    bool frustrum_culling;
+    bool distance_sorting;
 
     glm::vec4 sky_color;
     Vec2<I32> last_mouse_pos;

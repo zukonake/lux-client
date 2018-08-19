@@ -21,6 +21,8 @@ Renderer::Renderer(GLFWwindow *win, data::Config const &conf) :
     fov(conf.fov),
     wireframe(false),
     face_culling(true),
+    frustrum_culling(true),
+    distance_sorting(true),
     sky_color(conf.sky_color),
     world_mat({1.0, 0.0, 0.0, 0.0}, /* swapped z with y */
               {0.0, 0.0, 1.0, 0.0},
@@ -57,6 +59,16 @@ void Renderer::toggle_wireframe()
 void Renderer::toggle_face_culling()
 {
     face_culling = !face_culling;
+}
+
+void Renderer::toggle_frustrum_culling()
+{
+    frustrum_culling = !frustrum_culling;
+}
+
+void Renderer::toggle_distance_sorting()
+{
+    distance_sorting = !distance_sorting;
 }
 
 void Renderer::increase_view_range()
@@ -130,47 +142,72 @@ void Renderer::render_world(entity::Pos const &player_pos)
     ChkPos center = to_chk_pos(glm::round(player_pos));
     Vector<ChkPos> render_queue;
 
-    for(iter.z  = center.z - view_range;
-        iter.z <= center.z + view_range;
-        ++iter.z)
+    if(frustrum_culling)
     {
-        for(iter.y  = center.y - view_range;
-            iter.y <= center.y + view_range;
-            ++iter.y)
+        for(iter.z  = center.z - view_range;
+            iter.z <= center.z + view_range;
+            ++iter.z)
         {
-            for(iter.x  = center.x - view_range;
-                iter.x <= center.x + view_range;
-                ++iter.x)
+            for(iter.y  = center.y - view_range;
+                iter.y <= center.y + view_range;
+                ++iter.y)
             {
-                bool visible = false;
-                for(U32 i = 0; i <= 0b111; ++i)
+                for(iter.x  = center.x - view_range;
+                    iter.x <= center.x + view_range;
+                    ++iter.x)
                 {
-                    MapPos pos = to_map_pos(iter, IdxPos(CHK_SIZE - 1u) *
-                                 IdxPos(i & 1, (i & 2) >> 1, (i & 4) >> 2));
-                    glm::vec4 v_pos = wvp_mat * glm::vec4(pos, 1.f);
-                    if(v_pos.x > -v_pos.w && v_pos.x < v_pos.w &&
-                       v_pos.y > -v_pos.w && v_pos.y < v_pos.w &&
-                       v_pos.z > 0        && v_pos.z < v_pos.w)
+                    bool visible = false;
+                    for(U32 i = 0; i <= 0b111; ++i)
                     {
-                        visible = true;
-                        break;
+                        MapPos pos = to_map_pos(iter, IdxPos(CHK_SIZE - 1u) *
+                                     IdxPos(i & 1, (i & 2) >> 1, (i & 4) >> 2));
+                        glm::vec4 v_pos = wvp_mat * glm::vec4(pos, 1.f);
+                        if(v_pos.x > -v_pos.w && v_pos.x < v_pos.w &&
+                           v_pos.y > -v_pos.w && v_pos.y < v_pos.w &&
+                           v_pos.z > 0        && v_pos.z < v_pos.w)
+                        {
+                            visible = true;
+                            break;
+                        }
                     }
+                    if(visible) render_queue.push_back(iter);
                 }
-                if(visible) render_queue.push_back(iter);
             }
         }
     }
-    auto f_point = [&] (Vec3<F32> const &p) -> Vec3<F32>
+    else
     {
-        return p + Vec3<F32>(0.5, 0.5, 0.5);
-    };
-    Vec3<F32> f_center = f_point(center);
-    auto distance_sort = [&] (Vec3<F32> const &a, Vec3<F32> const &b) -> bool
+        for(iter.z  = center.z - view_range;
+            iter.z <= center.z + view_range;
+            ++iter.z)
+        {
+            for(iter.y  = center.y - view_range;
+                iter.y <= center.y + view_range;
+                ++iter.y)
+            {
+                for(iter.x  = center.x - view_range;
+                    iter.x <= center.x + view_range;
+                    ++iter.x)
+                {
+                    render_queue.push_back(iter);
+                }
+            }
+        }
+    }
+    if(distance_sorting)
     {
-        return glm::distance(f_point(a), f_center) <
-               glm::distance(f_point(b), f_center);
-    };
-    std::sort(render_queue.begin(), render_queue.end(), distance_sort);
+        auto f_point = [&] (Vec3<F32> const &p) -> Vec3<F32>
+        {
+            return p + Vec3<F32>(0.5, 0.5, 0.5);
+        };
+        Vec3<F32> f_center = f_point(center);
+        auto distance_sort = [&] (Vec3<F32> const &a, Vec3<F32> const &b) -> bool
+        {
+            return glm::distance(f_point(a), f_center) <
+                   glm::distance(f_point(b), f_center);
+        };
+        std::sort(render_queue.begin(), render_queue.end(), distance_sort);
+    }
     for(auto const &chunk : render_queue)
     {
         render_chunk(chunk);
