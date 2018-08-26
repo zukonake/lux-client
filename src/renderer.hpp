@@ -18,6 +18,7 @@ class Renderer : public IoNode
 {
 public:
     Renderer(GLFWwindow *win, data::Config const &conf);
+    ~Renderer();
 
     void toggle_wireframe();
     void toggle_face_culling();
@@ -52,8 +53,13 @@ private:
     bool frustrum_culling;
     bool distance_sorting;
 
+    GLuint fb_id;
+    GLuint color_rb_id;
+    GLuint depth_rb_id;
     glm::vec4 sky_color;
     Vec2<I32> last_mouse_pos;
+    Vec2<U32> screen_size;
+    Vec2<U32> screen_scale;
     glm::mat4 world_mat;
     glm::mat4 view_mat;
     glm::mat4 projection_mat;

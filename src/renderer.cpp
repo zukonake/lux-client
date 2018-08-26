@@ -24,6 +24,7 @@ Renderer::Renderer(GLFWwindow *win, data::Config const &conf) :
     frustrum_culling(true),
     distance_sorting(true),
     sky_color(conf.sky_color),
+    screen_scale(conf.window_scale),
     world_mat({1.0, 0.0, 0.0, 0.0}, /* swapped z with y */
               {0.0, 0.0, 1.0, 0.0},
               {0.0, 1.0, 0.0, 0.0},
@@ -44,11 +45,27 @@ Renderer::Renderer(GLFWwindow *win, data::Config const &conf) :
 
     program.set_uniform("tex_size", glUniform2f, tile_scale.x, tile_scale.y);
 
-    glfwGetWindowSize(IoNode::win, &last_mouse_pos.x, &last_mouse_pos.y);
-    last_mouse_pos /= 2.f;
-
     glCullFace(GL_BACK);
     glFrontFace(GL_CCW);
+
+    glGenFramebuffers(1, &fb_id);
+    glGenRenderbuffers(1, &color_rb_id);
+    glGenRenderbuffers(1, &depth_rb_id);
+    glBindFramebuffer(GL_FRAMEBUFFER, fb_id);
+    glBindRenderbuffer(GL_RENDERBUFFER, color_rb_id);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+        GL_RENDERBUFFER, color_rb_id);
+    glBindRenderbuffer(GL_RENDERBUFFER, depth_rb_id);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+        GL_RENDERBUFFER, depth_rb_id);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+Renderer::~Renderer()
+{
+    glDeleteFramebuffers(1, &fb_id);
+    glDeleteRenderbuffers(1, &color_rb_id);
+    glDeleteRenderbuffers(1, &depth_rb_id);
 }
 
 void Renderer::toggle_wireframe()
@@ -93,15 +110,31 @@ F32 Renderer::get_view_range()
 
 void Renderer::take_st(net::server::Tick const &st)
 {
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fb_id);
+    glViewport(0, 0, screen_size.x, screen_size.y);
     glEnable(GL_DEPTH_TEST);
     if(face_culling) glEnable(GL_CULL_FACE);
     if(wireframe) glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
+    program.use();
+    tileset.use();
+    glClearColor(sky_color.r, sky_color.g, sky_color.b, sky_color.a);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
     render_world(st.player_pos);
+
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, fb_id);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+    glBlitFramebuffer(0, 0, screen_size.x, screen_size.y,
+                      0, 0, screen_size.x * screen_scale.x,
+                            screen_size.y * screen_scale.y,
+                      GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT, GL_NEAREST);
 
     if(face_culling) glDisable(GL_CULL_FACE);
     if(wireframe) glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     glDisable(GL_DEPTH_TEST);
+    glViewport(0, 0, screen_size.x * screen_scale.x,
+                     screen_size.y * screen_scale.y);
 }
 
 void Renderer::take_ss(net::server::Packet const &sp)
@@ -124,19 +157,20 @@ void Renderer::give_ct(net::client::Tick &ct)
 
 void Renderer::take_resize(Vec2<U32> const &size)
 {
+    screen_size = size / screen_scale;
+    glBindRenderbuffer(GL_RENDERBUFFER, color_rb_id);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA,
+        screen_size.x, screen_size.y);
+    glBindRenderbuffer(GL_RENDERBUFFER, depth_rb_id);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24,
+        screen_size.x, screen_size.y);
     program.use();
-    update_projection((F32)size.x/(F32)size.y);
+    update_projection((F32)screen_size.x/(F32)screen_size.y);
 }
 
 void Renderer::render_world(entity::Pos const &player_pos)
 {
-    program.use();
-    tileset.use();
     update_view(player_pos);
-
-    glClearColor(sky_color.r, sky_color.g, sky_color.b, sky_color.a);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    //TODO move those to IoClient so it wont's conflict with other renderers
 
     ChkPos iter;
     ChkPos center = to_chk_pos(glm::round(player_pos));
@@ -203,7 +237,7 @@ void Renderer::render_world(entity::Pos const &player_pos)
         Vec3<F32> f_center = f_point(center);
         auto distance_sort = [&] (Vec3<F32> const &a, Vec3<F32> const &b) -> bool
         {
-            return glm::distance(f_point(a), f_center) <
+            return glm::distance(f_point(a), f_center) >
                    glm::distance(f_point(b), f_center);
         };
         std::sort(render_queue.begin(), render_queue.end(), distance_sort);
@@ -253,11 +287,11 @@ void Renderer::render_mesh(render::Mesh const &mesh)
 void Renderer::update_view(entity::Pos const &player_pos)
 {
     Vec2<F64> mouse_pos;
-    Vec2<I32> screen_size;
     glfwGetCursorPos(IoNode::win, &mouse_pos.x, &mouse_pos.y);
-    glfwGetWindowSize(IoNode::win, &screen_size.x, &screen_size.y);
-    camera.rotate({(F32)(mouse_pos.x - last_mouse_pos.x) / screen_size.x,
-                   (F32)(last_mouse_pos.y - mouse_pos.y) / screen_size.y});
+    camera.rotate({(F32)(mouse_pos.x - last_mouse_pos.x)
+                       / (screen_size.x * screen_scale.x),
+                   (F32)(last_mouse_pos.y - mouse_pos.y)
+                       / (screen_size.y * screen_scale.y)});
     last_mouse_pos = mouse_pos;
     camera.teleport(glm::vec3(world_mat *
         glm::vec4(player_pos + glm::vec3(0.0, 0.0, 0.8), 1.0)));
@@ -288,7 +322,5 @@ void Renderer::update_view_range()
     z_far = glm::compMax(CHK_SIZE) * (view_range + 1);
 
     program.use();
-    Vec2<I32> screen_size;
-    glfwGetWindowSize(IoNode::win, &screen_size.x, &screen_size.y);
     update_projection((F32)screen_size.x/(F32)screen_size.y);
 }

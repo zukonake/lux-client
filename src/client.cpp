@@ -19,6 +19,7 @@ Client::Client() :
           "tileset.png",
           "font.png",
           {800, 600},
+          {1, 1},
           {16, 16},
           {8, 8},
           2,

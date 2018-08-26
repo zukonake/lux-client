@@ -21,6 +21,7 @@ struct Config
     String    tileset_path;
     String    font_path;
     Vec2<U32> window_size;
+    Vec2<U32> window_scale;
     Vec2<U32> tile_size;
     Vec2<U32> char_size;
     U32       char_scale;
