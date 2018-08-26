@@ -39,6 +39,10 @@ private:
     void render_chunk(ChkPos const &chunk_pos);
     void render_mesh(render::Mesh const &mesh);
 
+    bool is_chunk_visible(ChkPos const &pos);
+    void get_render_queue(Vector<ChkPos> &render_queue, ChkPos const &center);
+    void sort_render_queue(Vector<ChkPos> &render_queue, ChkPos const &center);
+
     void update_view(entity::Pos const &player_pos);
     void update_projection(F32 width_to_height);
     void update_wvp();

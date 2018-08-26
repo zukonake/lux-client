@@ -172,76 +172,12 @@ void Renderer::render_world(entity::Pos const &player_pos)
 {
     update_view(player_pos);
 
-    ChkPos iter;
     ChkPos center = to_chk_pos(glm::round(player_pos));
     Vector<ChkPos> render_queue;
 
-    if(frustrum_culling)
-    {
-        for(iter.z  = center.z - view_range;
-            iter.z <= center.z + view_range;
-            ++iter.z)
-        {
-            for(iter.y  = center.y - view_range;
-                iter.y <= center.y + view_range;
-                ++iter.y)
-            {
-                for(iter.x  = center.x - view_range;
-                    iter.x <= center.x + view_range;
-                    ++iter.x)
-                {
-                    bool visible = false;
-                    for(U32 i = 0; i <= 0b111; ++i)
-                    {
-                        MapPos pos = to_map_pos(iter, IdxPos(CHK_SIZE - 1u) *
-                                     IdxPos(i & 1, (i & 2) >> 1, (i & 4) >> 2));
-                        glm::vec4 v_pos = wvp_mat * glm::vec4(pos, 1.f);
-                        if(v_pos.x > -v_pos.w && v_pos.x < v_pos.w &&
-                           v_pos.y > -v_pos.w && v_pos.y < v_pos.w &&
-                           v_pos.z > 0        && v_pos.z < v_pos.w)
-                        {
-                            visible = true;
-                            break;
-                        }
-                    }
-                    if(visible) render_queue.push_back(iter);
-                }
-            }
-        }
-    }
-    else
-    {
-        for(iter.z  = center.z - view_range;
-            iter.z <= center.z + view_range;
-            ++iter.z)
-        {
-            for(iter.y  = center.y - view_range;
-                iter.y <= center.y + view_range;
-                ++iter.y)
-            {
-                for(iter.x  = center.x - view_range;
-                    iter.x <= center.x + view_range;
-                    ++iter.x)
-                {
-                    render_queue.push_back(iter);
-                }
-            }
-        }
-    }
-    if(distance_sorting)
-    {
-        auto f_point = [&] (Vec3<F32> const &p) -> Vec3<F32>
-        {
-            return p + Vec3<F32>(0.5, 0.5, 0.5);
-        };
-        Vec3<F32> f_center = f_point(center);
-        auto distance_sort = [&] (Vec3<F32> const &a, Vec3<F32> const &b) -> bool
-        {
-            return glm::distance(f_point(a), f_center) >
-                   glm::distance(f_point(b), f_center);
-        };
-        std::sort(render_queue.begin(), render_queue.end(), distance_sort);
-    }
+    get_render_queue(render_queue, center);
+    sort_render_queue(render_queue, center);
+
     for(auto const &chunk : render_queue)
     {
         render_chunk(chunk);
@@ -265,7 +201,84 @@ void Renderer::render_chunk(ChkPos const &pos)
             }
         }
     }
+}
 
+bool Renderer::is_chunk_visible(ChkPos const &pos)
+{
+    for(U32 i = 0; i <= 0b111; ++i)
+    {
+        MapPos map_pos = to_map_pos(pos, IdxPos(CHK_SIZE - 1u) *
+                     IdxPos(i & 1, (i & 2) >> 1, (i & 4) >> 2));
+        glm::vec4 v_pos = wvp_mat * glm::vec4(map_pos, 1.f);
+        if(v_pos.x > -v_pos.w && v_pos.x < v_pos.w &&
+           v_pos.y > -v_pos.w && v_pos.y < v_pos.w &&
+           v_pos.z > 0        && v_pos.z < v_pos.w)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+void Renderer::get_render_queue(Vector<ChkPos> &render_queue, ChkPos const &center)
+{
+    ChkPos iter;
+    if(frustrum_culling)
+    {
+        for(iter.z  = center.z - view_range;
+            iter.z <= center.z + view_range;
+            ++iter.z)
+        {
+            for(iter.y  = center.y - view_range;
+                iter.y <= center.y + view_range;
+                ++iter.y)
+            {
+                for(iter.x  = center.x - view_range;
+                    iter.x <= center.x + view_range;
+                    ++iter.x)
+                {
+                    if(is_chunk_visible(iter)) render_queue.push_back(iter);
+                }
+            }
+        }
+    }
+    else
+    {
+        for(iter.z  = center.z - view_range;
+            iter.z <= center.z + view_range;
+            ++iter.z)
+        {
+            for(iter.y  = center.y - view_range;
+                iter.y <= center.y + view_range;
+                ++iter.y)
+            {
+                for(iter.x  = center.x - view_range;
+                    iter.x <= center.x + view_range;
+                    ++iter.x)
+                {
+                    render_queue.push_back(iter);
+                }
+            }
+        }
+    }
+}
+
+void Renderer::sort_render_queue(Vector<ChkPos> &render_queue, ChkPos const &center)
+{
+    if(distance_sorting)
+    {
+        auto f_point = [&] (Vec3<F32> const &p) -> Vec3<F32>
+        {
+            return p + Vec3<F32>(0.5, 0.5, 0.5);
+        };
+        Vec3<F32> f_center = f_point(center);
+        auto distance_sort = [&] (Vec3<F32> const &a, Vec3<F32> const &b) -> bool
+        {
+            return glm::distance(f_point(a), f_center) >
+                   glm::distance(f_point(b), f_center);
+        };
+        std::sort(render_queue.begin(), render_queue.end(), distance_sort);
+    }
 }
 
 void Renderer::render_mesh(render::Mesh const &mesh)
