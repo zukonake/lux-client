@@ -10,13 +10,9 @@ namespace map
 
 struct Chunk
 {
-    Chunk() : mesh(nullptr) { }
-    ~Chunk()
-    {
-        if(mesh != nullptr) delete mesh;
-    }
     Vector<Tile> tiles;
-    render::Mesh *mesh;
+    render::Mesh mesh;
+    bool is_mesh_generated;
 };
 
 }

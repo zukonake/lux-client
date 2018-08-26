@@ -253,13 +253,16 @@ void Renderer::render_chunk(ChkPos const &pos)
     map::Chunk const *chunk = map.get_chunk(pos);
     if(chunk != nullptr)
     {
-        if(chunk->mesh == nullptr)
+        if(chunk->is_mesh_generated == false)
         {
             map.try_mesh(pos);
         }
         else
         {
-            render_mesh(*chunk->mesh);
+            if(chunk->mesh.vertices.size() > 0)
+            {
+                render_mesh(chunk->mesh);
+            }
         }
     }
 

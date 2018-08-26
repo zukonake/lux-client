@@ -22,6 +22,9 @@ class Map
     void add_chunk(net::server::Chunk const &new_chunk);
     void try_mesh(ChkPos const &pos);
     private:
+    void build_material_mesh(map::Chunk &chunk, ChkPos const &pos,
+                             map::TileType const &material);
+
     HashMap<ChkPos, map::Chunk> chunks;
     data::Database const &db;
 };
