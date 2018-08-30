@@ -60,40 +60,93 @@ void Map::try_mesh(ChkPos const &pos)
         {{-1,  0,  0}, { 1,  0,  0},
          { 0, -1,  0}, { 0,  1,  0},
          { 0,  0, -1}, { 0,  0,  1}};
+    assert(chunks.count(pos) > 0);
+    assert(!chunks.at(pos).is_mesh_generated);
 
-    for(SizeT side = 0; side < 6; ++side)
-    {
+    for(SizeT side = 0; side < 6; ++side) {
+        /* the chunks on positive offsets need to be loaded,
+         * we also load the negative offsets so there is no asymmetry */
         if(chunks.count(pos + (ChkPos)offsets[side]) == 0) return;
-        /* surrounding chunks need to be loaded to mesh */
     }
     map::Chunk &chunk = chunks.at(pos);
-    HashMap<tile::Id, map::TileType const *> materials;
-    for(U32 i = 0; i < CHK_VOLUME; ++i)
+    build_mesh(chunk, pos);
+}
+
+void Map::build_mesh(map::Chunk &chunk, ChkPos const &pos)
+    //TODO number of iterations over each blocks can probably be reduced by
+    //joining the loops somehow
+{
+    constexpr MapPos quads[3][4] =
+        {{{1, 0, 0}, {1, 0, 1}, {1, 1, 1}, {1, 1, 0}},
+         {{0, 1, 0}, {1, 1, 0}, {1, 1, 1}, {0, 1, 1}},
+         {{0, 0, 1}, {0, 1, 1}, {1, 1, 1}, {1, 0, 1}}};
+    constexpr MapPos offsets[3] = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
+    constexpr F32 unit = 1.f - FLT_EPSILON;
+    constexpr glm::vec2 tex_positions[3][4] =
+        {{{unit, 0.0f}, {unit, unit}, {0.0f, unit}, {0.0f, 0.0f}},
+         {{0.0f, 0.0f}, {unit, 0.0f}, {unit, unit}, {0.0f, unit}},
+         {{0.0f, 0.0f}, {unit, 0.0f}, {unit, unit}, {0.0f, unit}}};
+
+    render::Mesh &mesh = chunk.mesh;
+
+    /* this is the size of a checkerboard pattern, worst case */
+    mesh.vertices.reserve(CHK_VOLUME * 3 * 4);
+    mesh.indices.reserve(CHK_VOLUME * 3 * 6);
+
+    render::Index index_offset = 0;
+    tile::Id void_id = db.get_tile_id("void");
+    //TODO ^ move to class
+
+    auto get_voxel = [&] (MapPos const &pos) -> map::TileType const &
     {
-        map::TileType const *tile_type = chunk.tiles[i].type;
-        tile::Id id = tile_type->id;
-        if(materials.count(id) == 0)
-        {
-            materials[id] = tile_type;
+        //TODO use current chunk to reduce to_chk_* calls, and chunks access
+        return *chunks[to_chk_pos(pos)].tiles[to_chk_idx(pos)].type;
+    };
+    auto has_face = [&] (MapPos const &a, MapPos const &b)
+    {
+        /* only one of the blocks must be non-void to have a face */
+        return (get_voxel(a).id == void_id) !=
+               (get_voxel(b).id == void_id);
+    };
+
+    bool face_map[3][CHK_VOLUME];
+    for(ChkIdx i = 0; i < CHK_VOLUME; ++i) {
+        MapPos map_pos = to_map_pos(pos, i);
+        for(U32 a = 0; a < 3; ++a) {
+            face_map[a][i] = has_face(map_pos, map_pos + offsets[a]);
         }
     }
-    render::Mesh &mesh = chunk.mesh;
-    {
-        SizeT worst_case_len = CHK_VOLUME / 2;
-        /* this is the size of a checkerboard pattern, the worst possible case
-         */
-        mesh.vertices.reserve(worst_case_len * 6 * 4);
-        mesh.indices.reserve(worst_case_len * 6 * 6);
-    }
-    for(auto const &material : materials)
-    {
-        build_material_mesh(chunk, pos, *material.second);
+
+    for(ChkIdx i = 0; i < CHK_VOLUME; ++i) {
+        MapPos map_pos = to_map_pos(pos, i);
+        for(U32 a = 0; a < 3; ++a) {
+            if(face_map[a][i]) {
+                /* if the current chunk is empty, we need to take the texture
+                 * of the second chunk with that face */
+                bool is_solid = chunk.tiles[i].type->id != void_id;
+                MapPos vox_pos = map_pos + offsets[a] * (I32)(!is_solid);
+                map::TileType const &vox_type = get_voxel(vox_pos);
+                for(U32 j = 0; j < 4; ++j) {
+                    glm::vec4 col = glm::vec4(1.0);
+                    mesh.vertices.emplace_back(
+                        map_pos + quads[a][j], col,
+                        (glm::vec2)vox_type.tex_pos + tex_positions[a][j]);
+                }
+                constexpr render::Index  cw_order[6] = {0, 1, 2, 2, 3, 0};
+                constexpr render::Index ccw_order[6] = {0, 3, 2, 2, 1, 0};
+                render::Index const (&order)[6] =
+                    is_solid ? cw_order : ccw_order;
+                for(render::Index idx : order) {
+                    mesh.indices.emplace_back(idx + index_offset);
+                }
+                index_offset += 4;
+            }
+        }
     }
     mesh.vertices.shrink_to_fit();
     mesh.indices.shrink_to_fit();
 
-    if(mesh.vertices.size() > 0)
-    {
+    if(mesh.vertices.size() > 0) {
         glGenBuffers(1, &mesh.vbo_id);
         glGenBuffers(1, &mesh.ebo_id);
 
@@ -110,66 +163,4 @@ void Map::try_mesh(ChkPos const &pos)
                      GL_STATIC_DRAW);
     }
     chunk.is_mesh_generated = true;
-}
-
-void Map::build_material_mesh(map::Chunk &chunk, ChkPos const &pos,
-                              map::TileType const &material)
-{
-    constexpr MapPos quads[6][4] =
-        {{{0, 0, 0}, {0, 1, 0}, {0, 1, 1}, {0, 0, 1}},
-         {{1, 0, 0}, {1, 0, 1}, {1, 1, 1}, {1, 1, 0}},
-         {{0, 0, 0}, {0, 0, 1}, {1, 0, 1}, {1, 0, 0}},
-         {{0, 1, 0}, {1, 1, 0}, {1, 1, 1}, {0, 1, 1}},
-         {{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}},
-         {{0, 0, 1}, {0, 1, 1}, {1, 1, 1}, {1, 0, 1}}};
-    constexpr MapPos offsets[6] =
-        {{-1,  0,  0}, { 1,  0,  0},
-         { 0, -1,  0}, { 0,  1,  0},
-         { 0,  0, -1}, { 0,  0,  1}};
-    constexpr F32 unit = 1.f - FLT_EPSILON;
-    constexpr glm::vec2 tex_positions[6][4] =
-        {{{0.0f, 0.0f}, {unit, 0.0f}, {unit, unit}, {0.0f, unit}},
-         {{unit, 0.0f}, {unit, unit}, {0.0f, unit}, {0.0f, 0.0f}},
-         {{unit, 0.0f}, {unit, unit}, {0.0f, unit}, {0.0f, 0.0f}},
-         {{0.0f, 0.0f}, {unit, 0.0f}, {unit, unit}, {0.0f, unit}},
-         {{0.0f, 0.0f}, {unit, 0.0f}, {unit, unit}, {0.0f, unit}},
-         {{0.0f, 0.0f}, {unit, 0.0f}, {unit, unit}, {0.0f, unit}}};
-
-    render::Mesh &mesh = chunk.mesh;
-    render::Index index_offset = mesh.vertices.size();
-    tile::Id void_id = db.get_tile_id("void");
-    //TODO move to class
-
-    auto is_solid = [&] (MapPos const &pos)
-    {
-        //TODO use current chunk to reduce to_chk_* calls, and chunks access
-        return chunks[to_chk_pos(pos)].tiles[to_chk_idx(pos)].type->id != void_id;
-    };
-
-    for(SizeT i = 0; i < CHK_VOLUME; ++i)
-    {
-        MapPos map_pos = to_map_pos(pos, i);
-        if(is_solid(map_pos) && chunk.tiles[i].type->id == material.id)
-        {
-            for(SizeT side = 0; side < 6; ++side)
-            {
-                if(!is_solid(map_pos + offsets[side]))
-                {
-                    for(unsigned j = 0; j < 4; ++j)
-                    {
-                        glm::vec4 col = glm::vec4(1.0);
-                        mesh.vertices.emplace_back(
-                            map_pos + quads[side][j], col,
-                            (glm::vec2)material.tex_pos +
-                                tex_positions[side][j]);
-                    }
-                    for(auto const &idx : {0, 1, 2, 2, 3, 0})
-                    {
-                        mesh.indices.emplace_back(idx + index_offset);
-                    }
-                    index_offset += 4;
-                }
-            }
-        }
-    }
 }
