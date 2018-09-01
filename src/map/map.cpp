@@ -6,7 +6,7 @@
 //
 #include <config.h>
 #include <data/database.hpp>
-#include <map/tile/tile_type.hpp>
+#include <map/voxel_type.hpp>
 #include "map.hpp"
 
 Map::Map(data::Database const &db) :
@@ -15,16 +15,16 @@ Map::Map(data::Database const &db) :
 
 }
 
-map::Tile const *Map::get_tile(MapPos const &pos) const
+VoxelId const *Map::get_voxel(MapPos const &pos) const
 {
     ChkPos chunk_pos   = to_chk_pos(pos);
     ChkIdx chunk_idx = to_chk_idx(pos);
-    map::Chunk const *chunk_ptr = get_chunk(chunk_pos);
-    if(chunk_ptr != nullptr) return &chunk_ptr->tiles[chunk_idx];
+    Chunk const *chunk_ptr = get_chunk(chunk_pos);
+    if(chunk_ptr != nullptr) return &chunk_ptr->voxels[chunk_idx];
     else return nullptr;
 }
 
-map::Chunk const *Map::get_chunk(ChkPos const &pos) const
+Chunk const *Map::get_chunk(ChkPos const &pos) const
 {
     if(chunks.count(pos) == 0)
     {
@@ -45,12 +45,9 @@ void Map::add_chunk(net::server::Chunk const &new_chunk)
 
     auto &chunk = chunks[chunk_pos];
     /* this creates a new chunk */
-    chunk.tiles.reserve(CHK_VOLUME);
 
-    for(SizeT i = 0; i < CHK_VOLUME; ++i)
-    {
-        chunk.tiles.emplace_back(&db.get_tile(new_chunk.tile_ids[i]));
-    }
+    std::copy(new_chunk.voxels.cbegin(), new_chunk.voxels.cend(),
+              chunk.voxels.begin());
 
 }
 
@@ -66,13 +63,15 @@ void Map::try_mesh(ChkPos const &pos)
     for(SizeT side = 0; side < 6; ++side) {
         /* the chunks on positive offsets need to be loaded,
          * we also load the negative offsets so there is no asymmetry */
+        //TODO this would be fixed if client controls chunk loading,
+        //     it would simply request required chunks
         if(chunks.count(pos + (ChkPos)offsets[side]) == 0) return;
     }
-    map::Chunk &chunk = chunks.at(pos);
+    Chunk &chunk = chunks.at(pos);
     build_mesh(chunk, pos);
 }
 
-void Map::build_mesh(map::Chunk &chunk, ChkPos const &pos)
+void Map::build_mesh(Chunk &chunk, ChkPos const &pos)
     //TODO number of iterations over each blocks can probably be reduced by
     //joining the loops somehow
 {
@@ -94,19 +93,19 @@ void Map::build_mesh(map::Chunk &chunk, ChkPos const &pos)
     mesh.indices.reserve(CHK_VOLUME * 3 * 6);
 
     render::Index index_offset = 0;
-    tile::Id void_id = db.get_tile_id("void");
+    VoxelId void_id = db.get_voxel_id("void");
     //TODO ^ move to class
 
-    auto get_voxel = [&] (MapPos const &pos) -> map::TileType const &
+    auto get_voxel = [&] (MapPos const &pos) -> VoxelId
     {
         //TODO use current chunk to reduce to_chk_* calls, and chunks access
-        return *chunks[to_chk_pos(pos)].tiles[to_chk_idx(pos)].type;
+        return chunks[to_chk_pos(pos)].voxels[to_chk_idx(pos)];
     };
     auto has_face = [&] (MapPos const &a, MapPos const &b)
     {
         /* only one of the blocks must be non-void to have a face */
-        return (get_voxel(a).id == void_id) !=
-               (get_voxel(b).id == void_id);
+        return (get_voxel(a) == void_id) !=
+               (get_voxel(b) == void_id);
     };
 
     bool face_map[3][CHK_VOLUME];
@@ -123,9 +122,9 @@ void Map::build_mesh(map::Chunk &chunk, ChkPos const &pos)
             if(face_map[a][i]) {
                 /* if the current chunk is empty, we need to take the texture
                  * of the second chunk with that face */
-                bool is_solid = chunk.tiles[i].type->id != void_id;
+                bool is_solid = chunk.voxels[i] != void_id;
                 MapPos vox_pos = map_pos + offsets[a] * (I32)(!is_solid);
-                map::TileType const &vox_type = get_voxel(vox_pos);
+                VoxelType vox_type = db.voxels[get_voxel(vox_pos)];
                 for(U32 j = 0; j < 4; ++j) {
                     glm::vec4 col = glm::vec4(1.0);
                     mesh.vertices.emplace_back(

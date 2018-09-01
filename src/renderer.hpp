@@ -9,7 +9,7 @@
 #include <render/program.hpp>
 #include <render/texture.hpp>
 #include <render/camera.hpp>
-#include <map.hpp>
+#include <map/map.hpp>
 #include <io_node.hpp>
 
 namespace data { struct Config; }
@@ -35,7 +35,7 @@ protected:
 private:
     static constexpr F32 Z_NEAR = 0.1f;
 
-    void render_world(entity::Pos const &player_pos);
+    void render_world(EntityPos const &player_pos);
     void render_chunk(ChkPos const &chunk_pos);
     void render_mesh(render::Mesh const &mesh);
 
@@ -43,7 +43,7 @@ private:
     void get_render_queue(Vector<ChkPos> &render_queue, ChkPos const &center);
     void sort_render_queue(Vector<ChkPos> &render_queue, ChkPos const &center);
 
-    void update_view(entity::Pos const &player_pos);
+    void update_view(EntityPos const &player_pos);
     void update_projection(F32 width_to_height);
     void update_wvp();
     void update_view_range();

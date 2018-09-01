@@ -1,18 +1,15 @@
 #pragma once
 
-#include <lux/alias/vector.hpp>
+#include <lux/alias/array.hpp>
+#include <lux/common/map.hpp>
+#include <lux/common/voxel.hpp>
 //
 #include <render/mesh.hpp>
-#include <map/tile/tile.hpp>
-
-namespace map
-{
 
 struct Chunk
 {
-    Vector<Tile> tiles;
-    render::Mesh mesh;
+    Array<VoxelId, CHK_VOLUME> voxels;
+
+    render::Mesh mesh; //TODO ptr?
     bool is_mesh_generated;
 };
-
-}

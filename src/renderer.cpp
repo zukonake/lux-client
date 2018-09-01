@@ -168,7 +168,7 @@ void Renderer::take_resize(Vec2<U32> const &size)
     update_projection((F32)screen_size.x/(F32)screen_size.y);
 }
 
-void Renderer::render_world(entity::Pos const &player_pos)
+void Renderer::render_world(EntityPos const &player_pos)
 {
     update_view(player_pos);
 
@@ -186,7 +186,7 @@ void Renderer::render_world(entity::Pos const &player_pos)
 
 void Renderer::render_chunk(ChkPos const &pos)
 {
-    map::Chunk const *chunk = map.get_chunk(pos);
+    Chunk const *chunk = map.get_chunk(pos);
     if(chunk != nullptr)
     {
         if(chunk->is_mesh_generated == false)
@@ -300,7 +300,7 @@ void Renderer::render_mesh(render::Mesh const &mesh)
     glDisableVertexAttribArray(2);
 }
 
-void Renderer::update_view(entity::Pos const &player_pos)
+void Renderer::update_view(EntityPos const &player_pos)
 {
     Vec2<F64> mouse_pos;
     glfwGetCursorPos(IoNode::win, &mouse_pos.x, &mouse_pos.y);

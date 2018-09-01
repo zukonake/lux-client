@@ -4,9 +4,9 @@
 #include <lux/alias/vector.hpp>
 #include <lux/alias/hash_map.hpp>
 #include <lux/alias/string.hpp>
-#include <lux/common/tile.hpp>
-
-namespace map { struct TileType; }
+#include <lux/common/voxel.hpp>
+//
+#include <map/voxel_type.hpp>
 
 namespace data
 {
@@ -17,22 +17,20 @@ public:
     Database();
 
     template<typename... Args>
-    void add_tile(Args const &...args);
+    void add_voxel(Args &&...args);
 
-    map::TileType const &get_tile(String const &str_id) const;
-    map::TileType const &get_tile(tile::Id id) const;
-    tile::Id const &get_tile_id(String const &str_id) const;
-private:
-    Vector<map::TileType> tiles;
-    HashMap<String, tile::Id> tiles_lookup;
+    VoxelType const &get_voxel(String const &str_id) const;
+    VoxelId   const &get_voxel_id(String const &str_id) const;
+
+    Vector<VoxelType> voxels;
+    HashMap<String, VoxelId> voxels_lookup;
 };
 
 template<typename... Args>
-void Database::add_tile(Args const &...args)
+void Database::add_voxel(Args &&...args)
 {
-    auto &tile = tiles.emplace_back(args...);
-    tile.id = tiles.size() - 1;
-    tiles_lookup[tile.str_id] = tile.id;
+    auto &voxel = voxels.emplace_back(args...);
+    voxels_lookup[voxel.str_id] = voxel.id;
 }
 
 }
