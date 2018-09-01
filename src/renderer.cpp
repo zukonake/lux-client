@@ -302,12 +302,13 @@ void Renderer::render_mesh(render::Mesh const &mesh)
 
 void Renderer::update_view(EntityPos const &player_pos)
 {
+    //TODO move to entity controller?
     Vec2<F64> mouse_pos;
     glfwGetCursorPos(IoNode::win, &mouse_pos.x, &mouse_pos.y);
     camera.rotate({(F32)(mouse_pos.x - last_mouse_pos.x)
-                       / (screen_size.x * screen_scale.x),
+                      / (screen_size.x * screen_scale.x),
                    (F32)(last_mouse_pos.y - mouse_pos.y)
-                       / (screen_size.y * screen_scale.y)});
+                      / (screen_size.y * screen_scale.y)});
     last_mouse_pos = mouse_pos;
     camera.teleport(glm::vec3(world_mat *
         glm::vec4(player_pos + glm::vec3(0.0, 0.0, 0.8), 1.0)));

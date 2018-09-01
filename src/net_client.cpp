@@ -54,8 +54,8 @@ void NetClient::send(net::client::Packet &cp, U32 flags)
     serializer.reserve(net::get_size(cp));
     serializer << cp;
 
-    ENetPacket *pack =
-        enet_packet_create(serializer.get(),serializer.get_used(), flags);
+    ENetPacket *pack = enet_packet_create(serializer.get(),
+        serializer.get_used(), flags | ENET_PACKET_FLAG_NO_ALLOCATE);
     enet_peer_send(enet_server, 0, pack);
     enet_host_flush(enet_client);
     net::clear_buffer(cp);
