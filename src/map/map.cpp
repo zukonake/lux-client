@@ -55,19 +55,25 @@ void Map::add_chunk(net::server::Chunk const &new_chunk)
 
 void Map::try_mesh(ChkPos const &pos)
 {
-    constexpr MapPos offsets[6] =
-        {{-1,  0,  0}, { 1,  0,  0},
-         { 0, -1,  0}, { 0,  1,  0},
-         { 0,  0, -1}, { 0,  0,  1}};
+    constexpr MapPos vert_offsets[27] =
+        {{-1, -1, -1}, {-1, -1,  0}, {-1, -1,  1},
+         {-1,  0, -1}, {-1,  0,  0}, {-1,  0,  1},
+         {-1,  1, -1}, {-1,  1,  0}, {-1,  1,  1},
+         { 0, -1, -1}, { 0, -1,  0}, { 0, -1,  1},
+         { 0,  0, -1}, { 0,  0,  0}, { 0,  0,  1},
+         { 0,  1, -1}, { 0,  1,  0}, { 0,  1,  1},
+         { 1, -1, -1}, { 1, -1,  0}, { 1, -1,  1},
+         { 1,  0, -1}, { 1,  0,  0}, { 1,  0,  1},
+         { 1,  1, -1}, { 1,  1,  0}, { 1,  1,  1}};
     assert(chunks.count(pos) > 0);
     assert(!chunks.at(pos).is_mesh_generated);
 
-    for(SizeT side = 0; side < 6; ++side) {
+    for(SizeT side = 0; side < 27; ++side) {
         /* the chunks on positive offsets need to be loaded,
          * we also load the negative offsets so there is no asymmetry */
         //TODO this would be fixed if client controls chunk loading,
         //     it would simply request required chunks
-        if(chunks.count(pos + (ChkPos)offsets[side]) == 0) return;
+        if(chunks.count(pos + (ChkPos)vert_offsets[side]) == 0) return;
     }
     Chunk &chunk = chunks.at(pos);
     build_mesh(chunk, pos);
@@ -129,16 +135,26 @@ void Map::build_mesh(Chunk &chunk, ChkPos const &pos)
                 MapPos vox_pos = map_pos + offsets[a] * (I32)(!is_solid);
                 MapPos air_pos = map_pos + offsets[a] * (I32)(is_solid);
                 VoxelType vox_type = db.voxels[get_voxel(vox_pos)];
-                LightLvl light_lvl =
-                    chunks.at(to_chk_pos(air_pos)).light_lvls[to_chk_idx(air_pos)];
                 for(U32 j = 0; j < 4; ++j) {
-                    glm::vec4 col = glm::vec4(
+                    constexpr MapPos vert_offsets[8] =
+                        {{0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {1, 1, 0},
+                         {0, 0, 1}, {1, 0, 1}, {0, 1, 1}, {1, 1, 1}};
+                    glm::vec4 col_avg(0.f);
+                    MapPos v_sign = glm::sign((Vec3F)quads[a][j] - Vec3F(0.5, 0.5, 0.5));
+                    for(auto const &vert_offset : vert_offsets) {
+                        MapPos v_off_pos = map_pos + //quads[a][j] +
+                                           vert_offset * v_sign;
+                        LightLvl light_lvl =
+                            chunks.at(to_chk_pos(v_off_pos)).light_lvls[to_chk_idx(v_off_pos)];
+                        col_avg += glm::vec4(
                         (F32)((light_lvl & 0xF000) >> 12) / 16.f,
                         (F32)((light_lvl & 0x0F00) >>  8) / 16.f,
                         (F32)((light_lvl & 0x00F0) >>  4) / 16.f,
                         1.f);
+                    }
+                    col_avg /= 8.f;
                     mesh.vertices.emplace_back(
-                        map_pos + quads[a][j], col,
+                        map_pos + quads[a][j], col_avg,
                         (glm::vec2)vox_type.tex_pos + tex_positions[a][j]);
                 }
                 constexpr render::Index  cw_order[6] = {0, 1, 2, 2, 3, 0};
