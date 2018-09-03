@@ -15,14 +15,14 @@ class Texture
     public:
     Texture() = default;
 
-    Vec2<U32> load(String const &path);
+    Vec2UI load(String const &path);
     void generate_mipmaps(U32 max_lvl);
     void use();
 
     GLuint get_id() const;
     private:
     Vector<U8> value;
-    Vec2<U32>   size;
+    Vec2UI   size;
 
     GLuint id;
 };

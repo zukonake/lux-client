@@ -21,16 +21,16 @@ protected:
     virtual void take_key(I32 key, I32 code, I32 action, I32 mods) override;
     virtual void take_st(net::server::Tick const &) override;
     virtual bool give_cs(net::client::Packet &) override;
-    virtual void take_resize(Vec2<U32> const &size) override;
+    virtual void take_resize(Vec2UI const &size) override;
 private:
-    void render_text(String const &str, Vec2<I32> const &pos);
-    Vec2<U32> get_char_pos(char character);
+    void render_text(String const &str, Vec2I const &pos);
+    Vec2UI get_char_pos(char character);
 
     render::Program program;
     render::Texture font;
-    Vec2<U32> screen_size;
-    Vec2<U32> char_size;
-    Vec2<U32> font_char_size;
+    Vec2UI screen_size;
+    Vec2UI char_size;
+    Vec2UI font_char_size;
     U32       char_scale;
     F64       tick_time;
     bool      conf_signal_queued;

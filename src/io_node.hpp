@@ -20,7 +20,7 @@ class IoNode
 
     void dispatch_key(I32 key, I32 code, I32 action, I32 mods);
     void dispatch_mouse(I32 button, I32 action, I32 mods);
-    void dispatch_resize(Vec2<U32> const &size);
+    void dispatch_resize(Vec2UI const &size);
     void dispatch_tick(net::server::Tick const &);
     void dispatch_signal(net::server::Packet const &);
 
@@ -34,7 +34,7 @@ class IoNode
     protected:
     virtual void take_key(I32 key, I32 code, I32 action, I32 mods);
     virtual void take_mouse(I32 button, I32 action, I32 mods);
-    virtual void take_resize(Vec2<U32> const &size);
+    virtual void take_resize(Vec2UI const &size);
 
     virtual void take_st(net::server::Tick const &);
     virtual void take_ss(net::server::Packet const &);

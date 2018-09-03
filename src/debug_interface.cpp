@@ -19,7 +19,7 @@ DebugInterface::DebugInterface(GLFWwindow *win, Renderer &renderer,
     program.init(conf.interface_shader_path + ".vert",
                  conf.interface_shader_path + ".frag");
     program.use();
-    Vec2<U32> font_size = font.load(conf.font_path);
+    Vec2UI font_size = font.load(conf.font_path);
     font_char_size = font_size / char_size;
     glm::vec2 font_scale = glm::vec2(1.f, 1.f) / (glm::vec2)font_char_size;
     program.set_uniform("tex_scale", glUniform2f, font_scale.x, font_scale.y);
@@ -27,7 +27,7 @@ DebugInterface::DebugInterface(GLFWwindow *win, Renderer &renderer,
     glGenBuffers(1, &vbo_id);
     glGenBuffers(1, &ebo_id);
 
-    Vec2<I32> screen_size_temp;
+    Vec2I screen_size_temp;
     glfwGetWindowSize(win, &screen_size_temp.x, &screen_size_temp.y);
     screen_size = screen_size_temp;
 }
@@ -99,12 +99,12 @@ bool DebugInterface::give_cs(net::client::Packet &cs)
     return false;
 }
 
-void DebugInterface::take_resize(Vec2<U32> const &size)
+void DebugInterface::take_resize(Vec2UI const &size)
 {
     screen_size = size;
 }
 
-void DebugInterface::render_text(String const &str, Vec2<I32> const &base_pos)
+void DebugInterface::render_text(String const &str, Vec2I const &base_pos)
 {
     Vector<render::InterfaceVertex> vertices;
     Vector<render::Index>           indices;
@@ -112,8 +112,8 @@ void DebugInterface::render_text(String const &str, Vec2<I32> const &base_pos)
     vertices.reserve(str.size() * 4);
     indices.reserve(str.size() * 6);
 
-    Vec2<U32> pos;
-    Vec2<U32> screen_char_size = screen_size / char_size;
+    Vec2UI pos;
+    Vec2UI screen_char_size = screen_size / char_size;
     if(base_pos.x < 0)
     {
         pos.x = screen_char_size.x -
@@ -127,14 +127,14 @@ void DebugInterface::render_text(String const &str, Vec2<I32> const &base_pos)
     else pos.y = base_pos.y * char_scale;
 
     render::Index index_offset = 0;
-    constexpr Vec2<U32> verts[4] = {{0, 0}, {1, 0}, {0, 1}, {1, 1}};
+    constexpr Vec2UI verts[4] = {{0, 0}, {1, 0}, {0, 1}, {1, 1}};
 
     for(auto const &character : str)
     {
-        Vec2<U32> char_pos = get_char_pos(character);
+        Vec2UI char_pos = get_char_pos(character);
         for(auto const &vert : verts)
         {
-            Vec2<U32> vert_pos = pos + (vert * char_scale);
+            Vec2UI vert_pos = pos + (vert * char_scale);
             glm::vec2 ndc_pos = (((glm::vec2)(vert_pos * char_size) /
                                 (glm::vec2)screen_size) * 2.f) - glm::vec2(1, 1);
             //TODO this should be moved to vert shader
@@ -175,10 +175,10 @@ void DebugInterface::render_text(String const &str, Vec2<I32> const &base_pos)
     glDisableVertexAttribArray(1);
 }
 
-Vec2<U32> DebugInterface::get_char_pos(char character)
+Vec2UI DebugInterface::get_char_pos(char character)
 {
     /* this works for the specific font that is currently used */
     U8 idx = character;
-    return Vec2<U32>(idx % font_char_size.x, idx / font_char_size.x);
+    return Vec2UI(idx % font_char_size.x, idx / font_char_size.x);
 }
 

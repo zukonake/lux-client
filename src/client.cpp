@@ -27,8 +27,8 @@ Client::Client() :
               "localhost",
               31337
           },
-          8,
-          6,
+          4,
+          4,
           120.f,
           {0.3, 0.4, 0.5, 1.0},
           "lux client"}),

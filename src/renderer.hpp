@@ -30,7 +30,7 @@ public:
 protected:
     virtual void take_st(net::server::Tick const &) override;
     virtual void take_ss(net::server::Packet const &) override;
-    virtual void take_resize(Vec2<U32> const &size) override;
+    virtual void take_resize(Vec2UI const &size) override;
     virtual void give_ct(net::client::Tick &) override;
 private:
     static constexpr F32 Z_NEAR = 0.1f;
@@ -61,9 +61,9 @@ private:
     GLuint color_rb_id;
     GLuint depth_rb_id;
     glm::vec4 sky_color;
-    Vec2<I32> last_mouse_pos;
-    Vec2<U32> screen_size;
-    Vec2<U32> screen_scale;
+    Vec2I  last_mouse_pos;
+    Vec2UI screen_size;
+    Vec2UI screen_scale;
     glm::mat4 world_mat;
     glm::mat4 view_mat;
     glm::mat4 projection_mat;

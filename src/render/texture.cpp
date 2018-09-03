@@ -11,7 +11,7 @@
 namespace render
 {
 
-Vec2<U32> Texture::load(String const &path)
+Vec2UI Texture::load(String const &path)
 {
     glGenTextures(1, &id);
     use();

@@ -133,7 +133,6 @@ void Map::build_mesh(Chunk &chunk, ChkPos const &pos)
                  * of the second chunk with that face */
                 bool is_solid = chunk.voxels[i] != void_id;
                 MapPos vox_pos = map_pos + offsets[a] * (I32)(!is_solid);
-                MapPos air_pos = map_pos + offsets[a] * (I32)(is_solid);
                 VoxelType vox_type = db.voxels[get_voxel(vox_pos)];
                 for(U32 j = 0; j < 4; ++j) {
                     constexpr MapPos vert_offsets[8] =
@@ -142,8 +141,7 @@ void Map::build_mesh(Chunk &chunk, ChkPos const &pos)
                     glm::vec4 col_avg(0.f);
                     MapPos v_sign = glm::sign((Vec3F)quads[a][j] - Vec3F(0.5, 0.5, 0.5));
                     for(auto const &vert_offset : vert_offsets) {
-                        MapPos v_off_pos = map_pos + //quads[a][j] +
-                                           vert_offset * v_sign;
+                        MapPos v_off_pos = map_pos + vert_offset * v_sign;
                         LightLvl light_lvl =
                             chunks.at(to_chk_pos(v_off_pos)).light_lvls[to_chk_idx(v_off_pos)];
                         col_avg += glm::vec4(

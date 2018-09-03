@@ -2,7 +2,7 @@
 //
 #include "gl_initializer.hpp"
 
-GlInitializer::GlInitializer(Vec2<U32> const &window_size)
+GlInitializer::GlInitializer(Vec2UI const &window_size)
 {
     init_window(window_size);
     init_glad();
@@ -18,7 +18,7 @@ GLFWwindow *GlInitializer::get_window()
     return win;
 }
 
-void GlInitializer::init_window(Vec2<U32> const &size)
+void GlInitializer::init_window(Vec2UI const &size)
 {
     glfwInit();
     util::log("GL_INITIALIZER", util::DEBUG, "initializing GLFW window");

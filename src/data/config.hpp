@@ -20,10 +20,10 @@ struct Config
     String    interface_shader_path;
     String    tileset_path;
     String    font_path;
-    Vec2<U32> window_size;
-    Vec2<U32> window_scale;
-    Vec2<U32> tile_size;
-    Vec2<U32> char_size;
+    Vec2UI window_size;
+    Vec2UI window_scale;
+    Vec2UI tile_size;
+    Vec2UI char_size;
     U32       char_scale;
     struct
     {

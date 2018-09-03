@@ -32,9 +32,9 @@ Renderer::Renderer(GLFWwindow *win, data::Config const &conf) :
     view_mat(1.f),
     projection_mat(1.f)
 {
-    Vec2<I32> current_screen_size;
+    Vec2I current_screen_size;
     glfwGetWindowSize(win, &current_screen_size.x, &current_screen_size.y);
-    screen_size = (Vec2<U32>)current_screen_size;
+    screen_size = (Vec2UI)current_screen_size;
     last_mouse_pos = screen_size / 2u;
 
     program.init(conf.vert_shader_path, conf.frag_shader_path);
@@ -160,7 +160,7 @@ void Renderer::give_ct(net::client::Tick &ct)
     ct.pitch = rotation.y;
 }
 
-void Renderer::take_resize(Vec2<U32> const &size)
+void Renderer::take_resize(Vec2UI const &size)
 {
     screen_size = size / screen_scale;
     glBindRenderbuffer(GL_RENDERBUFFER, color_rb_id);
@@ -272,12 +272,12 @@ void Renderer::sort_render_queue(Vector<ChkPos> &render_queue, ChkPos const &cen
 {
     if(distance_sorting)
     {
-        auto f_point = [&] (Vec3<F32> const &p) -> Vec3<F32>
+        auto f_point = [&] (Vec3F const &p) -> Vec3F
         {
-            return p + Vec3<F32>(0.5, 0.5, 0.5);
+            return p + Vec3F(0.5, 0.5, 0.5);
         };
-        Vec3<F32> f_center = f_point(center);
-        auto distance_sort = [&] (Vec3<F32> const &a, Vec3<F32> const &b) -> bool
+        Vec3F f_center = f_point(center);
+        auto distance_sort = [&] (Vec3F const &a, Vec3F const &b) -> bool
         {
             return glm::distance(f_point(a), f_center) <
                    glm::distance(f_point(b), f_center);
@@ -308,7 +308,7 @@ void Renderer::render_mesh(render::Mesh const &mesh)
 void Renderer::update_view(EntityPos const &player_pos)
 {
     //TODO move to entity controller?
-    Vec2<F64> mouse_pos;
+    Vec2D mouse_pos;
     glfwGetCursorPos(IoNode::win, &mouse_pos.x, &mouse_pos.y);
     camera.rotate({(F32)(mouse_pos.x - last_mouse_pos.x)
                       / (screen_size.x * screen_scale.x),

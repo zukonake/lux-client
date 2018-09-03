@@ -36,7 +36,7 @@ void IoNode::dispatch_mouse(I32 button, I32 action, I32 mods)
     }
 }
 
-void IoNode::dispatch_resize(Vec2<U32> const &size)
+void IoNode::dispatch_resize(Vec2UI const &size)
 {
     if(active)
     {
@@ -100,7 +100,7 @@ bool IoNode::gather_signal(net::client::Packet &cs)
 void IoNode::activate()
 {
     active = true;
-    Vec2<I32> size;
+    Vec2I size;
     glfwGetWindowSize(win, &size.x, &size.y);
     dispatch_resize(size); /* need to update, since we missed the callbacks */
 }
@@ -117,7 +117,7 @@ bool IoNode::is_active()
 
 void IoNode::take_key(I32, I32, I32, I32) { }
 void IoNode::take_mouse(I32, I32, I32) { }
-void IoNode::take_resize(Vec2<U32> const &) { }
+void IoNode::take_resize(Vec2UI const &) { }
 void IoNode::take_st(net::server::Tick const &) { }
 void IoNode::take_ss(net::server::Packet const &) { }
 void IoNode::give_ct(net::client::Tick &) { }
