@@ -49,6 +49,8 @@ void Map::add_chunk(net::server::Chunk const &new_chunk)
 
     std::copy(new_chunk.voxels.cbegin(), new_chunk.voxels.cend(),
               chunk.voxels.begin());
+    std::copy(new_chunk.light_lvls.cbegin(), new_chunk.light_lvls.cend(),
+              chunk.light_lvls.begin());
 }
 
 void Map::try_mesh(ChkPos const &pos)
@@ -127,7 +129,8 @@ void Map::build_mesh(Chunk &chunk, ChkPos const &pos)
                 MapPos vox_pos = map_pos + offsets[a] * (I32)(!is_solid);
                 VoxelType vox_type = db.voxels[get_voxel(vox_pos)];
                 for(U32 j = 0; j < 4; ++j) {
-                    glm::vec4 col = glm::vec4(1.0);
+                    glm::vec4 col = glm::vec4(glm::vec3(1.f) *
+                        (F32)((chunk.light_lvls[i] & 0xF000) >> 12) / 16.f, 1.f);
                     mesh.vertices.emplace_back(
                         map_pos + quads[a][j], col,
                         (glm::vec2)vox_type.tex_pos + tex_positions[a][j]);
