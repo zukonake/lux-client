@@ -36,6 +36,7 @@ Chunk const *Map::get_chunk(ChkPos const &pos) const
 void Map::add_chunk(net::server::Chunk const &new_chunk)
 {
     ChkPos const &chunk_pos = new_chunk.pos;
+    //TODO assert
     if(chunks.count(chunk_pos) > 0) return;
 
     util::log("MAP", util::TRACE, "adding new chunk %d, %d, %d",
@@ -48,7 +49,6 @@ void Map::add_chunk(net::server::Chunk const &new_chunk)
 
     std::copy(new_chunk.voxels.cbegin(), new_chunk.voxels.cend(),
               chunk.voxels.begin());
-
 }
 
 void Map::try_mesh(ChkPos const &pos)

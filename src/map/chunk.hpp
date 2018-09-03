@@ -2,7 +2,6 @@
 
 #include <lux/alias/array.hpp>
 #include <lux/common/map.hpp>
-#include <lux/common/voxel.hpp>
 //
 #include <render/mesh.hpp>
 

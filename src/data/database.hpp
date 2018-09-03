@@ -4,7 +4,7 @@
 #include <lux/alias/vector.hpp>
 #include <lux/alias/hash_map.hpp>
 #include <lux/alias/string.hpp>
-#include <lux/common/voxel.hpp>
+#include <lux/common/map.hpp>
 //
 #include <map/voxel_type.hpp>
 
@@ -30,7 +30,7 @@ template<typename... Args>
 void Database::add_voxel(Args &&...args)
 {
     auto &voxel = voxels.emplace_back(args...);
-    voxels_lookup[voxel.str_id] = voxel.id;
+    voxels_lookup[voxel.str_id] = voxels.size() - 1;
 }
 
 }

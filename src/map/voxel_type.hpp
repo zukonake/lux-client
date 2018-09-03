@@ -1,13 +1,12 @@
 #pragma once
 
 #include <lux/alias/string.hpp>
-#include <lux/common/voxel.hpp>
+#include <lux/common/map.hpp>
 //
 #include <render/common.hpp>
 
 struct VoxelType
 {
-    VoxelId id;
     String  str_id;
     String  name;
     render::TexPos tex_pos;
