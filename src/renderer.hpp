@@ -60,7 +60,7 @@ private:
     GLuint fb_id;
     GLuint color_rb_id;
     GLuint depth_rb_id;
-    glm::vec4 sky_color;
+    Vec4F sky_color;
     Vec2I  last_mouse_pos;
     Vec2UI screen_size;
     Vec2UI screen_scale;

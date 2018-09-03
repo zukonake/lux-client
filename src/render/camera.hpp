@@ -1,6 +1,9 @@
 #pragma once
 
 #include <glm/glm.hpp>
+//
+#include <lux/alias/vec_2.hpp>
+#include <lux/alias/vec_3.hpp>
 
 namespace render
 {
@@ -10,19 +13,19 @@ class Camera
     public:
     Camera();
 
-    glm::vec2 get_rotation() const;
+    Vec2F get_rotation() const;
     glm::mat4 get_view() const;
-    glm::vec3 get_pos() const;
+    Vec3F get_pos() const;
 
-    void teleport(glm::vec3 new_pos);
-    void rotate(glm::vec2 change);
+    void teleport(Vec3F new_pos);
+    void rotate(Vec2F change);
     private:
-    glm::vec2 rotation;
-    glm::vec3 pos;
-    glm::vec3 dir;
-    glm::vec3 up;
+    Vec2F rotation;
+    Vec3F pos;
+    Vec3F dir;
+    Vec3F up;
 
-    glm::vec2 rotate_speed;
+    Vec2F rotate_speed;
 };
 
 }

@@ -22,7 +22,7 @@ Camera::Camera() :
 
 }
 
-glm::vec2 Camera::get_rotation() const
+Vec2F Camera::get_rotation() const
 {
     return rotation;
 }
@@ -32,17 +32,17 @@ glm::mat4 Camera::get_view() const
     return glm::lookAt(pos, pos + dir, up);
 }
 
-glm::vec3 Camera::get_pos() const
+Vec3F Camera::get_pos() const
 {
     return pos;
 }
 
-void Camera::teleport(glm::vec3 new_pos)
+void Camera::teleport(Vec3F new_pos)
 {
     pos = new_pos;
 }
 
-void Camera::rotate(glm::vec2 change)
+void Camera::rotate(Vec2F change)
 {
     rotation += change * rotate_speed;
     rotation.y = std::clamp(rotation.y,

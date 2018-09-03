@@ -3,6 +3,7 @@
 #include <glm/gtx/euler_angles.hpp>
 #undef GLM_ENABLE_EXPERIMENTAL
 //
+#include <lux/alias/vec_4.hpp>
 #include <lux/math.hpp>
 #include <lux/net/client/tick.hpp>
 //
@@ -47,6 +48,6 @@ void EntityController::give_ct(net::client::Tick &ct)
     glm::mat4 rotation =
         glm::eulerAngleZ(ct.yaw + TAU / 4.f);
     ct.character_dir =
-        glm::vec3(rotation * glm::vec4(ct.character_dir, 0.0, 1.0));
+        Vec3F(rotation * Vec4F(ct.character_dir, 0.0, 1.0));
 
 }

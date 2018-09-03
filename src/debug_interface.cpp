@@ -21,7 +21,7 @@ DebugInterface::DebugInterface(GLFWwindow *win, Renderer &renderer,
     program.use();
     Vec2UI font_size = font.load(conf.font_path);
     font_char_size = font_size / char_size;
-    glm::vec2 font_scale = glm::vec2(1.f, 1.f) / (glm::vec2)font_char_size;
+    Vec2F font_scale = Vec2F(1.f, 1.f) / (Vec2F)font_char_size;
     program.set_uniform("tex_scale", glUniform2f, font_scale.x, font_scale.y);
 
     glGenBuffers(1, &vbo_id);
@@ -135,11 +135,11 @@ void DebugInterface::render_text(String const &str, Vec2I const &base_pos)
         for(auto const &vert : verts)
         {
             Vec2UI vert_pos = pos + (vert * char_scale);
-            glm::vec2 ndc_pos = (((glm::vec2)(vert_pos * char_size) /
-                                (glm::vec2)screen_size) * 2.f) - glm::vec2(1, 1);
+            Vec2F ndc_pos = (((Vec2F)(vert_pos * char_size) /
+                                (Vec2F)screen_size) * 2.f) - Vec2F(1, 1);
             //TODO this should be moved to vert shader
             ndc_pos.y = -ndc_pos.y;
-            vertices.emplace_back(ndc_pos, (glm::vec2)(char_pos + vert));
+            vertices.emplace_back(ndc_pos, (Vec2F)(char_pos + vert));
         }
         for(auto const &idx : {0, 1, 2, 2, 1, 3})
         {

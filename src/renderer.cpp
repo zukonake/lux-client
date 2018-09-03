@@ -43,8 +43,8 @@ Renderer::Renderer(GLFWwindow *win, data::Config const &conf) :
         1, GL_FALSE, glm::value_ptr(world_mat));
     update_view_range();
 
-    glm::vec2 tileset_size = tileset.load(conf.tileset_path);
-    glm::vec2 tile_scale = {(F32)conf.tile_size.x / (F32)tileset_size.x,
+    Vec2F tileset_size = tileset.load(conf.tileset_path);
+    Vec2F tile_scale = {(F32)conf.tile_size.x / (F32)tileset_size.x,
                             (F32)conf.tile_size.y / (F32)tileset_size.y};
     tileset.generate_mipmaps(tileset_size.x / conf.tile_size.x);
 
@@ -155,7 +155,7 @@ void Renderer::take_ss(net::server::Packet const &sp)
 
 void Renderer::give_ct(net::client::Tick &ct)
 {
-    glm::vec2 rotation = camera.get_rotation();
+    Vec2F rotation = camera.get_rotation();
     ct.yaw = rotation.x;
     ct.pitch = rotation.y;
 }
@@ -214,7 +214,7 @@ bool Renderer::is_chunk_visible(ChkPos const &pos)
     {
         MapPos map_pos = to_map_pos(pos, IdxPos(CHK_SIZE - 1u) *
                      IdxPos(i & 1, (i & 2) >> 1, (i & 4) >> 2));
-        glm::vec4 v_pos = wvp_mat * glm::vec4(map_pos, 1.f);
+        Vec4F v_pos = wvp_mat * Vec4F(map_pos, 1.f);
         if(v_pos.x > -v_pos.w && v_pos.x < v_pos.w &&
            v_pos.y > -v_pos.w && v_pos.y < v_pos.w &&
            v_pos.z > 0        && v_pos.z < v_pos.w)
@@ -315,8 +315,8 @@ void Renderer::update_view(EntityPos const &player_pos)
                    (F32)(last_mouse_pos.y - mouse_pos.y)
                       / (screen_size.y * screen_scale.y)});
     last_mouse_pos = mouse_pos;
-    camera.teleport(glm::vec3(world_mat *
-        glm::vec4(player_pos + glm::vec3(0.0, 0.0, 0.8), 1.0)));
+    camera.teleport(Vec3F(world_mat *
+        Vec4F(player_pos + Vec3F(0.0, 0.0, 0.8), 1.0)));
     view_mat = camera.get_view();
     program.set_uniform("view", glUniformMatrix4fv,
         1, GL_FALSE, glm::value_ptr(view_mat));

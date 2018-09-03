@@ -1,6 +1,7 @@
 #include <glm/glm.hpp>
 //
 #include <lux/alias/hash_map.hpp>
+#include <lux/alias/vec_4.hpp>
 #include <lux/util/log.hpp>
 #include <lux/net/server/chunk.hpp>
 //
@@ -89,7 +90,7 @@ void Map::build_mesh(Chunk &chunk, ChkPos const &pos)
          {{0, 0, 1}, {0, 1, 1}, {1, 1, 1}, {1, 0, 1}}};
     constexpr MapPos offsets[3] = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
     constexpr F32 unit = 1.f - FLT_EPSILON;
-    constexpr glm::vec2 tex_positions[3][4] =
+    constexpr Vec2F tex_positions[3][4] =
         {{{unit, 0.0f}, {unit, unit}, {0.0f, unit}, {0.0f, 0.0f}},
          {{0.0f, 0.0f}, {unit, 0.0f}, {unit, unit}, {0.0f, unit}},
          {{0.0f, 0.0f}, {unit, 0.0f}, {unit, unit}, {0.0f, unit}}};
@@ -138,13 +139,13 @@ void Map::build_mesh(Chunk &chunk, ChkPos const &pos)
                     constexpr MapPos vert_offsets[8] =
                         {{0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {1, 1, 0},
                          {0, 0, 1}, {1, 0, 1}, {0, 1, 1}, {1, 1, 1}};
-                    glm::vec4 col_avg(0.f);
+                    Vec4F col_avg(0.f);
                     MapPos v_sign = glm::sign((Vec3F)quads[a][j] - Vec3F(0.5, 0.5, 0.5));
                     for(auto const &vert_offset : vert_offsets) {
                         MapPos v_off_pos = map_pos + vert_offset * v_sign;
                         LightLvl light_lvl =
                             chunks.at(to_chk_pos(v_off_pos)).light_lvls[to_chk_idx(v_off_pos)];
-                        col_avg += glm::vec4(
+                        col_avg += Vec4F(
                         (F32)((light_lvl & 0xF000) >> 12) / 16.f,
                         (F32)((light_lvl & 0x0F00) >>  8) / 16.f,
                         (F32)((light_lvl & 0x00F0) >>  4) / 16.f,
@@ -153,7 +154,7 @@ void Map::build_mesh(Chunk &chunk, ChkPos const &pos)
                     col_avg /= 8.f;
                     mesh.vertices.emplace_back(
                         map_pos + quads[a][j], col_avg,
-                        (glm::vec2)vox_type.tex_pos + tex_positions[a][j]);
+                        (Vec2F)vox_type.tex_pos + tex_positions[a][j]);
                 }
                 constexpr render::Index  cw_order[6] = {0, 1, 2, 2, 3, 0};
                 constexpr render::Index ccw_order[6] = {0, 3, 2, 2, 1, 0};
