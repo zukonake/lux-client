@@ -101,13 +101,14 @@ void Map::build_mesh(Chunk &chunk, ChkPos const &pos)
         //TODO use current chunk to reduce to_chk_* calls, and chunks access
         return chunks[to_chk_pos(pos)].voxels[to_chk_idx(pos)];
     };
-    auto has_face = [&] (MapPos const &a, MapPos const &b)
+    auto has_face = [&] (MapPos const &a, MapPos const &b) -> bool
     {
         /* only one of the blocks must be non-void to have a face */
         return (get_voxel(a) == void_id) !=
                (get_voxel(b) == void_id);
     };
 
+    //TODO use vector with indices to reduce iteration in second phase?
     bool face_map[3][CHK_VOLUME];
     for(ChkIdx i = 0; i < CHK_VOLUME; ++i) {
         MapPos map_pos = to_map_pos(pos, i);
