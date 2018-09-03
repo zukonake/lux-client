@@ -32,6 +32,10 @@ Renderer::Renderer(GLFWwindow *win, data::Config const &conf) :
     view_mat(1.f),
     projection_mat(1.f)
 {
+    Vec2<I32> current_screen_size;
+    glfwGetWindowSize(win, &current_screen_size.x, &current_screen_size.y);
+    screen_size = (Vec2<U32>)current_screen_size;
+
     program.init(conf.vert_shader_path, conf.frag_shader_path);
     program.use();
     program.set_uniform("world", glUniformMatrix4fv,
