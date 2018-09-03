@@ -279,7 +279,7 @@ void Renderer::sort_render_queue(Vector<ChkPos> &render_queue, ChkPos const &cen
         Vec3<F32> f_center = f_point(center);
         auto distance_sort = [&] (Vec3<F32> const &a, Vec3<F32> const &b) -> bool
         {
-            return glm::distance(f_point(a), f_center) >
+            return glm::distance(f_point(a), f_center) <
                    glm::distance(f_point(b), f_center);
         };
         std::sort(render_queue.begin(), render_queue.end(), distance_sort);
