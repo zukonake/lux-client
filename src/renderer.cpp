@@ -35,6 +35,7 @@ Renderer::Renderer(GLFWwindow *win, data::Config const &conf) :
     Vec2<I32> current_screen_size;
     glfwGetWindowSize(win, &current_screen_size.x, &current_screen_size.y);
     screen_size = (Vec2<U32>)current_screen_size;
+    last_mouse_pos = screen_size / 2u;
 
     program.init(conf.vert_shader_path, conf.frag_shader_path);
     program.use();
