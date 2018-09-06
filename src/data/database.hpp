@@ -4,7 +4,7 @@
 #include <lux/alias/vector.hpp>
 #include <lux/alias/hash_map.hpp>
 #include <lux/alias/string.hpp>
-#include <lux/common/map.hpp>
+#include <lux/world/map.hpp>
 //
 #include <map/voxel_type.hpp>
 

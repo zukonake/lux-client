@@ -1,10 +1,10 @@
 #include <cstdlib>
-#include <stdexcept>
 //
 #include <lodepng.h>
 //
 #include <lux/alias/scalar.hpp>
 #include <lux/alias/vector.hpp>
+#include <lux/common.hpp>
 //
 #include "render/texture.hpp"
 
@@ -17,7 +17,7 @@ Vec2UI Texture::load(String const &path)
     use();
 
     auto err = lodepng::decode(value, size.x, size.y, path);
-    if(err) throw std::runtime_error("couldn't load tileset: " + path);
+    if(err) lux::error("RENDER_TEXTURE", "couldn't load tileset: %s", path);
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, size.x, size.y,
                  0, GL_RGBA, GL_UNSIGNED_BYTE, value.data());

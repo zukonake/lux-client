@@ -1,6 +1,5 @@
-#include <stdexcept>
-//
 #include <lux/util/log.hpp>
+#include <lux/common.hpp>
 #include <lux/net/server/packet.hpp>
 #include <lux/net/client/packet.hpp>
 //
@@ -11,7 +10,7 @@ NetClient::NetClient(String const &server_hostname, net::Port port)
     enet_client = enet_host_create(nullptr, 1, 2, 0, 0);
     if(enet_client == nullptr)
     {
-        throw std::runtime_error("couldn't create ENet client host");
+        lux::error("NET_CLIENT", "couldn't create ENet client host");
     }
     ENetAddress server_addr;
     enet_address_set_host(&server_addr, server_hostname.c_str());
@@ -41,7 +40,7 @@ bool NetClient::receive(net::server::Packet &sp)
         }
         else if(event.type == ENET_EVENT_TYPE_DISCONNECT)
         {
-            throw std::runtime_error("lost connection to server");
+            lux::error("NET_CLIENT", "lost connection to server");
         }
     }
     return false;
@@ -72,7 +71,7 @@ void NetClient::connect_to(ENetAddress *server_addr)
     enet_server = enet_host_connect(enet_client, server_addr, 1, 0);
     if(enet_server == nullptr)
     {
-        throw std::runtime_error("couldn't create enet host");
+        lux::error("NET_CLIENT", "couldn't create enet host");
     }
     ENetEvent event;
     if(enet_host_service(enet_client, &event, CONNECT_TIMEOUT) > 0)
@@ -84,7 +83,7 @@ void NetClient::connect_to(ENetAddress *server_addr)
                 enet_packet_destroy(event.packet);
             }
             enet_peer_reset(enet_server);
-            throw std::runtime_error("invalid server response");
+            lux::error("NET_CLIENT", "invalid server response");
         }
         else
         {
@@ -94,7 +93,7 @@ void NetClient::connect_to(ENetAddress *server_addr)
     else
     {
         enet_peer_reset(enet_server);
-        throw std::runtime_error("server connection timed out");
+        lux::error("NET_CLIENT", "server connection timed out");
     }
 }
 

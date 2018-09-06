@@ -1,7 +1,7 @@
 #pragma once
 
 #include <lux/alias/string.hpp>
-#include <lux/common/map.hpp>
+#include <lux/world/map.hpp>
 //
 #include <render/common.hpp>
 

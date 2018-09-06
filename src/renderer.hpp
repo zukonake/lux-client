@@ -4,7 +4,7 @@
 //
 #include <lux/alias/scalar.hpp>
 #include <lux/alias/vec_2.hpp>
-#include <lux/common/entity.hpp>
+#include <lux/world/entity.hpp>
 //
 #include <render/program.hpp>
 #include <render/texture.hpp>

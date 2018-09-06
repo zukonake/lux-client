@@ -1,6 +1,6 @@
-#include <stdexcept>
 #include <fstream>
 //
+#include <lux/common.hpp>
 #include "program.hpp"
 
 namespace render
@@ -22,7 +22,7 @@ void Program::init(String const &vert_path, String const &frag_path)
         {
             char log[OPENGL_LOG_SIZE];
             glGetProgramInfoLog(id, OPENGL_LOG_SIZE, NULL, log);
-            throw std::runtime_error("program linking error: \n" + std::string(log));
+            lux::error("RENDER_PROGRAM", "program linking error: %s", log);
         }
     }
     glDeleteShader(vert_id);
@@ -72,7 +72,7 @@ GLuint Program::load_shader(GLenum type, String const &path)
     {
         char log[OPENGL_LOG_SIZE];
         glGetShaderInfoLog(shader_id, OPENGL_LOG_SIZE, NULL, log);
-        throw std::runtime_error("shader compile error: \n" + std::string(log));
+        lux::error("RENDER_PROGRAM", "shader compilation error: %s", log);
     }
     return shader_id;
 }

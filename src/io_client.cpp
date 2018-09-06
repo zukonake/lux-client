@@ -2,8 +2,9 @@
 //
 #include <render/gl.hpp>
 //
-#include <lux/util/log.hpp>
 #include <lux/alias/string.hpp>
+#include <lux/util/log.hpp>
+#include <lux/common.hpp>
 //
 #include <data/config.hpp>
 #include "io_client.hpp"
@@ -64,9 +65,7 @@ void IoClient::mouse_cb(GLFWwindow* window, int button, int action, int mode)
 
 void IoClient::glfw_error_cb(int err, const char* desc)
 {
-    throw std::runtime_error(String("GLFW error: ") +
-                             std::to_string(err) +
-                             String("; ") + desc);
+    lux::error("IO_CLIENT", "GLFW error #%d : %s", err, desc);
 }
 
 void IoClient::take_st(net::server::Tick const &)
@@ -78,7 +77,7 @@ void IoClient::take_st(net::server::Tick const &)
 void IoClient::check_gl_error()
 {
     GLenum error = glGetError();
-    while(error != GL_NO_ERROR)
+    if(error != GL_NO_ERROR)
     {
         String str;
         switch(error)
@@ -89,7 +88,6 @@ void IoClient::check_gl_error()
             case GL_OUT_OF_MEMORY: str = "out of memory"; break;
             default: str = "unknown"; break;
         }
-        util::log("OPEN_GL", util::ERROR, "#%d - %s", error, str);
-        error = glGetError();
+        lux::error("IO_CLIENT", "GL error #%d : %s", error, str);
     }
 }

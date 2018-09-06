@@ -1,4 +1,5 @@
 #include <lux/util/log.hpp>
+#include <lux/common.hpp>
 //
 #include "gl_initializer.hpp"
 
@@ -54,7 +55,7 @@ void GlInitializer::init_glad()
 #   error "Unsupported GL variant selected"
 #endif
     {
-        throw std::runtime_error("couldn't initialize GLAD");
+        lux::error("GL_INITIALIZER", "couldn't initialize GLAD");
     }
 }
 

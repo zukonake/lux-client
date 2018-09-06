@@ -1,5 +1,6 @@
 #include <lux/util/log.hpp>
-#include <lux/common/map.hpp>
+#include <lux/common.hpp>
+#include <lux/world/map.hpp>
 //
 #include "client.hpp"
 
@@ -122,7 +123,7 @@ void Client::take_ss()
         }
         else
         {
-            throw std::runtime_error("server has not sent init data");
+            lux::error("CLIENT", "server has not sent init data");
         }
     }
     else if(sp.type == net::server::Packet::CONF)
@@ -141,7 +142,9 @@ void Client::init_from_server()
     util::log("CLIENT", util::INFO, "received initialization data");
     if(si.chunk_size != CHK_SIZE) //TODO check ver?
     {
-        throw std::runtime_error("incompatible chunk size");
+        lux::error("CLIENT", "incompatible chunk size : {%u, %u, %u} vs {%u, %u, %u}",
+                   CHK_SIZE.x, CHK_SIZE.y, CHK_SIZE.z,
+                   si.chunk_size.x, si.chunk_size.y, si.chunk_size.z);
     }
     String server_name(si.server_name.begin(), si.server_name.end());
     util::log("CLIENT", util::INFO, "server name: %s", server_name);

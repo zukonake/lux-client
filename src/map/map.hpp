@@ -3,7 +3,7 @@
 #include <render/gl.hpp>
 //
 #include <lux/alias/pos_map.hpp>
-#include <lux/common/map.hpp>
+#include <lux/world/map.hpp>
 //
 #include <map/chunk.hpp>
 

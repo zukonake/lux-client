@@ -5,7 +5,7 @@
 #include <glm/gtx/component_wise.hpp>
 #undef GLM_ENABLE_EXPERIMENTAL
 //
-#include <lux/common/map.hpp>
+#include <lux/world/map.hpp>
 #include <lux/net/server/packet.hpp>
 #include <lux/net/client/packet.hpp>
 //
