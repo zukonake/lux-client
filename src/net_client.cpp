@@ -49,7 +49,6 @@ bool NetClient::receive(net::server::Packet &sp)
 
 void NetClient::send(net::client::Packet &cp, U32 flags)
 {
-    //TODO packet buffer with enet_packet_resize
     //TODO move to shared?
     serializer.reserve(net::get_size(cp));
     serializer << cp;

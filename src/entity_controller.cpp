@@ -45,6 +45,7 @@ void EntityController::give_ct(net::client::Tick &ct)
         ct.is_jumping = true;
     }
     else ct.is_jumping = false;
+    //TODO we shouldn't read from ct here
     glm::mat4 rotation =
         glm::eulerAngleZ(ct.yaw + TAU / 4.f);
     ct.character_dir =

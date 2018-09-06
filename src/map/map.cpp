@@ -1,3 +1,5 @@
+#include <cassert>
+//
 #include <glm/glm.hpp>
 //
 #include <lux/alias/hash_map.hpp>
@@ -37,7 +39,7 @@ Chunk const *Map::get_chunk(ChkPos const &pos) const
 void Map::add_chunk(net::server::Chunk const &new_chunk)
 {
     ChkPos const &chunk_pos = new_chunk.pos;
-    //TODO assert
+
     if(chunks.count(chunk_pos) > 0) return;
 
     util::log("MAP", util::TRACE, "adding new chunk %d, %d, %d",
@@ -147,8 +149,8 @@ void Map::build_mesh(Chunk &chunk, ChkPos const &pos)
                             chunks.at(to_chk_pos(v_off_pos)).light_lvls[to_chk_idx(v_off_pos)];
                         col_avg += Vec4F(
                         (F32)((light_lvl & 0xF000) >> 12) / 16.f,
-                        (F32)((light_lvl & 0x0F00) >>  8) / 16.f,
-                        (F32)((light_lvl & 0x00F0) >>  4) / 16.f,
+                        (F32)((light_lvl & 0xF000) >> 12) / 16.f,
+                        (F32)((light_lvl & 0xF000) >> 12) / 16.f,
                         1.f);
                     }
                     col_avg /= 8.f;
