@@ -3,7 +3,9 @@
 #include <glm/glm.hpp>
 //
 #include <lux/alias/scalar.hpp>
+#include <lux/alias/vector.hpp>
 #include <lux/alias/vec_2.hpp>
+#include <lux/world/map.hpp>
 #include <lux/world/entity.hpp>
 //
 #include <render/program.hpp>
@@ -56,6 +58,7 @@ private:
     bool face_culling;
     bool frustrum_culling;
     bool distance_sorting;
+    Vector<ChkPos> render_queue;
 
     GLuint fb_id;
     GLuint color_rb_id;

@@ -5,6 +5,7 @@
 #include <glm/gtx/component_wise.hpp>
 #undef GLM_ENABLE_EXPERIMENTAL
 //
+#include <lux/common.hpp>
 #include <lux/world/map.hpp>
 #include <lux/net/server/packet.hpp>
 #include <lux/net/client/packet.hpp>
@@ -178,8 +179,8 @@ void Renderer::render_world(EntityPos const &player_pos)
     update_view(player_pos);
 
     ChkPos center = to_chk_pos(glm::round(player_pos));
-    Vector<ChkPos> render_queue;
 
+    render_queue.clear(); //TODO only when moving?
     get_render_queue(render_queue, center);
     sort_render_queue(render_queue, center);
 
@@ -210,14 +211,13 @@ void Renderer::render_chunk(ChkPos const &pos)
 
 bool Renderer::is_chunk_visible(ChkPos const &pos)
 {
+    MapPos base_pos = to_map_pos(pos, 0);
     for(U32 i = 0; i <= 0b111; ++i)
     {
-        MapPos map_pos = to_map_pos(pos, IdxPos(CHK_SIZE - 1u) *
-                     IdxPos(i & 1, (i & 2) >> 1, (i & 4) >> 2));
+        MapPos map_pos = base_pos + MapPos(CHK_SIZE) *
+            MapPos(i & 0b001, (i & 0b010) >> 1, (i & 0b100) >> 2);
         Vec4F v_pos = wvp_mat * Vec4F(map_pos, 1.f);
-        if(v_pos.x > -v_pos.w && v_pos.x < v_pos.w &&
-           v_pos.y > -v_pos.w && v_pos.y < v_pos.w &&
-           v_pos.z > 0        && v_pos.z < v_pos.w)
+        if(v_pos.z >= -v_pos.w && v_pos.z <= v_pos.w)
         {
             return true;
         }
