@@ -58,7 +58,7 @@ void Map::add_chunk(net::server::Chunk const &new_chunk)
 
 void Map::try_mesh(ChkPos const &pos)
 {
-    constexpr MapPos vert_offsets[27] =
+    constexpr MapPos offsets[27] =
         {{-1, -1, -1}, {-1, -1,  0}, {-1, -1,  1},
          {-1,  0, -1}, {-1,  0,  0}, {-1,  0,  1},
          {-1,  1, -1}, {-1,  1,  0}, {-1,  1,  1},
@@ -68,15 +68,16 @@ void Map::try_mesh(ChkPos const &pos)
          { 1, -1, -1}, { 1, -1,  0}, { 1, -1,  1},
          { 1,  0, -1}, { 1,  0,  0}, { 1,  0,  1},
          { 1,  1, -1}, { 1,  1,  0}, { 1,  1,  1}};
+
     assert(chunks.count(pos) > 0);
-    assert(!chunks.at(pos).is_mesh_generated);
+    assert(!chunks.at(pos).mesh.is_generated);
 
     for(SizeT side = 0; side < 27; ++side) {
         /* the chunks on positive offsets need to be loaded,
          * we also load the negative offsets so there is no asymmetry */
         //TODO this would be fixed if client controls chunk loading,
         //     it would simply request required chunks
-        if(chunks.count(pos + (ChkPos)vert_offsets[side]) == 0) return;
+        if(chunks.count(pos + (ChkPos)offsets[side]) == 0) return;
     }
     Chunk &chunk = chunks.at(pos);
     build_mesh(chunk, pos);
@@ -97,13 +98,14 @@ void Map::build_mesh(Chunk &chunk, ChkPos const &pos)
          {{0.0f, 0.0f}, {unit, 0.0f}, {unit, unit}, {0.0f, unit}},
          {{0.0f, 0.0f}, {unit, 0.0f}, {unit, unit}, {0.0f, unit}}};
 
-    render::Mesh &mesh = chunk.mesh;
+    Chunk::Mesh &mesh = chunk.mesh;
 
     /* this is the size of a checkerboard pattern, worst case */
-    mesh.vertices.reserve(CHK_VOLUME * 3 * 4);
+    mesh.geometry_verts.reserve(CHK_VOLUME * 3 * 4);
+    mesh.lightning_verts.reserve(CHK_VOLUME * 3 * 4);
     mesh.indices.reserve(CHK_VOLUME * 3 * 6);
 
-    render::Index index_offset = 0;
+    Chunk::Mesh::Index index_offset = 0;
     VoxelId void_id = db.get_voxel_id("void");
     //TODO ^ move to class
 
@@ -120,6 +122,7 @@ void Map::build_mesh(Chunk &chunk, ChkPos const &pos)
     };
 
     //TODO use vector with indices to reduce iteration in second phase?
+    //TODO store every two planes (we check 2 voxels at once)
     bool face_map[3][CHK_VOLUME];
     for(ChkIdx i = 0; i < CHK_VOLUME; ++i) {
         MapPos map_pos = to_map_pos(pos, i);
@@ -154,39 +157,50 @@ void Map::build_mesh(Chunk &chunk, ChkPos const &pos)
                         1.f);
                     }
                     col_avg /= 8.f;
-                    mesh.vertices.emplace_back(
-                        map_pos + quads[a][j], col_avg,
+                    mesh.geometry_verts.emplace_back(
+                        map_pos + quads[a][j],
                         (Vec2F)vox_type.tex_pos + tex_positions[a][j]);
+                    mesh.lightning_verts.emplace_back(col_avg);
                 }
-                constexpr render::Index  cw_order[6] = {0, 1, 2, 2, 3, 0};
-                constexpr render::Index ccw_order[6] = {0, 3, 2, 2, 1, 0};
-                render::Index const (&order)[6] =
+                constexpr Chunk::Mesh::Index  cw_order[6] = {0, 1, 2, 2, 3, 0};
+                constexpr Chunk::Mesh::Index ccw_order[6] = {0, 3, 2, 2, 1, 0};
+                Chunk::Mesh::Index const (&order)[6] =
                     is_solid ? cw_order : ccw_order;
-                for(render::Index idx : order) {
+                for(auto const &idx : order) {
                     mesh.indices.emplace_back(idx + index_offset);
                 }
                 index_offset += 4;
             }
         }
     }
-    mesh.vertices.shrink_to_fit();
+    mesh.geometry_verts.shrink_to_fit();
+    mesh.lightning_verts.shrink_to_fit();
     mesh.indices.shrink_to_fit();
 
-    if(mesh.vertices.size() > 0) {
-        glGenBuffers(1, &mesh.vbo_id);
-        glGenBuffers(1, &mesh.ebo_id);
+    if(mesh.indices.size() > 0) {
+        glGenBuffers(1, &mesh.geometry_vbo);
+        glGenBuffers(1, &mesh.lightning_vbo);
+        glGenBuffers(1, &mesh.ebo);
 
-        glBindBuffer(GL_ARRAY_BUFFER, mesh.vbo_id);
+        glBindBuffer(GL_ARRAY_BUFFER, mesh.geometry_vbo);
         glBufferData(GL_ARRAY_BUFFER,
-                     sizeof(render::Vertex) * mesh.vertices.size(),
-                     mesh.vertices.data(),
-                     GL_STATIC_DRAW);
+                     sizeof(Chunk::Mesh::GeometryVert) *
+                        mesh.geometry_verts.size(),
+                     mesh.geometry_verts.data(),
+                     GL_DYNAMIC_DRAW);
 
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.ebo_id);
+        glBindBuffer(GL_ARRAY_BUFFER, mesh.lightning_vbo);
+        glBufferData(GL_ARRAY_BUFFER,
+                     sizeof(Chunk::Mesh::LightningVert) *
+                        mesh.lightning_verts.size(),
+                     mesh.lightning_verts.data(),
+                     GL_DYNAMIC_DRAW);
+
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.ebo);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-                     sizeof(render::Index) * mesh.indices.size(),
+                     sizeof(Chunk::Mesh::Index) * mesh.indices.size(),
                      mesh.indices.data(),
                      GL_STATIC_DRAW);
     }
-    chunk.is_mesh_generated = true;
+    chunk.mesh.is_generated = true;
 }

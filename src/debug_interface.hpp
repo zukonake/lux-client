@@ -1,5 +1,7 @@
 #pragma once
 
+#include <render/gl.hpp>
+//
 #include <lux/alias/scalar.hpp>
 #include <lux/alias/vec_2.hpp>
 //
@@ -13,6 +15,17 @@ class Renderer;
 
 class DebugInterface : public IoNode
 {
+    typedef U32 Index;
+    static constexpr GLenum INDEX_GL_TYPE = GL_UNSIGNED_INT;
+    #pragma pack(push, 1)
+    struct Vert
+    {
+        Vec2F pos;
+        Vec2F tex_pos;
+        Vert(Vec2F pos, Vec2F tex_pos) :
+            pos(pos), tex_pos(tex_pos) { }
+    };
+    #pragma pack(pop)
 public:
     DebugInterface(GLFWwindow *win, Renderer &renderer, data::Config const &conf);
 
@@ -31,11 +44,11 @@ private:
     Vec2UI screen_size;
     Vec2UI char_size;
     Vec2UI font_char_size;
-    U32       char_scale;
-    F64       tick_time;
-    bool      conf_signal_queued;
+    U32    char_scale;
+    F64    tick_time;
+    bool   conf_signal_queued;
     Renderer &renderer;
 
-    GLuint vbo_id;
-    GLuint ebo_id;
+    GLuint vbo;
+    GLuint ebo;
 };

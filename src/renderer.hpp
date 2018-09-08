@@ -39,7 +39,7 @@ private:
 
     void render_world(EntityPos const &player_pos);
     void render_chunk(ChkPos const &chunk_pos);
-    void render_mesh(render::Mesh const &mesh);
+    void render_mesh(Chunk::Mesh const &mesh);
 
     bool is_chunk_visible(ChkPos const &pos);
     void get_render_queue(Vector<ChkPos> &render_queue, ChkPos const &center);

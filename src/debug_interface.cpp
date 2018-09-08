@@ -1,8 +1,6 @@
 #include <lux/net/client/packet.hpp>
 #include <lux/net/server/tick.hpp>
 //
-#include <render/interface_vertex.hpp>
-#include <render/index.hpp>
 #include <data/config.hpp>
 #include <renderer.hpp>
 #include "debug_interface.hpp"
@@ -24,8 +22,8 @@ DebugInterface::DebugInterface(GLFWwindow *win, Renderer &renderer,
     Vec2F font_scale = Vec2F(1.f, 1.f) / (Vec2F)font_char_size;
     program.set_uniform("tex_scale", glUniform2f, font_scale.x, font_scale.y);
 
-    glGenBuffers(1, &vbo_id);
-    glGenBuffers(1, &ebo_id);
+    glGenBuffers(1, &vbo);
+    glGenBuffers(1, &ebo);
 
     Vec2I screen_size_temp;
     glfwGetWindowSize(win, &screen_size_temp.x, &screen_size_temp.y);
@@ -106,8 +104,8 @@ void DebugInterface::take_resize(Vec2UI const &size)
 
 void DebugInterface::render_text(String const &str, Vec2I const &base_pos)
 {
-    Vector<render::InterfaceVertex> vertices;
-    Vector<render::Index>           indices;
+    Vector<Vert>  vertices;
+    Vector<Index> indices;
 
     vertices.reserve(str.size() * 4);
     indices.reserve(str.size() * 6);
@@ -126,7 +124,7 @@ void DebugInterface::render_text(String const &str, Vec2I const &base_pos)
     }
     else pos.y = base_pos.y * char_scale;
 
-    render::Index index_offset = 0;
+    Index index_offset = 0;
     constexpr Vec2UI verts[4] = {{0, 0}, {1, 0}, {0, 1}, {1, 1}};
 
     for(auto const &character : str)
@@ -149,28 +147,28 @@ void DebugInterface::render_text(String const &str, Vec2I const &base_pos)
         pos.x += char_scale;
     }
 
-    glBindBuffer(GL_ARRAY_BUFFER, vbo_id);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_id);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE,
-            sizeof(render::InterfaceVertex),
-            (void*)offsetof(render::InterfaceVertex, pos));
+            sizeof(Vert),
+            (void*)offsetof(Vert, pos));
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE,
-            sizeof(render::InterfaceVertex),
-            (void*)offsetof(render::InterfaceVertex, tex_pos));
+            sizeof(Vert),
+            (void*)offsetof(Vert, tex_pos));
 
     glBufferData(GL_ARRAY_BUFFER,
-                 sizeof(render::InterfaceVertex) * vertices.size(),
+                 sizeof(Vert) * vertices.size(),
                  vertices.data(),
                  GL_STREAM_DRAW);
 
     glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-                 sizeof(render::Index) * indices.size(),
+                 sizeof(Index) * indices.size(),
                  indices.data(),
                  GL_STREAM_DRAW);
 
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
-    glDrawElements(GL_TRIANGLES, indices.size(), render::INDEX_TYPE, 0);
+    glDrawElements(GL_TRIANGLES, indices.size(), INDEX_GL_TYPE, 0);
     glDisableVertexAttribArray(0);
     glDisableVertexAttribArray(1);
 }

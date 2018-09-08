@@ -12,6 +12,8 @@
 //
 #include <config.h>
 #include <data/config.hpp>
+#include <map/geometry_vert.hpp>
+#include <map/lightning_vert.hpp>
 #include "renderer.hpp"
 
 Renderer::Renderer(GLFWwindow *win, data::Config const &conf) :
@@ -195,13 +197,13 @@ void Renderer::render_chunk(ChkPos const &pos)
     Chunk const *chunk = map.get_chunk(pos);
     if(chunk != nullptr)
     {
-        if(chunk->is_mesh_generated == false)
+        if(chunk->mesh.is_generated == false)
         {
             map.try_mesh(pos);
         }
         else
         {
-            if(chunk->mesh.vertices.size() > 0)
+            if(chunk->mesh.indices.size() > 0)
             {
                 render_mesh(chunk->mesh);
             }
@@ -286,20 +288,25 @@ void Renderer::sort_render_queue(Vector<ChkPos> &render_queue, ChkPos const &cen
     }
 }
 
-void Renderer::render_mesh(render::Mesh const &mesh)
+void Renderer::render_mesh(Chunk::Mesh const &mesh)
 {
-    glBindBuffer(GL_ARRAY_BUFFER, mesh.vbo_id);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.ebo_id);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE,
-        sizeof(render::Vertex), (void*)offsetof(render::Vertex, pos));
-    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE,
-        sizeof(render::Vertex), (void*)offsetof(render::Vertex, col));
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE,
-        sizeof(render::Vertex), (void*)offsetof(render::Vertex, tex_pos));
+    glBindBuffer(GL_ARRAY_BUFFER, mesh.geometry_vbo);
+    glVertexAttribPointer(0, 3, GL_INT, GL_FALSE,
+        sizeof(Chunk::Mesh::GeometryVert),
+        (void*)offsetof(Chunk::Mesh::GeometryVert, pos));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE,
+        sizeof(Chunk::Mesh::GeometryVert),
+        (void*)offsetof(Chunk::Mesh::GeometryVert, tex_pos));
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.ebo);
+    glBindBuffer(GL_ARRAY_BUFFER, mesh.lightning_vbo);
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE,
+        sizeof(Chunk::Mesh::LightningVert),
+        (void*)offsetof(Chunk::Mesh::LightningVert, col));
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
     glEnableVertexAttribArray(2);
-    glDrawElements(GL_TRIANGLES, mesh.indices.size(), render::INDEX_TYPE, 0);
+    glDrawElements(GL_TRIANGLES, mesh.indices.size(),
+                   Chunk::Mesh::INDEX_GL_TYPE, 0);
     glDisableVertexAttribArray(0);
     glDisableVertexAttribArray(1);
     glDisableVertexAttribArray(2);
