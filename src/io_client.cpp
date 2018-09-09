@@ -19,7 +19,6 @@ IoClient::IoClient(GLFWwindow *win, data::Config const &conf) :
     IoNode::add_node(entity_controller);
     IoNode::add_node(debug_interface);
 
-    glfwSetErrorCallback(glfw_error_cb); //move to gl_initializer?
     glfwSetWindowUserPointer(IoNode::win, this);
     glfwSetFramebufferSizeCallback(IoNode::win, window_resize_cb);
     glfwSetKeyCallback(IoNode::win, key_cb);
@@ -61,11 +60,6 @@ void IoClient::mouse_cb(GLFWwindow* window, int button, int action, int mode)
 {
     IoClient *io_client = (IoClient *)glfwGetWindowUserPointer(window);
     io_client->dispatch_mouse(button, action, mode);
-}
-
-void IoClient::glfw_error_cb(int err, const char* desc)
-{
-    lux::error("IO_CLIENT", "GLFW error #%d : %s", err, desc);
 }
 
 void IoClient::take_st(net::server::Tick const &)

@@ -213,6 +213,9 @@ void Renderer::render_chunk(ChkPos const &pos)
 
 bool Renderer::is_chunk_visible(ChkPos const &pos)
 {
+    //TODO this is quite slow on debug mode (25% - 50% cpu time)
+    //     might still be more performant than not doing frustrum culling,
+    //     in which case it is a false positive
     MapPos base_pos = to_map_pos(pos, 0);
     for(U32 i = 0; i <= 0b111; ++i)
     {

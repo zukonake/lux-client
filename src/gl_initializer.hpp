@@ -15,7 +15,7 @@ class GlInitializer
     void init_window(Vec2UI const &size);
     void init_glad();
     
-    void check_gl_error();
+    static void glfw_error_cb(int err, const char* desc);
 
     GLFWwindow *win;
 };

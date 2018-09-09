@@ -1,3 +1,5 @@
+#include <cassert>
+//
 #include <lux/util/log.hpp>
 #include <lux/common.hpp>
 //
@@ -22,6 +24,7 @@ GLFWwindow *GlInitializer::get_window()
 void GlInitializer::init_window(Vec2UI const &size)
 {
     glfwInit();
+    glfwSetErrorCallback(glfw_error_cb);
     util::log("GL_INITIALIZER", util::DEBUG, "initializing GLFW window");
 #if   LUX_GL_VARIANT == LUX_GL_VARIANT_2_1
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
@@ -39,6 +42,8 @@ void GlInitializer::init_window(Vec2UI const &size)
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
     win = glfwCreateWindow(size.x, size.y, "Lux", NULL, NULL);
+    /* the error should be caught in error callback */
+    assert(win != nullptr);
     glfwMakeContextCurrent(win);
     glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     glfwSwapInterval(0);
@@ -59,3 +64,7 @@ void GlInitializer::init_glad()
     }
 }
 
+void GlInitializer::glfw_error_cb(int err, const char* desc)
+{
+    lux::error("GL_INITIALIZER", "GLFW error #%d : %s", err, desc);
+}
