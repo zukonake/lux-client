@@ -151,9 +151,9 @@ void Map::build_mesh(Chunk &chunk, ChkPos const &pos)
                         LightLvl light_lvl =
                             chunks.at(to_chk_pos(v_off_pos)).light_lvls[to_chk_idx(v_off_pos)];
                         col_avg += Vec4F(
-                        (F32)((light_lvl & 0xF000) >> 12) / 16.f,
-                        (F32)((light_lvl & 0xF000) >> 12) / 16.f,
-                        (F32)((light_lvl & 0xF000) >> 12) / 16.f,
+                        (F32)((light_lvl & 0xF000) >> 12) / 15.f,
+                        (F32)((light_lvl & 0x0F00) >>  8) / 15.f,
+                        (F32)((light_lvl & 0x00F0) >>  4) / 15.f,
                         1.f);
                     }
                     col_avg /= 8.f;
