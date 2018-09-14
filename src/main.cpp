@@ -2,9 +2,9 @@
 //
 #include <enet/enet.h>
 //
-#include <lux/common.hpp>
-#include <lux/net.hpp>
-#include <lux/util/tick_clock.hpp>
+#include <lux_shared/common.hpp>
+#include <lux_shared/net.hpp>
+#include <lux_shared/util/tick_clock.hpp>
 
 struct {
     Arr<U8, CLIENT_NAME_LEN> name = {0}; //@CONSIDER null character instead
