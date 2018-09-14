@@ -172,8 +172,6 @@ int main(int argc, char** argv) {
 
     connect_to_server(server_hostname, server_port);
 
-    enet_packet_destroy(client.reliable_out);
-    enet_packet_destroy(client.unreliable_out);
     enet_host_destroy(client.host);
     enet_deinitialize();
     return 0;
