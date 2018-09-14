@@ -47,14 +47,14 @@ void connect_to_server(char const* hostname, U16 port) {
                     if(event.type == ENET_EVENT_TYPE_RECEIVE) {
                         enet_packet_destroy(event.packet);
                     }
-                }
+                } else break;
             }
             if(tries >= MAX_TRIES) {
                 enet_peer_reset(client.peer);
                 LUX_FATAL("failed to acknowledge connection with server");
             }
             ++tries;
-        } while(event.type != ENET_EVENT_TYPE_CONNECT);
+        } while(true);
         LUX_LOG("established connection with server after %zu/%zu tries",
                 tries, MAX_TRIES);
     }
@@ -75,8 +75,7 @@ void connect_to_server(char const* hostname, U16 port) {
 
         client.reliable_out->data = (U8*)&client_init_data;
         client.reliable_out->dataLength = sizeof(client_init_data);
-        if(enet_peer_send(client.peer, INIT_CHANNEL,
-                          client.reliable_out) < 0) {
+        if(enet_peer_send(client.peer, INIT_CHANNEL, client.reliable_out) < 0) {
             LUX_FATAL("failed to send init packet");
         }
         enet_host_flush(client.host);
@@ -94,16 +93,20 @@ void connect_to_server(char const* hostname, U16 port) {
         do {
             enet_host_service(client.host, nullptr, TRY_TIME);
             init_pack = enet_peer_receive(client.peer, &channel_id);
-            if(init_pack != nullptr && channel_id != INIT_CHANNEL) {
-                LUX_LOG("ignoring unexpected packet on channel %u", channel_id);
-                enet_packet_destroy(init_pack);
-                init_pack = nullptr;
+            if(init_pack != nullptr) {
+                if(channel_id == INIT_CHANNEL) {
+                    break;
+                } else {
+                    LUX_LOG("ignoring unexpected packet on channel %u",
+                            channel_id);
+                    enet_packet_destroy(init_pack);
+                }
             }
             if(tries >= MAX_TRIES) {
                 LUX_FATAL("server did not send an init packet");
             }
             ++tries;
-        } while(init_pack == nullptr);
+        } while(true);
         LUX_LOG("received init packet after %zu/%zu tries", tries, MAX_TRIES);
 
         #pragma pack(push, 1)
