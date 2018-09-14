@@ -4,6 +4,7 @@
 //
 #include <lux/common.hpp>
 #include <lux/net.hpp>
+#include <lux/util/tick_clock.hpp>
 
 struct {
     Arr<U8, CLIENT_NAME_LEN> name = {0}; //@CONSIDER null character instead
@@ -16,7 +17,9 @@ struct {
     ENetPacket*   reliable_out;
     ENetPacket* unreliable_out;
 
-    String server_name;
+    String server_name  = "unnamed";
+    U16    tick_rate    = 0;
+    bool   should_close = false;
 } client;
 
 void connect_to_server(char const* hostname, U16 port) {
@@ -111,6 +114,7 @@ void connect_to_server(char const* hostname, U16 port) {
 
         #pragma pack(push, 1)
         struct { //@TODO tick
+            U16                 tick_rate;
             Arr<U8, SERVER_NAME_LEN> name;
         } server_init_data;
         #pragma pack(pop)
@@ -123,9 +127,23 @@ void connect_to_server(char const* hostname, U16 port) {
         std::memcpy((U8*)&server_init_data, init_pack->data,
                     sizeof(server_init_data));
         enet_packet_destroy(init_pack);
+        client.tick_rate   = server_init_data.tick_rate;
         client.server_name = String((char const*)server_init_data.name.data());
         LUX_LOG("successfully connected to server %s",
                 client.server_name.c_str());
+        LUX_LOG("tick rate %u", client.tick_rate);
+    }
+}
+
+void do_tick() {
+    ENetEvent event;
+    while(enet_host_service(client.host, &event, 0) > 0) {
+        if(event.type == ENET_EVENT_TYPE_DISCONNECT) {
+            //@CONSIDER a more graceful reaction
+            LUX_FATAL("connection closed by server");
+        } else if(event.type == ENET_EVENT_TYPE_RECEIVE) {
+            enet_packet_destroy(event.packet);
+        }
     }
 }
 
@@ -165,15 +183,27 @@ int main(int argc, char** argv) {
         if(client.unreliable_out == nullptr) {
             LUX_FATAL("couldn't initialize unreliable output packet");
         }
-    }
 
-    { ///copy client name
         U8 constexpr client_name[] = "lux-client";
         static_assert(sizeof(client_name) <= CLIENT_NAME_LEN);
         std::memcpy(conf.name.data(), client_name, sizeof(client_name));
     }
 
     connect_to_server(server_hostname, server_port);
+
+    { ///main loop
+        auto tick_len = util::TickClock::Duration(1.0 / (F64)client.tick_rate);
+        util::TickClock clock(tick_len);
+        while(!client.should_close) {
+            clock.start();
+            do_tick();
+            clock.stop();
+            auto remaining = clock.synchronize();
+            if(remaining < util::TickClock::Duration::zero()) {
+                LUX_LOG("tick overhead of %.2fs", std::abs(remaining.count()));
+            }
+        }
+    }
 
     { ///disconnect from server
         Uns constexpr MAX_TRIES = 30;
