@@ -28,8 +28,7 @@ void connect_to_server(char const* hostname, U16 port) {
         LUX_FATAL("failed to set server hostname: %s", hostname);
     }
     addr.port = port;
-    U8* ip = (U8*)&addr.host;
-    static_assert(sizeof(addr.host) == 4);
+    U8* ip = get_ip(addr);
     LUX_LOG("connecting to %u.%u.%u.%u:%u",
             ip[0], ip[1], ip[2], ip[3], port);
     client.peer = enet_host_connect(client.host, &addr, CHANNEL_NUM, 0);
