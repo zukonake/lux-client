@@ -175,6 +175,34 @@ int main(int argc, char** argv) {
 
     connect_to_server(server_hostname, server_port);
 
+    { ///disconnect from server
+        Uns constexpr MAX_TRIES = 30;
+        Uns constexpr TRY_TIME  = 25; ///in milliseconds
+
+        enet_peer_disconnect(client.peer, 0);
+
+        Uns tries = 0;
+        ENetEvent event;
+        do {
+            if(enet_host_service(client.host, &event, TRY_TIME) > 0) {
+                if(event.type == ENET_EVENT_TYPE_RECEIVE) {
+                    LUX_LOG("ignoring unexpected packet");
+                    enet_packet_destroy(event.packet);
+                } else if(event.type == ENET_EVENT_TYPE_DISCONNECT) {
+                    LUX_LOG("successfully disconnected from server");
+                    break;
+                }
+            }
+            if(tries >= MAX_TRIES) {
+                LUX_LOG("failed to properly disconnect with server");
+                LUX_LOG("forcefully terminating connection");
+                enet_peer_reset(client.peer);
+                break;
+            }
+            ++tries;
+        } while(true);
+    }
+
     enet_host_destroy(client.host);
     enet_deinitialize();
     return 0;
