@@ -3,7 +3,8 @@
 #include <enet/enet.h>
 //
 #include <lux_shared/common.hpp>
-#include <lux_shared/net.hpp>
+#include <lux_shared/net/common.hpp>
+#include <lux_shared/net/data.hpp>
 #include <lux_shared/util/tick_clock.hpp>
 
 struct {
@@ -63,18 +64,9 @@ void connect_to_server(char const* hostname, U16 port) {
 
     { ///send init packet
         LUX_LOG("sending init packet");
-        //@CONSIDER sharing code between server here
-        #pragma pack(push, 1)
-        struct {
-            Arr<U8, 3> ver =
-                {NET_VERSION_MAJOR, NET_VERSION_MINOR, NET_VERSION_PATCH};
-            static_assert(sizeof(NET_VERSION_MAJOR) == sizeof(ver[0]));
-            static_assert(sizeof(NET_VERSION_MINOR) == sizeof(ver[1]));
-            static_assert(sizeof(NET_VERSION_PATCH) == sizeof(ver[2]));
-            Arr<U8, CLIENT_NAME_LEN> name = conf.name;
-        } client_init_data;
-        #pragma pack(pop)
-
+        NetClientInit client_init_data = {
+            {NET_VERSION_MAJOR, NET_VERSION_MINOR, NET_VERSION_PATCH},
+            conf.name};
         client.reliable_out->data = (U8*)&client_init_data;
         client.reliable_out->dataLength = sizeof(client_init_data);
         if(enet_peer_send(client.peer, INIT_CHANNEL, client.reliable_out) < 0) {
@@ -111,22 +103,17 @@ void connect_to_server(char const* hostname, U16 port) {
         } while(true);
         LUX_LOG("received init packet after %zu/%zu tries", tries, MAX_TRIES);
 
-        #pragma pack(push, 1)
-        struct { //@TODO tick
-            U16                 tick_rate;
-            Arr<U8, SERVER_NAME_LEN> name;
-        } server_init_data;
-        #pragma pack(pop)
+        NetServerInit server_init_data;
 
         if(sizeof(server_init_data) != init_pack->dataLength) {
             LUX_FATAL("server sent invalid init packet with size %zu instead of"
                       " %zu", sizeof(server_init_data), init_pack->dataLength);
         }
-        ///assumes no struct fields bigger than byte in init data
+
         std::memcpy((U8*)&server_init_data, init_pack->data,
                     sizeof(server_init_data));
         enet_packet_destroy(init_pack);
-        client.tick_rate   = server_init_data.tick_rate;
+        client.tick_rate   = net_order(server_init_data.tick_rate);
         client.server_name = String((char const*)server_init_data.name.data());
         LUX_LOG("successfully connected to server %s",
                 client.server_name.c_str());
