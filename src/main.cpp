@@ -1,22 +1,23 @@
 #include <cstdlib>
+#include <cstring>
 //
 #include <enet/enet.h>
 //
 #include <lux_shared/common.hpp>
 #include <lux_shared/net/common.hpp>
 #include <lux_shared/net/data.hpp>
+#include <lux_shared/net/enet.hpp>
 #include <lux_shared/util/tick_clock.hpp>
 
 struct {
-    Arr<U8, CLIENT_NAME_LEN> name = {0}; //@CONSIDER null character instead
+    //@CONSIDER null character instead
+    //@RESEARCH whether the whole array actually gets filled
+    Arr<U8, CLIENT_NAME_LEN> name = {0};
 } conf;
 
 struct {
     ENetHost* host;
     ENetPeer* peer;
-
-    ENetPacket*   reliable_out;
-    ENetPacket* unreliable_out;
 
     String server_name  = "unnamed";
     U16    tick_rate    = 0;
@@ -58,8 +59,8 @@ void connect_to_server(char const* hostname, U16 port) {
             }
             ++tries;
         } while(true);
-        LUX_LOG("established connection with server after %zu/%zu tries",
-                tries, MAX_TRIES);
+        LUX_LOG("established connection with server");
+        LUX_LOG("    after %zu/%zu tries", tries, MAX_TRIES);
     }
 
     { ///send init packet
@@ -67,12 +68,10 @@ void connect_to_server(char const* hostname, U16 port) {
         NetClientInit client_init_data = {
             {NET_VERSION_MAJOR, NET_VERSION_MINOR, NET_VERSION_PATCH},
             conf.name};
-        client.reliable_out->data = (U8*)&client_init_data;
-        client.reliable_out->dataLength = sizeof(client_init_data);
-        if(enet_peer_send(client.peer, INIT_CHANNEL, client.reliable_out) < 0) {
+        if(send_init(client.peer, client.host, Slice<U8>(client_init_data))
+            != LUX_RVAL_OK) {
             LUX_FATAL("failed to send init packet");
         }
-        enet_host_flush(client.host);
         LUX_LOG("init packet sent successfully");
     }
     
@@ -101,6 +100,7 @@ void connect_to_server(char const* hostname, U16 port) {
             }
             ++tries;
         } while(true);
+        LUX_DEFER { enet_packet_destroy(init_pack); };
         LUX_LOG("received init packet after %zu/%zu tries", tries, MAX_TRIES);
 
         NetServerInit server_init_data;
@@ -112,7 +112,6 @@ void connect_to_server(char const* hostname, U16 port) {
 
         std::memcpy((U8*)&server_init_data, init_pack->data,
                     sizeof(server_init_data));
-        enet_packet_destroy(init_pack);
         client.tick_rate   = net_order(server_init_data.tick_rate);
         client.server_name = String((char const*)server_init_data.name.data());
         LUX_LOG("successfully connected to server %s",
@@ -128,7 +127,7 @@ void do_tick() {
             //@CONSIDER a more graceful reaction
             LUX_FATAL("connection closed by server");
         } else if(event.type == ENET_EVENT_TYPE_RECEIVE) {
-            enet_packet_destroy(event.packet);
+            LUX_DEFER { enet_packet_destroy(event.packet); };
         }
     }
 }
@@ -153,23 +152,17 @@ int main(int argc, char** argv) {
     if(enet_initialize() < 0) {
         LUX_FATAL("couldn't initialize ENet");
     }
+    LUX_DEFER {enet_deinitialize(); };
 
     { ///init client
         client.host = enet_host_create(nullptr, 1, CHANNEL_NUM, 0, 0);
         if(client.host == nullptr) {
             LUX_FATAL("couldn't initialize ENet host");
         }
-        client.reliable_out = enet_packet_create(nullptr, 0,
-            ENET_PACKET_FLAG_RELIABLE | ENET_PACKET_FLAG_NO_ALLOCATE);
-        if(client.reliable_out == nullptr) {
-            LUX_FATAL("couldn't initialize reliable output packet");
-        }
-        client.unreliable_out = enet_packet_create(nullptr, 0,
-            ENET_PACKET_FLAG_UNSEQUENCED | ENET_PACKET_FLAG_NO_ALLOCATE);
-        if(client.unreliable_out == nullptr) {
-            LUX_FATAL("couldn't initialize unreliable output packet");
-        }
+    }
+    LUX_DEFER { enet_host_destroy(client.host); };
 
+    {
         U8 constexpr client_name[] = "lux-client";
         static_assert(sizeof(client_name) <= CLIENT_NAME_LEN);
         std::memcpy(conf.name.data(), client_name, sizeof(client_name));
@@ -218,8 +211,5 @@ int main(int argc, char** argv) {
             ++tries;
         } while(true);
     }
-
-    enet_host_destroy(client.host);
-    enet_deinitialize();
     return 0;
 }
