@@ -72,7 +72,7 @@ void connect_to_server(char const* hostname, U16 port) {
             {NET_VERSION_MAJOR, NET_VERSION_MINOR, NET_VERSION_PATCH},
             conf.name};
         if(send_init(client.peer, client.host, Slice<U8>(client_init_data))
-            != LUX_RVAL_OK) {
+            != LUX_OK) {
             LUX_FATAL("failed to send init packet");
         }
         LUX_LOG("init packet sent successfully");
@@ -123,14 +123,29 @@ void connect_to_server(char const* hostname, U16 port) {
     }
 }
 
-void handle_tick(ENetPacket* in_pack) {
+LUX_MAY_FAIL handle_tick(ENetPacket* in_pack) {
+    /*
+    {
+        DynArr<ChkPos> requests;
+        for(ChkCoord z = 
+    }
+    NetClientSignal signal;
+    signal.type = NetClientSignal::MAP_REQUEST;
+    signal.map_request.requests.len = net_order(1);
+    U8 data[1 + 4 + 24];
+    std::memcpy(data, (U8*)&signal, 1 + 4);
+    *(ChkPos*)&data[5] = net_order(ChkPos(0, 1337, 2));
 
+    send_signal(client.peer, client.host, {data, 1 + 4 + 24});
+    */
+    return LUX_OK;
 }
 
-LUX_RVAL handle_signal(ENetPacket* in_pack) {
+//@CONSIDER shared version
+LUX_MAY_FAIL handle_signal(ENetPacket* in_pack) {
     if(in_pack->dataLength < 1) {
         LUX_LOG("couldn't read signal header, ignoring it");
-        return LUX_RVAL_SERVER_SIGNAL;
+        return LUX_FAIL;
     }
 
     SizeT static_size;
@@ -150,15 +165,16 @@ LUX_RVAL handle_signal(ENetPacket* in_pack) {
                 LUX_LOG("unexpected signal type, ignoring it");
                 LUX_LOG("    type: %u", signal->type);
                 LUX_LOG("    size: %zuB", in_pack->dataLength);
-                return LUX_RVAL_SERVER_SIGNAL;
+                return LUX_FAIL;
             }
         }
         if(static_dynamic_size < needed_static_size) {
             LUX_LOG("received packet static segment too small");
             LUX_LOG("    expected size: atleast %zuB", needed_static_size + 1);
             LUX_LOG("    size: %zuB", in_pack->dataLength);
-            return LUX_RVAL_SERVER_SIGNAL;
+            return LUX_FAIL;
         }
+        //@CONSIDER size -> sz
         static_size = needed_static_size;
         dynamic_size = static_dynamic_size - static_size;
         SizeT needed_dynamic_size;
@@ -169,12 +185,12 @@ LUX_RVAL handle_signal(ENetPacket* in_pack) {
             } break;
             default: LUX_ASSERT(false);
         }
-        if(dynamic_size != needed_static_size) {
+        if(dynamic_size != needed_dynamic_size) {
             LUX_LOG("received packet dynamic segment size differs from expected");
             LUX_LOG("    expected size: %zuB", needed_dynamic_size +
                                                static_size + 1);
             LUX_LOG("    size: %zuB", in_pack->dataLength);
-            return LUX_RVAL_SERVER_SIGNAL;
+            return LUX_FAIL;
         }
         dynamic_segment.set((U8*)(in_pack->data + 1 + static_size), dynamic_size);
     }
@@ -192,7 +208,7 @@ LUX_RVAL handle_signal(ENetPacket* in_pack) {
             default: LUX_ASSERT(false);
         }
     }
-    return LUX_RVAL_OK;
+    return LUX_OK;
 }
 
 void do_tick() {
@@ -205,7 +221,7 @@ void do_tick() {
             } else if(event.type == ENET_EVENT_TYPE_RECEIVE) {
                 LUX_DEFER { enet_packet_destroy(event.packet); };
                 if(event.channelID == TICK_CHANNEL) {
-                    handle_tick(event.packet);
+                    (void)handle_tick(event.packet);
                 } else if(event.channelID == TICK_CHANNEL) {
                     (void)handle_signal(event.packet);
                 } else {
