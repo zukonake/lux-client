@@ -5,9 +5,12 @@
 //
 #include <lux_shared/common.hpp>
 #include <lux_shared/net/common.hpp>
+#include <lux_shared/net/net_order.hpp>
 #include <lux_shared/net/data.hpp>
 #include <lux_shared/net/enet.hpp>
 #include <lux_shared/util/tick_clock.hpp>
+//
+#include <map.hpp>
 
 struct {
     //@CONSIDER null character instead
@@ -120,14 +123,96 @@ void connect_to_server(char const* hostname, U16 port) {
     }
 }
 
+void handle_tick(ENetPacket* in_pack) {
+
+}
+
+LUX_RVAL handle_signal(ENetPacket* in_pack) {
+    if(in_pack->dataLength < 1) {
+        LUX_LOG("couldn't read signal header, ignoring it");
+        return LUX_RVAL_SERVER_SIGNAL;
+    }
+
+    SizeT static_size;
+    SizeT dynamic_size;
+    Slice<U8> dynamic_segment;
+    NetServerSignal* signal = (NetServerSignal*)in_pack->data;
+
+    { ///verify size
+        ///we don't count the header
+        SizeT static_dynamic_size = in_pack->dataLength - 1;
+        SizeT needed_static_size;
+        switch(signal->type) {
+            case NetServerSignal::MAP_LOAD: {
+                needed_static_size = sizeof(NetServerSignal::MapLoad);
+            } break;
+            default: {
+                LUX_LOG("unexpected signal type, ignoring it");
+                LUX_LOG("    type: %u", signal->type);
+                LUX_LOG("    size: %zuB", in_pack->dataLength);
+                return LUX_RVAL_SERVER_SIGNAL;
+            }
+        }
+        if(static_dynamic_size < needed_static_size) {
+            LUX_LOG("received packet static segment too small");
+            LUX_LOG("    expected size: atleast %zuB", needed_static_size + 1);
+            LUX_LOG("    size: %zuB", in_pack->dataLength);
+            return LUX_RVAL_SERVER_SIGNAL;
+        }
+        static_size = needed_static_size;
+        dynamic_size = static_dynamic_size - static_size;
+        SizeT needed_dynamic_size;
+        switch(signal->type) {
+            case NetServerSignal::MAP_LOAD: {
+                needed_dynamic_size = signal->map_load.chunks.len *
+                                      sizeof(NetServerSignal::MapLoad::Chunk);
+            } break;
+            default: LUX_ASSERT(false);
+        }
+        if(dynamic_size != needed_static_size) {
+            LUX_LOG("received packet dynamic segment size differs from expected");
+            LUX_LOG("    expected size: %zuB", needed_dynamic_size +
+                                               static_size + 1);
+            LUX_LOG("    size: %zuB", in_pack->dataLength);
+            return LUX_RVAL_SERVER_SIGNAL;
+        }
+        dynamic_segment.set((U8*)(in_pack->data + 1 + static_size), dynamic_size);
+    }
+
+    { ///parse the packet
+        switch(signal->type) {
+            case NetServerSignal::MAP_LOAD: {
+                typedef NetServerSignal::MapLoad::Chunk NetChunk;
+                Slice<NetChunk> chunks = dynamic_segment;
+
+                for(Uns i = 0; i < chunks.len; ++i) {
+                    load_chunk(chunks[i]);
+                }
+            } break;
+            default: LUX_ASSERT(false);
+        }
+    }
+    return LUX_RVAL_OK;
+}
+
 void do_tick() {
-    ENetEvent event;
-    while(enet_host_service(client.host, &event, 0) > 0) {
-        if(event.type == ENET_EVENT_TYPE_DISCONNECT) {
-            //@CONSIDER a more graceful reaction
-            LUX_FATAL("connection closed by server");
-        } else if(event.type == ENET_EVENT_TYPE_RECEIVE) {
-            LUX_DEFER { enet_packet_destroy(event.packet); };
+    { ///handle events
+        ENetEvent event;
+        while(enet_host_service(client.host, &event, 0) > 0) {
+            if(event.type == ENET_EVENT_TYPE_DISCONNECT) {
+                //@CONSIDER a more graceful reaction
+                LUX_FATAL("connection closed by server");
+            } else if(event.type == ENET_EVENT_TYPE_RECEIVE) {
+                LUX_DEFER { enet_packet_destroy(event.packet); };
+                if(event.channelID == TICK_CHANNEL) {
+                    handle_tick(event.packet);
+                } else if(event.channelID == TICK_CHANNEL) {
+                    (void)handle_signal(event.packet);
+                } else {
+                    LUX_LOG("ignoring unexpected packet");
+                    LUX_LOG("    channel: %u", event.channelID);
+                }
+            }
         }
     }
 }
