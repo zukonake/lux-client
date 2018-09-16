@@ -159,21 +159,17 @@ LUX_MAY_FAIL handle_tick(ENetPacket* in_pack) {
             }
         }
         if(requests.size() > 0) {
-            SizeT constexpr static_sz = 1 + sizeof(NetClientSignal::MapRequest);
+            SizeT constexpr static_sz = sizeof(NetClientSignal::MapRequest);
             SizeT          dynamic_sz = requests.size() * sizeof(ChkPos);
             //@CONSIDER a buffer
             Slice<U8> data;
-            data.len = static_sz + dynamic_sz;
+            data.len = 1 + static_sz + dynamic_sz;
             data.beg = lux_alloc<U8>(data.len);
             LUX_DEFER { lux_free(data.beg); };
-            if(data.beg == nullptr) {
-                return LUX_FAIL;
-            }
-            NetClientSignal signal;
-            signal.type = NetClientSignal::MAP_REQUEST;
-            signal.map_request.requests.len = net_order(requests.size());
-            std::memcpy(((U8*)&signal) + static_sz,
-                        requests.data(), dynamic_sz);
+            NetClientSignal* signal = (NetClientSignal*)data.beg;
+            signal->type = NetClientSignal::MAP_REQUEST;
+            signal->map_request.requests.len = net_order<U32>(requests.size());
+            std::memcpy(data.beg + 1 + static_sz, requests.data(), dynamic_sz);
             LuxRval rval = send_signal(client.peer, client.host, data);
             if(rval != LUX_OK) return rval;
         }
