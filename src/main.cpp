@@ -8,6 +8,7 @@
 #include <lux_shared/net/net_order.hpp>
 #include <lux_shared/net/data.hpp>
 #include <lux_shared/net/enet.hpp>
+#include <lux_shared/util/packer.hpp>
 #include <lux_shared/util/tick_clock.hpp>
 //
 #include <map.hpp>
@@ -24,7 +25,9 @@ struct {
 
     String server_name  = "unnamed";
     U16    tick_rate    = 0;
+    F32    load_rad     = 3;
     bool   should_close = false;
+    HashSet<ChkPos, util::Packer<ChkPos>> requested_chunks;
 } client;
 
 void connect_to_server(char const* hostname, U16 port) {
@@ -124,20 +127,57 @@ void connect_to_server(char const* hostname, U16 port) {
 }
 
 LUX_MAY_FAIL handle_tick(ENetPacket* in_pack) {
-    /*
-    {
-        DynArr<ChkPos> requests;
-        for(ChkCoord z = 
+    if(in_pack->dataLength != sizeof(NetServerTick)) {
+        LUX_LOG("received tick packet has unexpected size");
+        LUX_LOG("    expected size: %zuB", sizeof(NetServerTick));
+        LUX_LOG("    size: %zuB", in_pack->dataLength);
+        return LUX_FAIL;
     }
-    NetClientSignal signal;
-    signal.type = NetClientSignal::MAP_REQUEST;
-    signal.map_request.requests.len = net_order(1);
-    U8 data[1 + 4 + 24];
-    std::memcpy(data, (U8*)&signal, 1 + 4);
-    *(ChkPos*)&data[5] = net_order(ChkPos(0, 1337, 2));
 
-    send_signal(client.peer, client.host, {data, 1 + 4 + 24});
-    */
+    NetServerTick *tick = (NetServerTick*)in_pack->data;
+
+    {
+        ChkPos const& center = to_chk_pos(net_order(tick->player_pos));
+        DynArr<ChkPos> requests;
+        ChkPos iter;
+        for(iter.z  = center.z - client.load_rad;
+            iter.z <= center.z + client.load_rad;
+            iter.z++) {
+            for(iter.y  = center.y - client.load_rad;
+                iter.y <= center.y + client.load_rad;
+                iter.y++) {
+                for(iter.x  = center.x - client.load_rad;
+                    iter.x <= center.x + client.load_rad;
+                    iter.x++) {
+                    if(glm::distance((Vec3F)iter, (Vec3F)center)
+                           <= client.load_rad &&
+                       client.requested_chunks.count(iter) == 0 &&
+                       !is_chunk_loaded(iter)) {
+                        requests.emplace_back(net_order(iter));
+                    }
+                }
+            }
+        }
+        if(requests.size() > 0) {
+            SizeT constexpr static_sz = 1 + sizeof(NetClientSignal::MapRequest);
+            SizeT          dynamic_sz = requests.size() * sizeof(ChkPos);
+            //@CONSIDER a buffer
+            Slice<U8> data;
+            data.len = static_sz + dynamic_sz;
+            data.beg = lux_alloc<U8>(data.len);
+            LUX_DEFER { lux_free(data.beg); };
+            if(data.beg == nullptr) {
+                return LUX_FAIL;
+            }
+            NetClientSignal signal;
+            signal.type = NetClientSignal::MAP_REQUEST;
+            signal.map_request.requests.len = net_order(requests.size());
+            std::memcpy(((U8*)&signal) + static_sz,
+                        requests.data(), dynamic_sz);
+            LuxRval rval = send_signal(client.peer, client.host, data);
+            if(rval != LUX_OK) return rval;
+        }
+    }
     return LUX_OK;
 }
 
