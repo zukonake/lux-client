@@ -28,8 +28,8 @@ if(CMAKE_BUILD_TYPE MATCHES "Release")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -flto")
 endif()
 
-configure_file("${PROJECT_SOURCE_DIR}/config.h.in"
-               "${PROJECT_BINARY_DIR}/include/config.h")
+configure_file("${PROJECT_SOURCE_DIR}/config.hpp.in"
+               "${PROJECT_BINARY_DIR}/include/config.hpp")
 
 include_directories(SYSTEM "include")
 include_directories("deps/lux-shared/include" "src"

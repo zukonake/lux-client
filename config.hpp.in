@@ -8,3 +8,8 @@
 #define LUX_GL_VARIANT_ES_2_0 @LUX_GL_VARIANT_ES_2_0@
 
 #define LUX_GL_VARIANT        @LUX_GL_VARIANT@
+
+#if LUX_GL_VARIANT != LUX_GL_VARIANT_2_1    && \
+    LUX_GL_VARIANT != LUX_GL_VARIANT_ES_2_0
+#   error "invalid LUX_GL_VARIANT value"
+#endif

@@ -13,11 +13,13 @@
 #include <lux_shared/util/tick_clock.hpp>
 //
 #include <map.hpp>
+#include <rendering.hpp>
 
 struct {
     //@CONSIDER null character instead
     //@RESEARCH whether the whole array actually gets filled
     Arr<U8, CLIENT_NAME_LEN> name = {0};
+    Vec2U window_size = {800, 600};
 } conf;
 
 struct {
@@ -84,7 +86,7 @@ void connect_to_server(char const* hostname, U16 port) {
         }
         LUX_LOG("init packet sent successfully");
     }
-    
+
     { ///receive init packet
         LUX_LOG("awaiting init packet");
         Uns constexpr MAX_TRIES = 10;
@@ -273,6 +275,11 @@ void do_tick() {
             }
         }
     }
+    glfwPollEvents();
+    client.should_close |= glfwWindowShouldClose(glfw_window);
+    //@TODO render here
+    check_opengl_error();
+    glfwSwapBuffers(glfw_window);
 }
 
 int main(int argc, char** argv) {
@@ -312,6 +319,9 @@ int main(int argc, char** argv) {
     }
 
     connect_to_server(server_hostname, server_port);
+
+    init_rendering(conf.window_size);
+    LUX_DEFER { deinit_rendering(); };
 
     { ///main loop
         auto tick_len = util::TickClock::Duration(1.0 / (F64)client.tick_rate);
