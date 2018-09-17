@@ -259,7 +259,7 @@ void do_tick() {
                 LUX_DEFER { enet_packet_destroy(event.packet); };
                 if(event.channelID == TICK_CHANNEL) {
                     if(handle_tick(event.packet) != LUX_OK) continue;
-                } else if(event.channelID == TICK_CHANNEL) {
+                } else if(event.channelID == SIGNAL_CHANNEL) {
                     if(handle_signal(event.packet) != LUX_OK) continue;
                 } else {
                     LUX_LOG("ignoring unexpected packet");
