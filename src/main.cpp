@@ -74,7 +74,7 @@ void connect_to_server(char const* hostname, U16 port) {
         NetClientInit client_init_data = {
             {NET_VERSION_MAJOR, NET_VERSION_MINOR, NET_VERSION_PATCH},
             conf.name};
-        if(send_init(client.peer, client.host, Slice<U8>(client_init_data))
+        if(send_init(client.peer, Slice<U8>(client_init_data))
             != LUX_OK) {
             LUX_FATAL("failed to send init packet");
         }
@@ -170,7 +170,7 @@ LUX_MAY_FAIL handle_tick(ENetPacket* in_pack) {
             signal->type = NetClientSignal::MAP_REQUEST;
             signal->map_request.requests.len = net_order<U32>(requests.size());
             std::memcpy(data.beg + 1 + static_sz, requests.data(), dynamic_sz);
-            LuxRval rval = send_signal(client.peer, client.host, data);
+            LuxRval rval = send_signal(client.peer, data);
             if(rval != LUX_OK) return rval;
         }
     }
@@ -249,23 +249,28 @@ LUX_MAY_FAIL handle_signal(ENetPacket* in_pack) {
 
 void do_tick() {
     { ///handle events
+        ///@TODO, enet_host_service for some reason tries to send packets here
+        ///which should've been sent before (since host_flush is called), thus
+        ///here some uninitialized/freed data would be sent (which is a bug),
+        ///enet_host_check_events is used instead, still it's a bit weird
         ENetEvent event;
-        while(enet_host_service(client.host, &event, 0) > 0) {
+        while(enet_host_check_events(client.host, &event) > 0) {
             if(event.type == ENET_EVENT_TYPE_DISCONNECT) {
                 //@CONSIDER a more graceful reaction
                 LUX_FATAL("connection closed by server");
             } else if(event.type == ENET_EVENT_TYPE_RECEIVE) {
                 LUX_DEFER { enet_packet_destroy(event.packet); };
                 if(event.channelID == TICK_CHANNEL) {
-                    (void)handle_tick(event.packet);
+                    if(handle_tick(event.packet) != LUX_OK) continue;
                 } else if(event.channelID == TICK_CHANNEL) {
-                    (void)handle_signal(event.packet);
+                    if(handle_signal(event.packet) != LUX_OK) continue;
                 } else {
                     LUX_LOG("ignoring unexpected packet");
                     LUX_LOG("    channel: %u", event.channelID);
                 }
             }
         }
+        enet_host_flush(client.host);
     }
 }
 
