@@ -65,8 +65,8 @@ void connect_to_server(char const* hostname, U16 port) {
             }
             ++tries;
         } while(true);
-        LUX_LOG("established connection with server");
-        LUX_LOG("    after %zu/%zu tries", tries, MAX_TRIES);
+        LUX_LOG("established connection with server after %zu/%zu tries",
+                tries, MAX_TRIES);
     }
 
     { ///send init packet
