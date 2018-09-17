@@ -72,11 +72,13 @@ void connect_to_server(char const* hostname, U16 port) {
     { ///send init packet
         LUX_LOG("sending init packet");
         ENetPacket* pack;
-        create_reliable_pack(pack, sizeof(NetClientInit));
+        if(create_reliable_pack(pack, sizeof(NetClientInit)) != LUX_OK) {
+            LUX_FATAL("failed to create init packet");
+        }
         NetClientInit* init = (NetClientInit*)pack->data;
-        init.ver  = {NET_VERSION_MAJOR, NET_VERSION_MINOR, NET_VERSION_PATCH};
-        init.name = conf.name};
-        if(send_packet(client.peer, init, INIT_CHANNEL)!= LUX_OK) {
+        init->net_ver = {NET_VERSION_MAJOR, NET_VERSION_MINOR, NET_VERSION_PATCH};
+        init->name    = conf.name;
+        if(send_packet(client.peer, pack, INIT_CHANNEL)!= LUX_OK) {
             LUX_FATAL("failed to send init packet");
         }
         LUX_LOG("init packet sent successfully");
@@ -164,8 +166,7 @@ LUX_MAY_FAIL handle_tick(ENetPacket* in_pack) {
             SizeT          dynamic_sz = requests.size() * sizeof(ChkPos);
 
             ENetPacket* pack;
-            if(create_reliable_packet(pack, static_sz + dynamic_sz)
-                   != LUX_OK) {
+            if(create_reliable_pack(pack, static_sz + dynamic_sz) != LUX_OK) {
                 return LUX_FAIL;
             }
             NetClientSignal* signal = (NetClientSignal*)pack->data;
@@ -213,7 +214,7 @@ LUX_MAY_FAIL handle_signal(ENetPacket* in_pack) {
             return LUX_FAIL;
         }
         static_sz = needed_static_sz;
-        dynamic_size = sz - static_sz;
+        dynamic_sz = sz - static_sz;
         SizeT needed_dynamic_sz;
         switch(signal->type) {
             case NetServerSignal::MAP_LOAD: {
