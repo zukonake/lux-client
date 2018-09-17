@@ -12,6 +12,7 @@
 #include <lux_shared/util/packer.hpp>
 #include <lux_shared/util/tick_clock.hpp>
 //
+#include <db.hpp>
 #include <map.hpp>
 #include <rendering.hpp>
 
@@ -28,7 +29,7 @@ struct {
 
     String server_name  = "unnamed";
     U16    tick_rate    = 0;
-    F32    load_rad     = 3;
+    F32    load_rad     = 4;
     bool   should_close = false;
     HashSet<ChkPos, util::Packer<ChkPos>> requested_chunks;
 } client;
@@ -306,6 +307,7 @@ int main(int argc, char** argv) {
     }
 
     LUX_LOG("initializing client");
+    db_init();
     if(enet_initialize() < 0) {
         LUX_FATAL("couldn't initialize ENet");
     }
