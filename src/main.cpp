@@ -253,8 +253,9 @@ void do_tick() {
         ENetEvent event;
         while(enet_host_service(client.host, &event, 0) > 0) {
             if(event.type == ENET_EVENT_TYPE_DISCONNECT) {
-                //@CONSIDER a more graceful reaction
-                LUX_FATAL("connection closed by server");
+                LUX_LOG("connection closed by server");
+                client.should_close = true;
+                return;
             } else if(event.type == ENET_EVENT_TYPE_RECEIVE) {
                 LUX_DEFER { enet_packet_destroy(event.packet); };
                 if(event.channelID == TICK_CHANNEL) {
@@ -322,7 +323,7 @@ int main(int argc, char** argv) {
         }
     }
 
-    { ///disconnect from server
+    if(client.peer->state == ENET_PEER_STATE_CONNECTED) {
         Uns constexpr MAX_TRIES = 30;
         Uns constexpr TRY_TIME  = 25; ///in milliseconds
 
