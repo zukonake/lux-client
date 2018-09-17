@@ -1,4 +1,5 @@
 #include <cstdlib>
+#include <cmath>
 #include <cstring>
 //
 #include <enet/enet.h>
@@ -143,20 +144,23 @@ LUX_MAY_FAIL handle_tick(ENetPacket* in_pack) {
         ChkPos const& center = to_chk_pos(net_order(tick->player_pos));
         DynArr<ChkPos> requests;
         ChkPos iter;
-        for(iter.z  = center.z - client.load_rad;
-            iter.z <= center.z + client.load_rad;
+        for(iter.z  = std::round(center.z - client.load_rad);
+            iter.z <= std::round(center.z + client.load_rad);
             iter.z++) {
-            for(iter.y  = center.y - client.load_rad;
-                iter.y <= center.y + client.load_rad;
+            for(iter.y  = std::round(center.y - client.load_rad);
+                iter.y <= std::round(center.y + client.load_rad);
                 iter.y++) {
-                for(iter.x  = center.x - client.load_rad;
-                    iter.x <= center.x + client.load_rad;
+                for(iter.x  = std::round(center.x - client.load_rad);
+                    iter.x <= std::round(center.x + client.load_rad);
                     iter.x++) {
                     if(glm::distance((Vec3F)iter, (Vec3F)center)
                            <= client.load_rad &&
                        client.requested_chunks.count(iter) == 0 &&
                        !is_chunk_loaded(iter)) {
+                        client.requested_chunks.emplace(iter);
                         requests.emplace_back(net_order(iter));
+                        LUX_LOG("requesting chunk: {%zd, %zd, %zd}",
+                            iter.x, iter.y, iter.z);
                     }
                 }
             }
