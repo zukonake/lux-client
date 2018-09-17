@@ -33,6 +33,13 @@ struct {
     HashSet<ChkPos, util::Packer<ChkPos>> requested_chunks;
 } client;
 
+static void window_resize_cb(GLFWwindow* window, int width, int height)
+{
+    (void)window;
+    LUX_LOG("window size change to %ux%u", width, height);
+    glViewport(0, 0, width, height);
+}
+
 void connect_to_server(char const* hostname, U16 port) {
     ENetAddress addr;
     if(enet_address_set_host(&addr, hostname) < 0) {
@@ -320,7 +327,7 @@ int main(int argc, char** argv) {
 
     connect_to_server(server_hostname, server_port);
 
-    init_rendering(conf.window_size);
+    init_rendering(conf.window_size, window_resize_cb);
     LUX_DEFER { deinit_rendering(); };
 
     { ///main loop

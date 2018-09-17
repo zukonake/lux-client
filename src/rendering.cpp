@@ -10,7 +10,8 @@ static void glfw_error_cb(int err, char const* desc) {
     LUX_FATAL("GLFW error: %d - %s", err, desc);
 }
 
-void init_rendering(Vec2U const &window_size) {
+void init_rendering(Vec2U const &window_size,
+                    GLFWwindowsizefun window_resize_cb) {
     { ///init glfw
         glfwInit();
         glfwSetErrorCallback(glfw_error_cb);
@@ -36,6 +37,7 @@ void init_rendering(Vec2U const &window_size) {
         }
         glfwMakeContextCurrent(glfw_window);
         glfwSetInputMode(glfw_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        glfwSetWindowSizeCallback(glfw_window, window_resize_cb);
         glfwSwapInterval(0);
     }
 

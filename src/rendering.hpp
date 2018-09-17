@@ -12,6 +12,7 @@
 
 extern GLFWwindow* glfw_window;
 
-void init_rendering(Vec2U const &window_size);
+void init_rendering(Vec2U const &window_size,
+                    GLFWwindowsizefun window_resize_cb);
 void deinit_rendering();
 void check_opengl_error();
