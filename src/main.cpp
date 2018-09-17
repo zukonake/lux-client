@@ -71,11 +71,12 @@ void connect_to_server(char const* hostname, U16 port) {
 
     { ///send init packet
         LUX_LOG("sending init packet");
-        NetClientInit client_init_data = {
-            {NET_VERSION_MAJOR, NET_VERSION_MINOR, NET_VERSION_PATCH},
-            conf.name};
-        if(send_init(client.peer, Slice<U8>(client_init_data))
-            != LUX_OK) {
+        ENetPacket* pack;
+        create_reliable_pack(pack, sizeof(NetClientInit));
+        NetClientInit* init = (NetClientInit*)pack->data;
+        init.ver  = {NET_VERSION_MAJOR, NET_VERSION_MINOR, NET_VERSION_PATCH};
+        init.name = conf.name};
+        if(send_packet(client.peer, init, INIT_CHANNEL)!= LUX_OK) {
             LUX_FATAL("failed to send init packet");
         }
         LUX_LOG("init packet sent successfully");
@@ -159,19 +160,21 @@ LUX_MAY_FAIL handle_tick(ENetPacket* in_pack) {
             }
         }
         if(requests.size() > 0) {
-            SizeT constexpr static_sz = sizeof(NetClientSignal::MapRequest);
+            SizeT constexpr static_sz = 1 + sizeof(NetClientSignal::MapRequest);
             SizeT          dynamic_sz = requests.size() * sizeof(ChkPos);
-            //@CONSIDER a buffer
-            Slice<U8> data;
-            data.len = 1 + static_sz + dynamic_sz;
-            data.beg = lux_alloc<U8>(data.len);
-            LUX_DEFER { lux_free(data.beg); };
-            NetClientSignal* signal = (NetClientSignal*)data.beg;
+
+            ENetPacket* pack;
+            if(create_reliable_packet(pack, static_sz + dynamic_sz)
+                   != LUX_OK) {
+                return LUX_FAIL;
+            }
+            NetClientSignal* signal = (NetClientSignal*)pack->data;
             signal->type = NetClientSignal::MAP_REQUEST;
             signal->map_request.requests.len = net_order<U32>(requests.size());
-            std::memcpy(data.beg + 1 + static_sz, requests.data(), dynamic_sz);
-            LuxRval rval = send_signal(client.peer, data);
-            if(rval != LUX_OK) return rval;
+            std::memcpy(pack->data + static_sz, requests.data(), dynamic_sz);
+            if(send_packet(client.peer, pack, SIGNAL_CHANNEL) != LUX_OK) {
+                return LUX_FAIL;
+            }
         }
     }
     return LUX_OK;
@@ -179,56 +182,53 @@ LUX_MAY_FAIL handle_tick(ENetPacket* in_pack) {
 
 //@CONSIDER shared version
 LUX_MAY_FAIL handle_signal(ENetPacket* in_pack) {
-    if(in_pack->dataLength < 1) {
-        LUX_LOG("couldn't read signal header, ignoring it");
+    SizeT sz = in_pack->dataLength;
+    if(sz < 1) {
+        LUX_LOG("couldn't read signal header, ignoring signal");
         return LUX_FAIL;
     }
 
-    SizeT static_size;
-    SizeT dynamic_size;
+    SizeT static_sz;
+    SizeT dynamic_sz;
     Slice<U8> dynamic_segment;
     NetServerSignal* signal = (NetServerSignal*)in_pack->data;
 
     { ///verify size
-        ///we don't count the header
-        SizeT static_dynamic_size = in_pack->dataLength - 1;
-        SizeT needed_static_size;
+        SizeT needed_static_sz;
         switch(signal->type) {
             case NetServerSignal::MAP_LOAD: {
-                needed_static_size = sizeof(NetServerSignal::MapLoad);
+                needed_static_sz = 1 + sizeof(NetServerSignal::MapLoad);
             } break;
             default: {
-                LUX_LOG("unexpected signal type, ignoring it");
+                LUX_LOG("unexpected signal type, ignoring signal");
                 LUX_LOG("    type: %u", signal->type);
                 LUX_LOG("    size: %zuB", in_pack->dataLength);
                 return LUX_FAIL;
             }
         }
-        if(static_dynamic_size < needed_static_size) {
+        if(sz < needed_static_sz) {
             LUX_LOG("received packet static segment too small");
-            LUX_LOG("    expected size: atleast %zuB", needed_static_size + 1);
-            LUX_LOG("    size: %zuB", in_pack->dataLength);
+            LUX_LOG("    expected size: atleast %zuB", needed_static_sz);
+            LUX_LOG("    size: %zuB", sz);
             return LUX_FAIL;
         }
-        //@CONSIDER size -> sz
-        static_size = needed_static_size;
-        dynamic_size = static_dynamic_size - static_size;
-        SizeT needed_dynamic_size;
+        static_sz = needed_static_sz;
+        dynamic_size = sz - static_sz;
+        SizeT needed_dynamic_sz;
         switch(signal->type) {
             case NetServerSignal::MAP_LOAD: {
-                needed_dynamic_size = signal->map_load.chunks.len *
-                                      sizeof(NetServerSignal::MapLoad::Chunk);
+                needed_dynamic_sz = signal->map_load.chunks.len *
+                                    sizeof(NetServerSignal::MapLoad::Chunk);
             } break;
             default: LUX_ASSERT(false);
         }
-        if(dynamic_size != needed_dynamic_size) {
+        if(dynamic_sz != needed_dynamic_sz) {
             LUX_LOG("received packet dynamic segment size differs from expected");
-            LUX_LOG("    expected size: %zuB", needed_dynamic_size +
-                                               static_size + 1);
+            LUX_LOG("    expected size: %zuB", needed_dynamic_sz + static_sz);
             LUX_LOG("    size: %zuB", in_pack->dataLength);
             return LUX_FAIL;
         }
-        dynamic_segment.set((U8*)(in_pack->data + 1 + static_size), dynamic_size);
+        dynamic_segment.set((U8*)(in_pack->data + static_sz), dynamic_sz);
     }
 
     { ///parse the packet
@@ -249,12 +249,8 @@ LUX_MAY_FAIL handle_signal(ENetPacket* in_pack) {
 
 void do_tick() {
     { ///handle events
-        ///@TODO, enet_host_service for some reason tries to send packets here
-        ///which should've been sent before (since host_flush is called), thus
-        ///here some uninitialized/freed data would be sent (which is a bug),
-        ///enet_host_check_events is used instead, still it's a bit weird
         ENetEvent event;
-        while(enet_host_check_events(client.host, &event) > 0) {
+        while(enet_host_service(client.host, &event, 0) > 0) {
             if(event.type == ENET_EVENT_TYPE_DISCONNECT) {
                 //@CONSIDER a more graceful reaction
                 LUX_FATAL("connection closed by server");
@@ -270,7 +266,6 @@ void do_tick() {
                 }
             }
         }
-        enet_host_flush(client.host);
     }
 }
 
