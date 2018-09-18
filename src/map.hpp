@@ -1,6 +1,6 @@
 #pragma once
 
-#include <lux_opengl.hpp>
+#include <include_opengl.hpp>
 //
 #include <lux_shared/map.hpp>
 #include <lux_shared/net/data.hpp>
@@ -11,24 +11,29 @@ struct Chunk {
     struct Mesh {
         typedef U32 Idx;
         struct GVert {
-            MapPos pos;
-            Vec2F tex_pos;
+            Vec2<I64> pos;
+            Vec2<U16> tex_pos;
         };
         struct LVert {
-            Vec3F col;
+            Vec3<U8> col;
         };
+        bool has_empty = false;
+        bool is_built  = false;
         GLuint g_vbo;
         GLuint l_vbo;
         GLuint ebo;
-        enum {
-            NOT_BUILT,
-            BUILT_NO_MESH, ///basically we "built" the mesh, but it had no verts
-                           ///so we didn't create VBOs etc.
-            BUILT_MESH,
-        } state = NOT_BUILT;
     } mesh;
 };
 
+struct MapAssets {
+    char const* vert_path;
+    char const* frag_path;
+    char const* tileset_path;
+    Vec2U tile_size;
+};
+
+void map_init(MapAssets assets);
+void map_render();
 bool is_chunk_loaded(ChkPos const& pos);
 void load_chunk(NetServerSignal::MapLoad::Chunk const& net_chunk);
 Chunk const& get_chunk(ChkPos const& pos);

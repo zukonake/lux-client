@@ -38,7 +38,6 @@ static void window_resize_cb(GLFWwindow* window, int width, int height)
 {
     (void)window;
     LUX_LOG("window size change to %ux%u", width, height);
-    glViewport(0, 0, width, height);
 }
 
 void connect_to_server(char const* hostname, U16 port) {
@@ -283,11 +282,16 @@ void do_tick() {
             }
         }
     }
-    glfwPollEvents();
-    client.should_close |= glfwWindowShouldClose(glfw_window);
-    //@TODO render here
-    check_opengl_error();
-    glfwSwapBuffers(glfw_window);
+
+    { ///IO
+        glfwPollEvents();
+        client.should_close |= glfwWindowShouldClose(glfw_window);
+        glClearColor(0, 0, 0, 1);
+        glClear(GL_COLOR_BUFFER_BIT);
+        map_render();
+        check_opengl_error();
+        glfwSwapBuffers(glfw_window);
+    }
 }
 
 int main(int argc, char** argv) {
@@ -307,7 +311,21 @@ int main(int argc, char** argv) {
     }
 
     LUX_LOG("initializing client");
+
+    //@TODO add logs there
     db_init();
+    rendering_init();
+    LUX_DEFER { rendering_deinit(); };
+    glfwSetWindowSizeCallback(glfw_window, window_resize_cb);
+    MapAssets assets = {
+        "glsl/vertex-2.1.glsl", //@TODO 2.0 es etc.
+        "glsl/fragment-2.1.glsl",
+        "tileset.png",
+        {16, 16},
+    };
+    map_init(assets);
+    check_opengl_error();
+
     if(enet_initialize() < 0) {
         LUX_FATAL("couldn't initialize ENet");
     }
@@ -328,9 +346,6 @@ int main(int argc, char** argv) {
     }
 
     connect_to_server(server_hostname, server_port);
-
-    init_rendering(conf.window_size, window_resize_cb);
-    LUX_DEFER { deinit_rendering(); };
 
     { ///main loop
         auto tick_len = util::TickClock::Duration(1.0 / (F64)client.tick_rate);

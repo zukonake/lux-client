@@ -7,6 +7,12 @@ struct VoxelType {
     String str_id;
     String name;
     Vec2U tex_pos;
+    enum Shape {
+        EMPTY,
+        FLOOR,
+        BLOCK,
+        HALF_BLOCK,
+    } shape;
 };
 
 //@CONSIDER voxel -> vox

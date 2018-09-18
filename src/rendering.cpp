@@ -1,5 +1,12 @@
 #include <config.hpp>
 //
+#include <vector>
+#include <fstream>
+//
+#include <include_opengl.hpp>
+#include <include_glfw.hpp>
+#include <lodepng.h>
+//
 #include <lux_shared/common.hpp>
 //
 #include <rendering.hpp>
@@ -10,9 +17,9 @@ static void glfw_error_cb(int err, char const* desc) {
     LUX_FATAL("GLFW error: %d - %s", err, desc);
 }
 
-void init_rendering(Vec2U const &window_size,
-                    GLFWwindowsizefun window_resize_cb) {
-    { ///init glfw
+void rendering_init() {
+    constexpr Vec2U WINDOW_SIZE = {800, 600};
+    { ///GLFW
         glfwInit();
         glfwSetErrorCallback(glfw_error_cb);
         LUX_LOG("initializing GLFW window");
@@ -29,19 +36,19 @@ void init_rendering(Vec2U const &window_size,
 #endif
         glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
-        glfw_window = glfwCreateWindow(window_size.x, window_size.y,
-                                  "Lux", nullptr, nullptr);
+        //@TODO win size
+        glfw_window = glfwCreateWindow(WINDOW_SIZE.x, WINDOW_SIZE.y,
+            "Lux", nullptr, nullptr);
         if(glfw_window == nullptr) {
             //@TODO more info
             LUX_FATAL("couldn't create GLFW window");
         }
         glfwMakeContextCurrent(glfw_window);
         glfwSetInputMode(glfw_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-        glfwSetWindowSizeCallback(glfw_window, window_resize_cb);
         glfwSwapInterval(0);
     }
 
-    {
+    { ///GLAD
         LUX_LOG("initializing GLAD");
 #if   LUX_GL_VARIANT == LUX_GL_VARIANT_2_1
         if(gladLoadGLLoader((GLADloadproc)glfwGetProcAddress) == 0)
@@ -52,13 +59,10 @@ void init_rendering(Vec2U const &window_size,
             LUX_FATAL("couldn't initialize GLAD");
         }
     }
-
-    glViewport(0, 0, window_size.x, window_size.y);
-    glClearColor(0, 0, 0, 1);
-    glClear(GL_COLOR_BUFFER_BIT);
+    glViewport(0, 0, WINDOW_SIZE.x, WINDOW_SIZE.y);
 }
 
-void deinit_rendering() {
+void rendering_deinit() {
     glfwTerminate();
 }
 
@@ -80,3 +84,85 @@ void check_opengl_error()
     }
 }
 
+GLuint load_shader(GLenum type, char const* path) {
+    GLuint id = glCreateShader(type);
+
+    char* str;
+    {   std::ifstream file(path);
+        file.seekg(0, file.end);
+        long len = file.tellg();
+        if(len == -1) {
+            LUX_FATAL("failed to load shader: %s", path);
+        }
+        file.seekg(0, file.beg);
+
+        str = lux_alloc<char>((SizeT)len + 1);
+        file.read(str, len);
+        file.close();
+        str[(SizeT)len] = '\0';
+    }
+    glShaderSource(id, 1, &str, nullptr);
+    glCompileShader(id);
+    lux_free(str);
+
+    {   int success;
+        glGetShaderiv(id, GL_COMPILE_STATUS, &success);
+        if(!success) {
+            static constexpr SizeT OPENGL_LOG_SIZE = 512;
+            char log[OPENGL_LOG_SIZE];
+            glGetShaderInfoLog(id, OPENGL_LOG_SIZE, nullptr, log);
+            LUX_FATAL("shader compilation error: \n%s", log);
+        }
+    }
+    return id;
+}
+
+GLuint load_program(char const* vert_path, char const* frag_path) {
+    GLuint vert_id = load_shader(GL_VERTEX_SHADER  , vert_path);
+    GLuint frag_id = load_shader(GL_FRAGMENT_SHADER, frag_path);
+
+    GLuint id = glCreateProgram();
+    glAttachShader(id, vert_id);
+    glAttachShader(id, frag_id);
+    glLinkProgram(id);
+    glDeleteShader(vert_id);
+    glDeleteShader(frag_id);
+
+    {   int success;
+        glGetProgramiv(id, GL_LINK_STATUS, &success);
+        if(!success) {
+            static constexpr SizeT OPENGL_LOG_SIZE = 512;
+            char log[OPENGL_LOG_SIZE];
+            glGetProgramInfoLog(id, OPENGL_LOG_SIZE, nullptr, log);
+            LUX_FATAL("program linking error: \n%s", log);
+        }
+    }
+    return id;
+}
+
+GLuint load_texture(char const* path, Vec2U& size_out) {
+    GLuint id;
+    glGenTextures(1, &id);
+    glBindTexture(GL_TEXTURE_2D, id);
+
+    Vec2<unsigned> size;
+    std::vector<U8> img;
+    {   auto err = lodepng::decode(img, size.x, size.y, path);
+        if(err) LUX_FATAL("couldn't load texture: %s", path);
+    }
+    size_out = size;
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, size_out.x, size_out.y,
+                 0, GL_RGBA, GL_UNSIGNED_BYTE, img.data());
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    return id;
+}
+
+void generate_mipmaps(GLuint texture_id, U32 max_lvl) {
+    LUX_LOG("unimplemented");
+}

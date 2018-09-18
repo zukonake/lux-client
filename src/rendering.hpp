@@ -1,18 +1,23 @@
-#include <config.hpp>
-//
-#if   LUX_GL_VARIANT == LUX_GL_VARIANT_2_1
-#   include <glad/glad-2.1.h>
-#elif LUX_GL_VARIANT == LUX_GL_VARIANT_ES_2_0
-#   include <glad/glad-es-2.0.h>
-#   define GLFW_INCLUDE_ES2
-#endif
-#include <GLFW/glfw3.h>
+#pragma once
+
+#include <include_opengl.hpp>
+#include <include_glfw.hpp>
 //
 #include <lux_shared/common.hpp>
 
 extern GLFWwindow* glfw_window;
 
-void init_rendering(Vec2U const &window_size,
-                    GLFWwindowsizefun window_resize_cb);
-void deinit_rendering();
 void check_opengl_error();
+GLuint load_shader(GLenum type, char const* path);
+GLuint load_program(char const* vert_path, char const* frag_path);
+GLuint load_texture(char const* path, Vec2U& size_out);
+void generate_mipmaps(GLuint texture_id, U32 max_lvl);
+
+template<typename F, typename... Args>
+void set_uniform(char const* name, GLuint program_id,
+                 F const& gl_fun, Args const &...args) {
+    gl_fun(glGetUniformLocation(program_id, name), args...);
+}
+
+void rendering_init();
+void rendering_deinit();
