@@ -6,22 +6,26 @@
 #include <lux_shared/net/data.hpp>
 
 struct Chunk {
-    Arr<VoxelId ,  CHK_VOL> voxels;
-    Arr<LightLvl,  CHK_VOL> light_lvls;
+    Arr<VoxelId , CHK_VOL> voxels;
+    Arr<LightLvl, CHK_VOL> light_lvls;
     struct Mesh {
         typedef U32 Idx;
+        static constexpr GLenum INDEX_GL_TYPE = GL_UNSIGNED_INT;
+#pragma pack(push, 1)
         struct GVert {
-            Vec2<I64> pos;
+            Vec2<I32> pos;
             Vec2<U16> tex_pos;
         };
         struct LVert {
             Vec3<U8> col;
         };
+#pragma pack(pop)
         bool has_empty = false;
         bool is_built  = false;
         GLuint g_vbo;
         GLuint l_vbo;
         GLuint ebo;
+        U32 trig_count;
     } mesh;
 };
 

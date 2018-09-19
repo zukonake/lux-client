@@ -38,6 +38,7 @@ static void window_resize_cb(GLFWwindow* window, int width, int height)
 {
     (void)window;
     LUX_LOG("window size change to %ux%u", width, height);
+    glViewport(0, 0, width, height);
 }
 
 void connect_to_server(char const* hostname, U16 port) {

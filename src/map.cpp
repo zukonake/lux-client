@@ -20,9 +20,9 @@ static void build_mesh(Chunk &chunk, ChkPos const &pos);
 
 void map_init(MapAssets assets) {
     glm::mat4 model_matrix = {
-        1.f, 0.f, 0.f, 0.f,
+        0.1f, 0.f, 0.f, 0.f,
+        0.f, 0.13333f, 0.f, 0.f,
         0.f, 0.f, 1.f, 0.f,
-        0.f, 1.f, 0.f, 0.f,
         0.f, 0.f, 0.f, 1.f};
 
     program = load_program(assets.vert_path, assets.frag_path);
@@ -42,8 +42,33 @@ void map_render() {
     glUseProgram(program);
     glBindTexture(GL_TEXTURE_2D, tileset);
 
-    {
-
+    for(auto const& chunk : chunks) {
+        if(chunk.first.z != 0) continue;
+        if(!chunk.second.mesh.is_built) {
+            try_build_mesh(chunk.first);
+            continue;
+        }
+        Chunk::Mesh const& mesh = chunk.second.mesh;
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.ebo);
+        glBindBuffer(GL_ARRAY_BUFFER, mesh.g_vbo);
+        glVertexAttribPointer(0, 2, GL_INT, GL_FALSE,
+            sizeof(Chunk::Mesh::GVert),
+            (void*)offsetof(Chunk::Mesh::GVert, pos));
+        glVertexAttribPointer(1, 2, GL_UNSIGNED_SHORT, GL_FALSE,
+            sizeof(Chunk::Mesh::GVert),
+            (void*)offsetof(Chunk::Mesh::GVert, tex_pos));
+        glBindBuffer(GL_ARRAY_BUFFER, mesh.l_vbo);
+        glVertexAttribPointer(2, 3, GL_UNSIGNED_BYTE, GL_TRUE,
+            sizeof(Chunk::Mesh::LVert),
+            (void*)offsetof(Chunk::Mesh::LVert, col));
+        glEnableVertexAttribArray(0);
+        glEnableVertexAttribArray(1);
+        glEnableVertexAttribArray(2);
+        glDrawElements(GL_TRIANGLES, mesh.trig_count * 3,
+                       Chunk::Mesh::INDEX_GL_TYPE, 0);
+        glDisableVertexAttribArray(0);
+        glDisableVertexAttribArray(1);
+        glDisableVertexAttribArray(2);
     }
 }
 
@@ -104,12 +129,10 @@ static void build_mesh(Chunk &chunk, ChkPos const &pos) {
     l_verts.reserve(CHK_VOL * 4);
     idxs.reserve(CHK_VOL * 6);
 
-
     constexpr MapPos quad[4] =
          {{0, 0, 0}, {0, 1, 0}, {1, 1, 0}, {1, 0, 0}};
-    constexpr F32 unit = 1.f - FLT_EPSILON;
-    constexpr Vec2F tex_positions[4] =
-        {{0.0f, 0.0f}, {0.0f, unit}, {unit, 0.0f}, {unit, unit}};
+    constexpr Vec2U tex_positions[4] =
+        {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
 
     Chunk::Mesh& mesh = chunk.mesh;
     Chunk::Mesh::Idx idx_offset = 0;
@@ -127,51 +150,44 @@ static void build_mesh(Chunk &chunk, ChkPos const &pos) {
         if(!is_solid) continue; //@TODO
         for(U32 j = 0; j < 4; ++j) {
             constexpr MapPos vert_offsets[4] =
-                {{0, 0, 0}, {0, 1, 0}, {1, 0, 0}, {1, 1, 0}};
-            Vec4F col_avg(0.f);
-            MapPos v_sign = glm::sign((Vec3F)quad[j] - Vec3F(0.5, 0.5, 0.5));
-            for(auto const &vert_offset : vert_offsets) {
-                MapPos v_off_pos = map_pos + vert_offset * v_sign;
+                {{-1, -1, 0}, {-1, 1, 0}, {1, -1, 0}, {1, 1, 0}};
+            Vec3<U8> col_avg(0xFF, 0xFF, 0xFF);
+            /*for(auto const &vert_offset : vert_offsets) {
+                MapPos v_off_pos = map_pos + vert_offset;
                 LightLvl light_lvl =
                     get_chunk(to_chk_pos(v_off_pos)).light_lvls[to_chk_idx(v_off_pos)];
-                col_avg += Vec4F(
+                col_avg += Vec3F(
                 (F32)((light_lvl & 0xF000) >> 12) / 15.f,
                 (F32)((light_lvl & 0x0F00) >>  8) / 15.f,
-                (F32)((light_lvl & 0x00F0) >>  4) / 15.f,
-                1.f);
+                (F32)((light_lvl & 0x00F0) >>  4) / 15.f);
             }
-            col_avg /= 4.f;
+            col_avg /= 4.f;*/
             Chunk::Mesh::GVert& g_vert = g_verts.emplace_back();
-            g_vert.pos = map_pos + quad[j],
-            g_vert.tex_pos = (Vec2F)vox_type.tex_pos + tex_positions[j];
+            g_vert.pos = map_pos + quad[j];
+            g_vert.tex_pos = vox_type.tex_pos + tex_positions[j];
             Chunk::Mesh::LVert& l_vert = l_verts.emplace_back();
             l_vert.col = col_avg;
-            for(auto const &idx : {0, 1, 2, 2, 3, 0}) {
-                idxs.emplace_back(idx + idx_offset);
-            }
-            idx_offset += 4;
         }
+        for(auto const &idx : {0, 1, 2, 2, 3, 0}) {
+            idxs.emplace_back(idx + idx_offset);
+        }
+        idx_offset += 4;
     }
     glGenBuffers(1, &mesh.g_vbo);
     glGenBuffers(1, &mesh.l_vbo);
     glGenBuffers(1, &mesh.ebo);
 
     glBindBuffer(GL_ARRAY_BUFFER, mesh.g_vbo);
-    glBufferData(GL_ARRAY_BUFFER,
-                 sizeof(Chunk::Mesh::GVert) * g_verts.size(),
-                 g_verts.data(),
-                 GL_DYNAMIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(Chunk::Mesh::GVert) * g_verts.size(),
+                 g_verts.data(), GL_DYNAMIC_DRAW);
 
     glBindBuffer(GL_ARRAY_BUFFER, mesh.l_vbo);
-    glBufferData(GL_ARRAY_BUFFER,
-                 sizeof(Chunk::Mesh::LVert) * l_verts.size(),
-                 l_verts.data(),
-                 GL_DYNAMIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(Chunk::Mesh::LVert) * l_verts.size(),
+                 l_verts.data(), GL_DYNAMIC_DRAW);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-                 sizeof(Chunk::Mesh::Idx) * idxs.size(),
-                 idxs.data(),
-                 GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(Chunk::Mesh::Idx) * idxs.size(),
+                 idxs.data(), GL_STATIC_DRAW);
     mesh.is_built = true;
+    mesh.trig_count = idxs.size() / 3; //@TODO
 }
