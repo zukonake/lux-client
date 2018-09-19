@@ -7,6 +7,8 @@
 
 extern GLFWwindow* glfw_window;
 
+Vec2U get_window_size();
+
 void check_opengl_error();
 GLuint load_shader(GLenum type, char const* path);
 GLuint load_program(char const* vert_path, char const* frag_path);

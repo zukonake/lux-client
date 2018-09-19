@@ -1,4 +1,3 @@
-//@CONSIDER new header include_glm
 #define GLM_FORCE_PURE
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -28,19 +27,19 @@ void map_init(MapAssets assets) {
                 1, glm::value_ptr(tex_scale));
 }
 
-void map_update_matrices(F32 w_h_ratio, EntityVec const& player_pos) {
+void map_update_matrices(EntityVec const& player_pos) {
+    Vec2U window_size = get_window_size();
+    F32 ratio = (F32)window_size.x / (F32)window_size.y;
     F32 constexpr BASE_SCALE = 0.1f;
     glm::mat4 matrix(1.f);
-    matrix = glm::translate(matrix, player_pos);
-    matrix = glm::scale(matrix, Vec3F(BASE_SCALE, BASE_SCALE * w_h_ratio, 1.f));
+    matrix = glm::scale(matrix, Vec3F(BASE_SCALE, BASE_SCALE * ratio, 1.f));
+    matrix = glm::translate(matrix, -player_pos);
     glUseProgram(program);
     set_uniform("matrix", program, glUniformMatrix4fv,
                 1, GL_FALSE, glm::value_ptr(matrix));
 }
 
 void map_render() {
-    //@TODO command list
-
     glUseProgram(program);
     glBindTexture(GL_TEXTURE_2D, tileset);
 
@@ -150,7 +149,7 @@ static void build_mesh(Chunk &chunk, ChkPos const &pos) {
         MapPos map_pos = to_map_pos(pos, i);
         VoxelType vox_type = db_voxel_type(get_voxel(map_pos));
         bool is_solid = db_voxel_type(chunk.voxels[i]).shape != VoxelType::EMPTY;
-        if(!is_solid) continue; //@TODO
+        if(!is_solid) continue;
         for(U32 j = 0; j < 4; ++j) {
             constexpr MapPos vert_offsets[4] =
                 {{-1, -1, 0}, {-1, 1, 0}, {1, -1, 0}, {1, 1, 0}};

@@ -17,6 +17,12 @@ static void glfw_error_cb(int err, char const* desc) {
     LUX_FATAL("GLFW error: %d - %s", err, desc);
 }
 
+Vec2U get_window_size() {
+    Vec2<I32> temp;
+    glfwGetWindowSize(glfw_window, &temp.x, &temp.y);
+    return temp;
+}
+
 void rendering_init() {
     constexpr Vec2U WINDOW_SIZE = {800, 600};
     { ///GLFW

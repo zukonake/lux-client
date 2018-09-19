@@ -291,9 +291,7 @@ void do_tick() {
     }
 
     { ///IO
-        Vec2<I32> window_size;
-        glfwGetWindowSize(glfw_window, &window_size.x, &window_size.y);
-        map_update_matrices((F32)window_size.x/(F32)window_size.y, player_pos);
+        map_update_matrices(player_pos);
         glfwPollEvents();
         client.should_close |= glfwWindowShouldClose(glfw_window);
         glClearColor(0, 0, 0, 1);
