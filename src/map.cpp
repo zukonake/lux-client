@@ -13,6 +13,7 @@
 
 GLuint program;
 GLuint tileset;
+
 HashMap<ChkPos, Chunk, util::Packer<ChkPos>> chunks;
 
 static void build_mesh(Chunk &chunk, ChkPos const &pos);
@@ -152,18 +153,19 @@ static void build_mesh(Chunk &chunk, ChkPos const &pos) {
         if(!is_solid) continue;
         for(U32 j = 0; j < 4; ++j) {
             constexpr MapPos vert_offsets[4] =
-                {{-1, -1, 0}, {-1, 1, 0}, {1, -1, 0}, {1, 1, 0}};
-            Vec3<U8> col_avg(0xFF, 0xFF, 0xFF);
-            /*for(auto const &vert_offset : vert_offsets) {
-                MapPos v_off_pos = map_pos + vert_offset;
+                {{0, 0, 0}, {0, 1, 0}, {1, 0, 0}, {1, 1, 0}};
+            MapPos v_sign = glm::sign((Vec3F)quad[j] - Vec3F(0.5, 0.5, 0));
+            Vec3U col_avg(0.f);
+            for(auto const &vert_offset : vert_offsets) {
+                MapPos v_off_pos = map_pos + vert_offset * v_sign;
                 LightLvl light_lvl =
                     get_chunk(to_chk_pos(v_off_pos)).light_lvls[to_chk_idx(v_off_pos)];
-                col_avg += Vec3F(
-                (F32)((light_lvl & 0xF000) >> 12) / 15.f,
-                (F32)((light_lvl & 0x0F00) >>  8) / 15.f,
-                (F32)((light_lvl & 0x00F0) >>  4) / 15.f);
+                col_avg += Vec3U(
+                (F32)((light_lvl & 0xF000) >> 12) * 17,
+                (F32)((light_lvl & 0x0F00) >>  8) * 17,
+                (F32)((light_lvl & 0x00F0) >>  4) * 17);
             }
-            col_avg /= 4.f;*/
+            col_avg /= 4.f;
             Chunk::Mesh::GVert& g_vert = g_verts.emplace_back();
             g_vert.pos = map_pos + quad[j];
             g_vert.tex_pos = vox_type.tex_pos + tex_positions[j];
