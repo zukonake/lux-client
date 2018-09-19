@@ -38,6 +38,7 @@ struct MapAssets {
 
 void map_init(MapAssets assets);
 void map_render();
+void map_update_matrices(F32 w_h_ratio, EntityVec const& player_pos);
 bool is_chunk_loaded(ChkPos const& pos);
 void load_chunk(NetServerSignal::MapLoad::Chunk const& net_chunk);
 Chunk const& get_chunk(ChkPos const& pos);

@@ -19,21 +19,23 @@ HashMap<ChkPos, Chunk, util::Packer<ChkPos>> chunks;
 static void build_mesh(Chunk &chunk, ChkPos const &pos);
 
 void map_init(MapAssets assets) {
-    glm::mat4 model_matrix = {
-        0.1f, 0.f, 0.f, 0.f,
-        0.f, 0.13333f, 0.f, 0.f,
-        0.f, 0.f, 1.f, 0.f,
-        0.f, 0.f, 0.f, 1.f};
-
     program = load_program(assets.vert_path, assets.frag_path);
-    glUseProgram(program);
-    set_uniform("model", program, glUniformMatrix4fv,
-                1, GL_FALSE, glm::value_ptr(model_matrix));
     Vec2U tileset_size;
     tileset = load_texture(assets.tileset_path, tileset_size);
     Vec2F tex_scale = (Vec2F)assets.tile_size / (Vec2F)tileset_size;
+    glUseProgram(program);
     set_uniform("tex_scale", program, glUniform2fv,
                 1, glm::value_ptr(tex_scale));
+}
+
+void map_update_matrices(F32 w_h_ratio, EntityVec const& player_pos) {
+    F32 constexpr BASE_SCALE = 0.1f;
+    glm::mat4 matrix(1.f);
+    matrix = glm::translate(matrix, player_pos);
+    matrix = glm::scale(matrix, Vec3F(BASE_SCALE, BASE_SCALE * w_h_ratio, 1.f));
+    glUseProgram(program);
+    set_uniform("matrix", program, glUniformMatrix4fv,
+                1, GL_FALSE, glm::value_ptr(matrix));
 }
 
 void map_render() {
@@ -77,7 +79,8 @@ bool is_chunk_loaded(ChkPos const& pos) {
 }
 
 void load_chunk(NetServerSignal::MapLoad::Chunk const& net_chunk) {
-    ChkPos pos = net_order(net_chunk.pos);
+    ChkPos pos;
+    net_order(&pos, &net_chunk.pos);
     LUX_LOG("loading chunk");
     LUX_LOG("    pos: {%zd, %zd, %zd}", pos.x, pos.y, pos.z);
     if(is_chunk_loaded(pos)) {
@@ -86,8 +89,8 @@ void load_chunk(NetServerSignal::MapLoad::Chunk const& net_chunk) {
     }
     Chunk& chunk = chunks[pos];
     for(Uns i = 0; i < CHK_VOL; ++i) {
-        chunk.voxels[i]     = net_order(net_chunk.voxels[i]);
-        chunk.light_lvls[i] = net_order(net_chunk.light_lvls[i]);
+        net_order(&chunk.voxels[i], &net_chunk.voxels[i]);
+        net_order(&chunk.light_lvls[i], &net_chunk.light_lvls[i]);
     }
 }
 

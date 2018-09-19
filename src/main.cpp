@@ -34,6 +34,8 @@ struct {
     HashSet<ChkPos, util::Packer<ChkPos>> requested_chunks;
 } client;
 
+EntityVec player_pos = {0, 0, 0};
+
 static void window_resize_cb(GLFWwindow* window, int width, int height)
 {
     (void)window;
@@ -132,7 +134,7 @@ void connect_to_server(char const* hostname, U16 port) {
 
         std::memcpy((U8*)&server_init_data, init_pack->data,
                     sizeof(server_init_data));
-        client.tick_rate   = net_order(server_init_data.tick_rate);
+        net_order(&client.tick_rate, &server_init_data.tick_rate);
         client.server_name = String((char const*)server_init_data.name.data());
         LUX_LOG("successfully connected to server %s",
                 client.server_name.c_str());
@@ -149,9 +151,10 @@ LUX_MAY_FAIL handle_tick(ENetPacket* in_pack) {
     }
 
     NetServerTick *tick = (NetServerTick*)in_pack->data;
+    net_order(&player_pos, &tick->player_pos);
 
     {
-        ChkPos const& center = to_chk_pos(net_order(tick->player_pos));
+        ChkPos const& center = to_chk_pos(player_pos);
         DynArr<ChkPos> requests;
         ChkPos iter;
         for(iter.z  = std::round(center.z - client.load_rad);
@@ -168,7 +171,9 @@ LUX_MAY_FAIL handle_tick(ENetPacket* in_pack) {
                        client.requested_chunks.count(iter) == 0 &&
                        !is_chunk_loaded(iter)) {
                         client.requested_chunks.emplace(iter);
-                        requests.emplace_back(net_order(iter));
+                        ChkPos request;
+                        net_order(&request, &iter);
+                        requests.emplace_back(request);
                         LUX_LOG("requesting chunk: {%zd, %zd, %zd}",
                             iter.x, iter.y, iter.z);
                     }
@@ -185,7 +190,8 @@ LUX_MAY_FAIL handle_tick(ENetPacket* in_pack) {
             }
             NetClientSignal* signal = (NetClientSignal*)pack->data;
             signal->type = NetClientSignal::MAP_REQUEST;
-            signal->map_request.requests.len = net_order<U32>(requests.size());
+            U32 requests_len = requests.size();
+            net_order(&signal->map_request.requests.len, &requests_len);
             std::memcpy(pack->data + static_sz, requests.data(), dynamic_sz);
             if(send_packet(client.peer, pack, SIGNAL_CHANNEL) != LUX_OK) {
                 return LUX_FAIL;
@@ -285,6 +291,9 @@ void do_tick() {
     }
 
     { ///IO
+        Vec2<I32> window_size;
+        glfwGetWindowSize(glfw_window, &window_size.x, &window_size.y);
+        map_update_matrices((F32)window_size.x/(F32)window_size.y, player_pos);
         glfwPollEvents();
         client.should_close |= glfwWindowShouldClose(glfw_window);
         glClearColor(0, 0, 0, 1);
