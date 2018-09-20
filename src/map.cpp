@@ -18,6 +18,7 @@ VecMap<ChkPos, Chunk> chunks;
 VecSet<ChkPos> chunk_requests;
 
 static void build_mesh(Chunk &chunk, ChkPos const &pos);
+static bool try_build_mesh(ChkPos const& pos);
 
 void map_init(MapAssets assets) {
     program = load_program(assets.vert_path, assets.frag_path);
@@ -34,7 +35,7 @@ void map_render(EntityVec const& player_pos) {
     glBindTexture(GL_TEXTURE_2D, tileset);
     {   Vec2U window_size = get_window_size();
         F32 ratio = (F32)window_size.x / (F32)window_size.y;
-        F32 constexpr BASE_SCALE = 0.1f;
+        F32 constexpr BASE_SCALE = 0.08f;
         glm::mat4 matrix(1.f);
         matrix = glm::scale(matrix, Vec3F(BASE_SCALE, -BASE_SCALE * ratio, 1.f));
         matrix = glm::translate(matrix, -player_pos);
@@ -56,29 +57,28 @@ void map_render(EntityVec const& player_pos) {
                 Chunk const& chunk = get_chunk(iter);
                 Chunk::Mesh const& mesh = chunk.mesh;
                 if(!mesh.is_built) {
-                    try_build_mesh(iter);
-                } else {
-                    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.ebo);
-                    glBindBuffer(GL_ARRAY_BUFFER, mesh.g_vbo);
-                    glVertexAttribPointer(0, 2, GL_INT, GL_FALSE,
-                        sizeof(Chunk::Mesh::GVert),
-                        (void*)offsetof(Chunk::Mesh::GVert, pos));
-                    glVertexAttribPointer(1, 2, GL_UNSIGNED_SHORT, GL_FALSE,
-                        sizeof(Chunk::Mesh::GVert),
-                        (void*)offsetof(Chunk::Mesh::GVert, tex_pos));
-                    glBindBuffer(GL_ARRAY_BUFFER, mesh.l_vbo);
-                    glVertexAttribPointer(2, 3, GL_UNSIGNED_BYTE, GL_TRUE,
-                        sizeof(Chunk::Mesh::LVert),
-                        (void*)offsetof(Chunk::Mesh::LVert, col));
-                    glEnableVertexAttribArray(0);
-                    glEnableVertexAttribArray(1);
-                    glEnableVertexAttribArray(2);
-                    glDrawElements(GL_TRIANGLES, mesh.trig_count * 3,
-                                   Chunk::Mesh::INDEX_GL_TYPE, 0);
-                    glDisableVertexAttribArray(0);
-                    glDisableVertexAttribArray(1);
-                    glDisableVertexAttribArray(2);
+                    if(!try_build_mesh(iter)) continue;
                 }
+                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.ebo);
+                glBindBuffer(GL_ARRAY_BUFFER, mesh.g_vbo);
+                glVertexAttribPointer(0, 2, GL_INT, GL_FALSE,
+                    sizeof(Chunk::Mesh::GVert),
+                    (void*)offsetof(Chunk::Mesh::GVert, pos));
+                glVertexAttribPointer(1, 2, GL_UNSIGNED_SHORT, GL_FALSE,
+                    sizeof(Chunk::Mesh::GVert),
+                    (void*)offsetof(Chunk::Mesh::GVert, tex_pos));
+                glBindBuffer(GL_ARRAY_BUFFER, mesh.l_vbo);
+                glVertexAttribPointer(2, 3, GL_UNSIGNED_BYTE, GL_TRUE,
+                    sizeof(Chunk::Mesh::LVert),
+                    (void*)offsetof(Chunk::Mesh::LVert, col));
+                glEnableVertexAttribArray(0);
+                glEnableVertexAttribArray(1);
+                glEnableVertexAttribArray(2);
+                glDrawElements(GL_TRIANGLES, mesh.trig_count * 3,
+                               Chunk::Mesh::INDEX_GL_TYPE, 0);
+                glDisableVertexAttribArray(0);
+                glDisableVertexAttribArray(1);
+                glDisableVertexAttribArray(2);
             } else {
                 chunk_requests.emplace(iter);
             }
@@ -106,12 +106,35 @@ void load_chunk(NetServerSignal::MapLoad::Chunk const& net_chunk) {
     }
 }
 
+void light_update(NetServerSignal::LightUpdate::Chunk const& net_chunk) {
+    ChkPos pos;
+    net_order(&pos, &net_chunk.pos);
+    if(!is_chunk_loaded(pos)) {
+        LUX_LOG("chunk is not loaded");
+        return;
+    }
+    Chunk& chunk = chunks.at(pos);
+    for(Uns i = 0; i < CHK_VOL; ++i) {
+        net_order(&chunk.light_lvls[i], &net_chunk.light_lvls[i]);
+    }
+    Chunk::Mesh& mesh = chunk.mesh;
+    if(mesh.is_built) {
+        //@TODO hacky and slow
+        glDeleteBuffers(1, &mesh.g_vbo);
+        glDeleteBuffers(1, &mesh.l_vbo);
+        glDeleteBuffers(1, &mesh.ebo);
+        mesh.is_built = false;
+        mesh.has_empty = false;
+        mesh.trig_count = 0;
+    }
+}
+
 Chunk const& get_chunk(ChkPos const& pos) {
     LUX_ASSERT(is_chunk_loaded(pos));
     return chunks.at(pos);
 }
 
-void try_build_mesh(ChkPos const& pos) {
+static bool try_build_mesh(ChkPos const& pos) {
     constexpr ChkPos offsets[9] =
         {{ 0,  0,  0}, {-1, -1,  0}, {-1,  0,  0}, {-1,  1,  0}, { 0, -1,  0},
          { 0,  1,  0}, { 1, -1,  0}, { 1,  0,  0}, { 1,  1,  0}};
@@ -124,12 +147,13 @@ void try_build_mesh(ChkPos const& pos) {
         }
     }
 
-    if(!can_build) return;
+    if(!can_build) return false;
 
     Chunk &chunk = chunks.at(pos);
     LUX_ASSERT(!chunk.mesh.is_built);
 
     build_mesh(chunk, pos);
+    return true;
 }
 
 //@CONSIDER replacing stuff with arrays

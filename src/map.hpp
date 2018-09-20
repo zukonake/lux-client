@@ -42,7 +42,5 @@ void map_init(MapAssets assets);
 void map_render(EntityVec const& player_pos);
 bool is_chunk_loaded(ChkPos const& pos);
 void load_chunk(NetServerSignal::MapLoad::Chunk const& net_chunk);
+void light_update(NetServerSignal::LightUpdate::Chunk const& net_chunk);
 Chunk const& get_chunk(ChkPos const& pos);
-
-///assumes that chunk is loaded
-void try_build_mesh(ChkPos const& pos);

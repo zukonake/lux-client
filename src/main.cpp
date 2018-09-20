@@ -173,6 +173,9 @@ LUX_MAY_FAIL handle_signal(ENetPacket* in_pack) {
             case NetServerSignal::MAP_LOAD: {
                 needed_static_sz = 1 + sizeof(NetServerSignal::MapLoad);
             } break;
+            case NetServerSignal::LIGHT_UPDATE: {
+                needed_static_sz = 1 + sizeof(NetServerSignal::LightUpdate);
+            } break;
             default: {
                 LUX_LOG("unexpected signal type, ignoring signal");
                 LUX_LOG("    type: %u", signal->type);
@@ -194,6 +197,10 @@ LUX_MAY_FAIL handle_signal(ENetPacket* in_pack) {
                 needed_dynamic_sz = signal->map_load.chunks.len *
                                     sizeof(NetServerSignal::MapLoad::Chunk);
             } break;
+            case NetServerSignal::LIGHT_UPDATE: {
+                needed_dynamic_sz = signal->light_update.chunks.len *
+                                    sizeof(NetServerSignal::LightUpdate::Chunk);
+            } break;
             default: LUX_ASSERT(false);
         }
         if(dynamic_sz != needed_dynamic_sz) {
@@ -213,6 +220,14 @@ LUX_MAY_FAIL handle_signal(ENetPacket* in_pack) {
 
                 for(Uns i = 0; i < chunks.len; ++i) {
                     load_chunk(chunks[i]);
+                }
+            } break;
+            case NetServerSignal::LIGHT_UPDATE: {
+                typedef NetServerSignal::LightUpdate::Chunk NetChunk;
+                Slice<NetChunk> chunks = dynamic_segment;
+
+                for(Uns i = 0; i < chunks.len; ++i) {
+                    light_update(chunks[i]);
                 }
             } break;
             default: LUX_ASSERT(false);
