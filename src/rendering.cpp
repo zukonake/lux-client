@@ -23,6 +23,12 @@ Vec2U get_window_size() {
     return temp;
 }
 
+Vec2D get_mouse_pos() {
+    Vec2D temp;
+    glfwGetCursorPos(glfw_window, &temp.x, &temp.y);
+    return temp;
+}
+
 void rendering_init() {
     constexpr Vec2U WINDOW_SIZE = {800, 600};
     { ///GLFW

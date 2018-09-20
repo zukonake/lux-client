@@ -8,6 +8,7 @@
 extern GLFWwindow* glfw_window;
 
 Vec2U get_window_size();
+Vec2D get_mouse_pos();
 
 void check_opengl_error();
 GLuint load_shader(GLenum type, char const* path);

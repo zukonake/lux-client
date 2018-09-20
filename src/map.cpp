@@ -38,6 +38,9 @@ void map_render(EntityVec const& player_pos) {
         F32 constexpr BASE_SCALE = 0.08f;
         glm::mat4 matrix(1.f);
         matrix = glm::scale(matrix, Vec3F(BASE_SCALE, -BASE_SCALE * ratio, 1.f));
+        Vec2D mouse_pos = get_mouse_pos() - (Vec2D)(window_size / 2ul);
+        F32 angle = glm::degrees(std::atan2(mouse_pos.y, mouse_pos.x));
+        matrix = glm::rotate(matrix, angle, Vec3F(0, 0, 1));
         matrix = glm::translate(matrix, -player_pos);
         set_uniform("matrix", program, glUniformMatrix4fv,
                     1, GL_FALSE, glm::value_ptr(matrix));
