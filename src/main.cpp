@@ -29,9 +29,8 @@ struct {
 
     String server_name  = "unnamed";
     U16    tick_rate    = 0;
-    F32    load_rad     = 4;
     bool   should_close = false;
-    HashSet<ChkPos, util::Packer<ChkPos>> requested_chunks;
+    VecSet<ChkPos> sent_requests;
 } client;
 
 EntityVec player_pos = {0, 0, 0};
@@ -154,35 +153,23 @@ LUX_MAY_FAIL handle_tick(ENetPacket* in_pack) {
     net_order(&player_pos, &tick->player_pos);
 
     {
-        ChkPos const& center = to_chk_pos(player_pos);
-        DynArr<ChkPos> requests;
-        ChkPos iter;
-        for(iter.z  = std::round(center.z - client.load_rad);
-            iter.z <= std::round(center.z + client.load_rad);
-            iter.z++) {
-            for(iter.y  = std::round(center.y - client.load_rad);
-                iter.y <= std::round(center.y + client.load_rad);
-                iter.y++) {
-                for(iter.x  = std::round(center.x - client.load_rad);
-                    iter.x <= std::round(center.x + client.load_rad);
-                    iter.x++) {
-                    if(glm::distance((Vec3F)iter, (Vec3F)center)
-                           <= client.load_rad &&
-                       client.requested_chunks.count(iter) == 0 &&
-                       !is_chunk_loaded(iter)) {
-                        client.requested_chunks.emplace(iter);
-                        ChkPos request;
-                        net_order(&request, &iter);
-                        requests.emplace_back(request);
-                        LUX_LOG("requesting chunk: {%zd, %zd, %zd}",
-                            iter.x, iter.y, iter.z);
-                    }
-                }
-            }
+        static DynArr<ChkPos> pending_requests;
+        for(auto it  = chunk_requests.cbegin(); it != chunk_requests.cend();) {
+            if(client.sent_requests.count(*it) == 0) {
+                LUX_LOG("requesting chunk {%zd, %zd, %zd}",
+                        it->x, it->y, it->z);
+                ChkPos& request = pending_requests.emplace_back(*it);
+                client.sent_requests.emplace(request);
+                LUX_LOG("requesting chunk {%zd, %zd, %zd}",
+                        request.x, request.y, request.z);
+                net_order(&request, &*it);
+                it = chunk_requests.erase(it);
+            } else ++it;
         }
-        if(requests.size() > 0) {
+        chunk_requests.clear();
+        if(pending_requests.size() > 0) {
             SizeT constexpr static_sz = 1 + sizeof(NetClientSignal::MapRequest);
-            SizeT          dynamic_sz = requests.size() * sizeof(ChkPos);
+            SizeT dynamic_sz = pending_requests.size() * sizeof(ChkPos);
 
             ENetPacket* pack;
             if(create_reliable_pack(pack, static_sz + dynamic_sz) != LUX_OK) {
@@ -190,12 +177,14 @@ LUX_MAY_FAIL handle_tick(ENetPacket* in_pack) {
             }
             NetClientSignal* signal = (NetClientSignal*)pack->data;
             signal->type = NetClientSignal::MAP_REQUEST;
-            U32 requests_len = requests.size();
+            U32 requests_len = pending_requests.size();
             net_order(&signal->map_request.requests.len, &requests_len);
-            std::memcpy(pack->data + static_sz, requests.data(), dynamic_sz);
+            ChkPos* pack_requests = (ChkPos*)(pack->data + static_sz);
+            std::memcpy(pack_requests, pending_requests.data(), dynamic_sz);
             if(send_packet(client.peer, pack, SIGNAL_CHANNEL) != LUX_OK) {
                 return LUX_FAIL;
             }
+            pending_requests.clear();
         }
     }
     return LUX_OK;
@@ -291,12 +280,11 @@ void do_tick() {
     }
 
     { ///IO
-        map_update_matrices(player_pos);
         glfwPollEvents();
         client.should_close |= glfwWindowShouldClose(glfw_window);
         glClearColor(0, 0, 0, 1);
         glClear(GL_COLOR_BUFFER_BIT);
-        map_render();
+        map_render(player_pos);
         check_opengl_error();
         glfwSwapBuffers(glfw_window);
     }

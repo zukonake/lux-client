@@ -14,7 +14,8 @@
 GLuint program;
 GLuint tileset;
 
-HashMap<ChkPos, Chunk, util::Packer<ChkPos>> chunks;
+VecMap<ChkPos, Chunk> chunks;
+VecSet<ChkPos> chunk_requests;
 
 static void build_mesh(Chunk &chunk, ChkPos const &pos);
 
@@ -28,49 +29,60 @@ void map_init(MapAssets assets) {
                 1, glm::value_ptr(tex_scale));
 }
 
-void map_update_matrices(EntityVec const& player_pos) {
-    Vec2U window_size = get_window_size();
-    F32 ratio = (F32)window_size.x / (F32)window_size.y;
-    F32 constexpr BASE_SCALE = 0.1f;
-    glm::mat4 matrix(1.f);
-    matrix = glm::scale(matrix, Vec3F(BASE_SCALE, BASE_SCALE * ratio, 1.f));
-    matrix = glm::translate(matrix, -player_pos);
-    glUseProgram(program);
-    set_uniform("matrix", program, glUniformMatrix4fv,
-                1, GL_FALSE, glm::value_ptr(matrix));
-}
-
-void map_render() {
+void map_render(EntityVec const& player_pos) {
     glUseProgram(program);
     glBindTexture(GL_TEXTURE_2D, tileset);
+    {   Vec2U window_size = get_window_size();
+        F32 ratio = (F32)window_size.x / (F32)window_size.y;
+        F32 constexpr BASE_SCALE = 0.1f;
+        glm::mat4 matrix(1.f);
+        matrix = glm::scale(matrix, Vec3F(BASE_SCALE, BASE_SCALE * ratio, 1.f));
+        matrix = glm::translate(matrix, -player_pos);
+        set_uniform("matrix", program, glUniformMatrix4fv,
+                    1, GL_FALSE, glm::value_ptr(matrix));
+    }
 
-    for(auto const& chunk : chunks) {
-        if(chunk.first.z != 0) continue;
-        if(!chunk.second.mesh.is_built) {
-            try_build_mesh(chunk.first);
-            continue;
+    U32 constexpr RENDER_DIST = 2;
+    ChkPos center = to_chk_pos(player_pos);
+    ChkPos iter;
+    iter.z = center.z;
+    for(iter.y  = center.y - RENDER_DIST;
+        iter.y <= center.y + RENDER_DIST;
+        iter.y++) {
+        for(iter.x  = center.x - RENDER_DIST;
+            iter.x <= center.x + RENDER_DIST;
+            iter.x++) {
+            if(is_chunk_loaded(iter)) {
+                Chunk const& chunk = get_chunk(iter);
+                Chunk::Mesh const& mesh = chunk.mesh;
+                if(!mesh.is_built) {
+                    try_build_mesh(iter);
+                } else {
+                    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.ebo);
+                    glBindBuffer(GL_ARRAY_BUFFER, mesh.g_vbo);
+                    glVertexAttribPointer(0, 2, GL_INT, GL_FALSE,
+                        sizeof(Chunk::Mesh::GVert),
+                        (void*)offsetof(Chunk::Mesh::GVert, pos));
+                    glVertexAttribPointer(1, 2, GL_UNSIGNED_SHORT, GL_FALSE,
+                        sizeof(Chunk::Mesh::GVert),
+                        (void*)offsetof(Chunk::Mesh::GVert, tex_pos));
+                    glBindBuffer(GL_ARRAY_BUFFER, mesh.l_vbo);
+                    glVertexAttribPointer(2, 3, GL_UNSIGNED_BYTE, GL_TRUE,
+                        sizeof(Chunk::Mesh::LVert),
+                        (void*)offsetof(Chunk::Mesh::LVert, col));
+                    glEnableVertexAttribArray(0);
+                    glEnableVertexAttribArray(1);
+                    glEnableVertexAttribArray(2);
+                    glDrawElements(GL_TRIANGLES, mesh.trig_count * 3,
+                                   Chunk::Mesh::INDEX_GL_TYPE, 0);
+                    glDisableVertexAttribArray(0);
+                    glDisableVertexAttribArray(1);
+                    glDisableVertexAttribArray(2);
+                }
+            } else {
+                chunk_requests.emplace(iter);
+            }
         }
-        Chunk::Mesh const& mesh = chunk.second.mesh;
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.ebo);
-        glBindBuffer(GL_ARRAY_BUFFER, mesh.g_vbo);
-        glVertexAttribPointer(0, 2, GL_INT, GL_FALSE,
-            sizeof(Chunk::Mesh::GVert),
-            (void*)offsetof(Chunk::Mesh::GVert, pos));
-        glVertexAttribPointer(1, 2, GL_UNSIGNED_SHORT, GL_FALSE,
-            sizeof(Chunk::Mesh::GVert),
-            (void*)offsetof(Chunk::Mesh::GVert, tex_pos));
-        glBindBuffer(GL_ARRAY_BUFFER, mesh.l_vbo);
-        glVertexAttribPointer(2, 3, GL_UNSIGNED_BYTE, GL_TRUE,
-            sizeof(Chunk::Mesh::LVert),
-            (void*)offsetof(Chunk::Mesh::LVert, col));
-        glEnableVertexAttribArray(0);
-        glEnableVertexAttribArray(1);
-        glEnableVertexAttribArray(2);
-        glDrawElements(GL_TRIANGLES, mesh.trig_count * 3,
-                       Chunk::Mesh::INDEX_GL_TYPE, 0);
-        glDisableVertexAttribArray(0);
-        glDisableVertexAttribArray(1);
-        glDisableVertexAttribArray(2);
     }
 }
 
@@ -100,20 +112,23 @@ Chunk const& get_chunk(ChkPos const& pos) {
 }
 
 void try_build_mesh(ChkPos const& pos) {
-    constexpr ChkPos offsets[8] =
-        {{-1, -1,  0}, {-1,  0,  0}, {-1,  1,  0}, { 0, -1,  0},
+    constexpr ChkPos offsets[9] =
+        {{ 0,  0,  0}, {-1, -1,  0}, {-1,  0,  0}, {-1,  1,  0}, { 0, -1,  0},
          { 0,  1,  0}, { 1, -1,  0}, { 1,  0,  0}, { 1,  1,  0}};
 
-    if(!is_chunk_loaded(pos)) return;
+    bool can_build = true;
+    for(auto const& offset : offsets) {
+        if(!is_chunk_loaded(pos + offset)) {
+            chunk_requests.emplace(pos + offset);
+            can_build = false;
+        }
+    }
+
+    if(!can_build) return;
 
     Chunk &chunk = chunks.at(pos);
+    LUX_ASSERT(!chunk.mesh.is_built);
 
-    if(chunk.mesh.is_built) return;
-
-    for(auto const& offset : offsets) {
-        //@TODO request required chunks
-        if(!is_chunk_loaded(pos + offset)) return;
-    }
     build_mesh(chunk, pos);
 }
 
