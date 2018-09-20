@@ -36,7 +36,7 @@ void map_render(EntityVec const& player_pos) {
         F32 ratio = (F32)window_size.x / (F32)window_size.y;
         F32 constexpr BASE_SCALE = 0.1f;
         glm::mat4 matrix(1.f);
-        matrix = glm::scale(matrix, Vec3F(BASE_SCALE, BASE_SCALE * ratio, 1.f));
+        matrix = glm::scale(matrix, Vec3F(BASE_SCALE, -BASE_SCALE * ratio, 1.f));
         matrix = glm::translate(matrix, -player_pos);
         set_uniform("matrix", program, glUniformMatrix4fv,
                     1, GL_FALSE, glm::value_ptr(matrix));

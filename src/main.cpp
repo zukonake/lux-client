@@ -151,42 +151,6 @@ LUX_MAY_FAIL handle_tick(ENetPacket* in_pack) {
 
     NetServerTick *tick = (NetServerTick*)in_pack->data;
     net_order(&player_pos, &tick->player_pos);
-
-    {
-        static DynArr<ChkPos> pending_requests;
-        for(auto it  = chunk_requests.cbegin(); it != chunk_requests.cend();) {
-            if(client.sent_requests.count(*it) == 0) {
-                LUX_LOG("requesting chunk {%zd, %zd, %zd}",
-                        it->x, it->y, it->z);
-                ChkPos& request = pending_requests.emplace_back(*it);
-                client.sent_requests.emplace(request);
-                LUX_LOG("requesting chunk {%zd, %zd, %zd}",
-                        request.x, request.y, request.z);
-                net_order(&request, &*it);
-                it = chunk_requests.erase(it);
-            } else ++it;
-        }
-        chunk_requests.clear();
-        if(pending_requests.size() > 0) {
-            SizeT constexpr static_sz = 1 + sizeof(NetClientSignal::MapRequest);
-            SizeT dynamic_sz = pending_requests.size() * sizeof(ChkPos);
-
-            ENetPacket* pack;
-            if(create_reliable_pack(pack, static_sz + dynamic_sz) != LUX_OK) {
-                return LUX_FAIL;
-            }
-            NetClientSignal* signal = (NetClientSignal*)pack->data;
-            signal->type = NetClientSignal::MAP_REQUEST;
-            U32 requests_len = pending_requests.size();
-            net_order(&signal->map_request.requests.len, &requests_len);
-            ChkPos* pack_requests = (ChkPos*)(pack->data + static_sz);
-            std::memcpy(pack_requests, pending_requests.data(), dynamic_sz);
-            if(send_packet(client.peer, pack, SIGNAL_CHANNEL) != LUX_OK) {
-                return LUX_FAIL;
-            }
-            pending_requests.clear();
-        }
-    }
     return LUX_OK;
 }
 
@@ -257,6 +221,7 @@ LUX_MAY_FAIL handle_signal(ENetPacket* in_pack) {
     return LUX_OK;
 }
 
+//@TODO err handling
 void do_tick() {
     { ///handle events
         ENetEvent event;
@@ -277,6 +242,67 @@ void do_tick() {
                 }
             }
         }
+    }
+
+    ///send map request signal
+    {   static DynArr<ChkPos> pending_requests;
+        for(auto it  = chunk_requests.cbegin(); it != chunk_requests.cend();) {
+            if(client.sent_requests.count(*it) == 0) {
+                LUX_LOG("requesting chunk {%zd, %zd, %zd}",
+                        it->x, it->y, it->z);
+                ChkPos& request = pending_requests.emplace_back(*it);
+                client.sent_requests.emplace(request);
+                LUX_LOG("requesting chunk {%zd, %zd, %zd}",
+                        request.x, request.y, request.z);
+                net_order(&request, &*it);
+                it = chunk_requests.erase(it);
+            } else ++it;
+        }
+        chunk_requests.clear();
+        if(pending_requests.size() > 0) {
+            SizeT constexpr static_sz = 1 + sizeof(NetClientSignal::MapRequest);
+            SizeT dynamic_sz = pending_requests.size() * sizeof(ChkPos);
+
+            ENetPacket* pack;
+            if(create_reliable_pack(pack, static_sz + dynamic_sz) != LUX_OK) {
+                return;
+            }
+            NetClientSignal* signal = (NetClientSignal*)pack->data;
+            signal->type = NetClientSignal::MAP_REQUEST;
+            U32 requests_len = pending_requests.size();
+            net_order(&signal->map_request.requests.len, &requests_len);
+            ChkPos* pack_requests = (ChkPos*)(pack->data + static_sz);
+            std::memcpy(pack_requests, pending_requests.data(), dynamic_sz);
+            if(send_packet(client.peer, pack, SIGNAL_CHANNEL) != LUX_OK) {
+                return;
+            }
+            pending_requests.clear();
+        }
+    }
+
+    ///send tick
+    {
+        ENetPacket* pack;
+        if(create_unreliable_pack(pack, sizeof(NetClientTick)) != LUX_OK) {
+            return;
+        }
+        NetClientTick* tick = (NetClientTick*)pack->data;
+        Vec2F dir = {0.f, 0.f};
+        if(glfwGetKey(glfw_window, GLFW_KEY_W) == GLFW_PRESS) {
+            dir.y = -1.f;
+        } else if(glfwGetKey(glfw_window, GLFW_KEY_S) == GLFW_PRESS) {
+            dir.y = 1.f;
+        }
+        if(glfwGetKey(glfw_window, GLFW_KEY_A) == GLFW_PRESS) {
+            dir.x = -1.f;
+        } else if(glfwGetKey(glfw_window, GLFW_KEY_D) == GLFW_PRESS) {
+            dir.x = 1.f;
+        }
+        if(dir.x != 0.f || dir.y != 0.f) {
+            dir = glm::normalize(dir);
+        }
+        net_order(&tick->player_dir, &dir);
+        (void)send_packet(client.peer, pack, TICK_CHANNEL);
     }
 
     { ///IO
