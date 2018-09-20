@@ -200,11 +200,16 @@ static void build_mesh(Chunk &chunk, ChkPos const &pos) {
                 LightLvl light_lvl =
                     get_chunk(to_chk_pos(v_off_pos)).light_lvls[to_chk_idx(v_off_pos)];
                 col_avg += Vec3U(
+                    (F32)((light_lvl & 0xF000) >> 12) * 17,
+                    (F32)((light_lvl & 0x0F00) >>  8) * 17,
+                    (F32)((light_lvl & 0x00F0) >>  4) * 17);
+            }
+            LightLvl light_lvl = chunk.light_lvls[i];
+            col_avg += Vec3U(
                 (F32)((light_lvl & 0xF000) >> 12) * 17,
                 (F32)((light_lvl & 0x0F00) >>  8) * 17,
                 (F32)((light_lvl & 0x00F0) >>  4) * 17);
-            }
-            col_avg /= 4.f;
+            col_avg /= 5.f;
             Chunk::Mesh::GVert& g_vert = g_verts.emplace_back();
             g_vert.pos = map_pos + quad[j];
             g_vert.tex_pos = vox_type.tex_pos + tex_positions[j];
