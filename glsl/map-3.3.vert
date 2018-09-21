@@ -1,14 +1,14 @@
-#version 120
+#version 330 core
 
-attribute vec2 pos;
-attribute vec2 tex_pos;
-attribute vec3 col;
+in vec2 pos;
+in vec2 tex_pos;
+in vec3 col;
+
+out vec2 f_tex_pos;
+out vec3 f_col;
 
 uniform mat4 matrix;
 uniform vec2 tex_scale;
-
-varying vec2 f_tex_pos;
-varying vec3 f_col;
 
 void main()
 {

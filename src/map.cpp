@@ -14,6 +14,12 @@
 GLuint program;
 GLuint tileset;
 
+struct {
+    GLint pos;
+    GLint tex_pos;
+    GLint col;
+} shader_attribs;
+
 VecMap<ChkPos, Chunk> chunks;
 VecSet<ChkPos> chunk_requests;
 
@@ -21,11 +27,23 @@ static void build_mesh(Chunk &chunk, ChkPos const &pos);
 static bool try_build_mesh(ChkPos const& pos);
 
 void map_init(MapAssets assets) {
-    program = load_program(assets.vert_path, assets.frag_path);
+    String base_shader_path = String(assets.shader_path) +
+#if   LUX_GL_VARIANT == LUX_GL_VARIANT_3_3
+        String("-3.3");
+#elif LUX_GL_VARIANT == LUX_GL_VARIANT_ES_2_0
+        String("-es-2.0");
+#endif
+    program = load_program((base_shader_path + String(".vert")).c_str(),
+                           (base_shader_path + String(".frag")).c_str());
     Vec2U tileset_size;
     tileset = load_texture(assets.tileset_path, tileset_size);
     Vec2F tex_scale = (Vec2F)assets.tile_size / (Vec2F)tileset_size;
     glUseProgram(program);
+
+    shader_attribs.pos     = glGetAttribLocation(program, "pos");
+    shader_attribs.tex_pos = glGetAttribLocation(program, "tex_pos");
+    shader_attribs.col     = glGetAttribLocation(program, "col");
+
     set_uniform("tex_scale", program, glUniform2fv,
                 1, glm::value_ptr(tex_scale));
 }
@@ -59,26 +77,28 @@ void map_render(EntityVec const& player_pos) {
                 if(!mesh.is_built) {
                     if(!try_build_mesh(iter)) continue;
                 }
-                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.ebo);
+#if LUX_GL_VARIANT == LUX_GL_VARIANT_ES_2_0
                 glBindBuffer(GL_ARRAY_BUFFER, mesh.g_vbo);
-                glVertexAttribPointer(0, 2, GL_INT, GL_FALSE,
-                    sizeof(Chunk::Mesh::GVert),
+                glVertexAttribPointer(shader_attribs.pos,
+                    2, GL_FLOAT, GL_FALSE, sizeof(Chunk::Mesh::GVert),
                     (void*)offsetof(Chunk::Mesh::GVert, pos));
-                glVertexAttribPointer(1, 2, GL_UNSIGNED_SHORT, GL_FALSE,
-                    sizeof(Chunk::Mesh::GVert),
+                glVertexAttribPointer(shader_attribs.tex_pos,
+                    2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof(Chunk::Mesh::GVert),
                     (void*)offsetof(Chunk::Mesh::GVert, tex_pos));
                 glBindBuffer(GL_ARRAY_BUFFER, mesh.l_vbo);
-                glVertexAttribPointer(2, 3, GL_UNSIGNED_BYTE, GL_TRUE,
-                    sizeof(Chunk::Mesh::LVert),
+                glVertexAttribPointer(shader_attribs.col,
+                    3, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Chunk::Mesh::LVert),
                     (void*)offsetof(Chunk::Mesh::LVert, col));
-                glEnableVertexAttribArray(0);
-                glEnableVertexAttribArray(1);
-                glEnableVertexAttribArray(2);
+#endif
+                glEnableVertexAttribArray(shader_attribs.pos);
+                glEnableVertexAttribArray(shader_attribs.tex_pos);
+                glEnableVertexAttribArray(shader_attribs.col);
+                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.ebo);
                 glDrawElements(GL_TRIANGLES, mesh.trig_count * 3,
                                Chunk::Mesh::INDEX_GL_TYPE, 0);
-                glDisableVertexAttribArray(0);
-                glDisableVertexAttribArray(1);
-                glDisableVertexAttribArray(2);
+                glDisableVertexAttribArray(shader_attribs.pos);
+                glDisableVertexAttribArray(shader_attribs.tex_pos);
+                glDisableVertexAttribArray(shader_attribs.col);
             } else {
                 chunk_requests.emplace(iter);
             }

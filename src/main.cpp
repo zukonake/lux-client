@@ -359,8 +359,7 @@ int main(int argc, char** argv) {
     LUX_DEFER { rendering_deinit(); };
     glfwSetWindowSizeCallback(glfw_window, window_resize_cb);
     MapAssets assets = {
-        "glsl/vertex-2.1.glsl", //@TODO 2.0 es etc.
-        "glsl/fragment-2.1.glsl",
+        "glsl/map",
         "tileset.png",
         {16, 16},
     };

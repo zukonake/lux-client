@@ -13,7 +13,11 @@ struct Chunk {
         static constexpr GLenum INDEX_GL_TYPE = GL_UNSIGNED_INT;
 #pragma pack(push, 1)
         struct GVert {
+#if LUX_GL_VARIANT == LUX_GL_VARIANT_ES_2_0
+            Vec2<F32> pos;
+#elif LUX_GL_VARIANT == LUX_GL_VARIANT_3_3
             Vec2<I32> pos;
+#endif
             Vec2<U16> tex_pos;
         };
         struct LVert {
@@ -30,8 +34,7 @@ struct Chunk {
 };
 
 struct MapAssets {
-    char const* vert_path;
-    char const* frag_path;
+    char const* shader_path;
     char const* tileset_path;
     Vec2U tile_size;
 };

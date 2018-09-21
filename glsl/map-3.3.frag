@@ -1,7 +1,9 @@
-#version 120
+#version 330 core
 
-varying vec2 f_tex_pos;
-varying vec3 f_col;
+out vec4 gl_FragColor;
+
+in vec2 f_tex_pos;
+in vec3 f_col;
 
 uniform sampler2D tileset;
 
