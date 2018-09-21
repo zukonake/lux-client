@@ -5,6 +5,8 @@
 //
 #include <include_opengl.hpp>
 #include <include_glfw.hpp>
+#define GLM_FORCE_PURE
+#include <glm/gtc/constants.hpp>
 #include <lodepng.h>
 //
 #include <lux_shared/common.hpp>
@@ -56,7 +58,6 @@ void rendering_init() {
             LUX_FATAL("couldn't create GLFW window");
         }
         glfwMakeContextCurrent(glfw_window);
-        glfwSetInputMode(glfw_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
         glfwSwapInterval(0);
     }
 
@@ -177,4 +178,10 @@ GLuint load_texture(char const* path, Vec2U& size_out) {
 
 void generate_mipmaps(GLuint texture_id, U32 max_lvl) {
     LUX_LOG("unimplemented");
+}
+
+F32 get_aim_rotation() {
+    Vec2U window_size = get_window_size();
+    Vec2D mouse_pos = (get_mouse_pos() / (Vec2D)window_size) - 0.5;
+    return -std::atan2(-mouse_pos.y, mouse_pos.x) + glm::half_pi<F32>();
 }

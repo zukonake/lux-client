@@ -15,6 +15,7 @@ GLuint load_shader(GLenum type, char const* path);
 GLuint load_program(char const* vert_path, char const* frag_path);
 GLuint load_texture(char const* path, Vec2U& size_out);
 void generate_mipmaps(GLuint texture_id, U32 max_lvl);
+F32 get_aim_rotation();
 
 template<typename F, typename... Args>
 void set_uniform(char const* name, GLuint program_id,

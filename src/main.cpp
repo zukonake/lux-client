@@ -3,6 +3,9 @@
 #include <cstring>
 //
 #include <enet/enet.h>
+#define GLM_FORCE_PURE
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/rotate_vector.hpp>
 //
 #include <lux_shared/common.hpp>
 #include <lux_shared/net/common.hpp>
@@ -315,6 +318,7 @@ void do_tick() {
         }
         if(dir.x != 0.f || dir.y != 0.f) {
             dir = glm::normalize(dir);
+            dir = glm::rotate(dir, get_aim_rotation());
         }
         net_order(&tick->player_dir, &dir);
         (void)send_packet(client.peer, pack, TICK_CHANNEL);
