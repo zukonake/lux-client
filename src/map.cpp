@@ -89,13 +89,17 @@ void map_render(EntityVec const& player_pos) {
                 glVertexAttribPointer(shader_attribs.col,
                     3, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Chunk::Mesh::LVert),
                     (void*)offsetof(Chunk::Mesh::LVert, col));
+#elif LUX_GL_VARIANT == LUX_GL_VARIANT_3_3
+                glBindVertexArray(mesh.vao);
 #endif
                 glEnableVertexAttribArray(shader_attribs.pos);
                 glEnableVertexAttribArray(shader_attribs.tex_pos);
                 glEnableVertexAttribArray(shader_attribs.col);
+
                 glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.ebo);
                 glDrawElements(GL_TRIANGLES, mesh.trig_count * 3,
                                Chunk::Mesh::INDEX_GL_TYPE, 0);
+
                 glDisableVertexAttribArray(shader_attribs.pos);
                 glDisableVertexAttribArray(shader_attribs.tex_pos);
                 glDisableVertexAttribArray(shader_attribs.col);
@@ -244,14 +248,31 @@ static void build_mesh(Chunk &chunk, ChkPos const &pos) {
     glGenBuffers(1, &mesh.g_vbo);
     glGenBuffers(1, &mesh.l_vbo);
     glGenBuffers(1, &mesh.ebo);
+#if LUX_GL_VARIANT == LUX_GL_VARIANT_3_3
+    glGenVertexArrays(1, &mesh.vao);
+    glBindVertexArray(mesh.vao);
+#endif
 
     glBindBuffer(GL_ARRAY_BUFFER, mesh.g_vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(Chunk::Mesh::GVert) * g_verts.size(),
                  g_verts.data(), GL_DYNAMIC_DRAW);
+#if LUX_GL_VARIANT == LUX_GL_VARIANT_3_3
+    glVertexAttribPointer(shader_attribs.pos,
+        2, GL_INT, GL_FALSE, sizeof(Chunk::Mesh::GVert),
+        (void*)offsetof(Chunk::Mesh::GVert, pos));
+    glVertexAttribPointer(shader_attribs.tex_pos,
+        2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof(Chunk::Mesh::GVert),
+        (void*)offsetof(Chunk::Mesh::GVert, tex_pos));
+#endif
 
     glBindBuffer(GL_ARRAY_BUFFER, mesh.l_vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(Chunk::Mesh::LVert) * l_verts.size(),
                  l_verts.data(), GL_DYNAMIC_DRAW);
+#if LUX_GL_VARIANT == LUX_GL_VARIANT_3_3
+    glVertexAttribPointer(shader_attribs.col,
+        3, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Chunk::Mesh::LVert),
+        (void*)offsetof(Chunk::Mesh::LVert, col));
+#endif
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(Chunk::Mesh::Idx) * idxs.size(),
