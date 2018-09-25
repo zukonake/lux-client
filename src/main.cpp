@@ -9,9 +9,9 @@
 //
 #include <lux_shared/common.hpp>
 #include <lux_shared/net/common.hpp>
-#include <lux_shared/net/net_order.hpp>
 #include <lux_shared/net/data.hpp>
 #include <lux_shared/net/enet.hpp>
+#include <lux_shared/net/serial.hpp>
 #include <lux_shared/util/packer.hpp>
 #include <lux_shared/util/tick_clock.hpp>
 //
@@ -86,14 +86,18 @@ void connect_to_server(char const* hostname, U16 port) {
 
     { ///send init packet
         LUX_LOG("sending init packet");
-        ENetPacket* pack;
-        if(create_reliable_pack(pack, sizeof(NetClientInit)) != LUX_OK) {
+        ENetPacket* out_pack;
+        if(create_reliable_pack(out_pack, sizeof(NetCsInit)) != LUX_OK) {
             LUX_FATAL("failed to create init packet");
         }
-        NetClientInit* init = (NetClientInit*)pack->data;
-        init->net_ver = {NET_VERSION_MAJOR, NET_VERSION_MINOR, NET_VERSION_PATCH};
-        init->name    = conf.name;
-        if(send_packet(client.peer, pack, INIT_CHANNEL)!= LUX_OK) {
+        U8* iter = out_pack->data;
+        serialize(&iter, NET_VERSION_MAJOR);
+        serialize(&iter, NET_VERSION_MINOR);
+        serialize(&iter, NET_VERSION_PATCH);
+        serialize(&iter, conf.name);
+        LUX_ASSERT(iter == out_pack->data + out_pack->dataLength);
+
+        if(send_packet(client.peer, out_pack, INIT_CHANNEL)!= LUX_OK) {
             LUX_FATAL("failed to send init packet");
         }
         LUX_LOG("init packet sent successfully");
@@ -106,17 +110,17 @@ void connect_to_server(char const* hostname, U16 port) {
 
         Uns tries = 0;
         U8 channel_id;
-        ENetPacket* init_pack;
+        ENetPacket* in_pack;
         do {
             enet_host_service(client.host, nullptr, TRY_TIME);
-            init_pack = enet_peer_receive(client.peer, &channel_id);
-            if(init_pack != nullptr) {
+            in_pack = enet_peer_receive(client.peer, &channel_id);
+            if(in_pack != nullptr) {
                 if(channel_id == INIT_CHANNEL) {
                     break;
                 } else {
                     LUX_LOG("ignoring unexpected packet on channel %u",
                             channel_id);
-                    enet_packet_destroy(init_pack);
+                    enet_packet_destroy(in_pack);
                 }
             }
             if(tries >= MAX_TRIES) {
@@ -124,20 +128,23 @@ void connect_to_server(char const* hostname, U16 port) {
             }
             ++tries;
         } while(true);
-        LUX_DEFER { enet_packet_destroy(init_pack); };
+        LUX_DEFER { enet_packet_destroy(in_pack); };
         LUX_LOG("received init packet after %zu/%zu tries", tries, MAX_TRIES);
 
-        NetServerInit server_init_data;
+        {   NetSsInit ss_init;
 
-        if(sizeof(server_init_data) != init_pack->dataLength) {
-            LUX_FATAL("server sent invalid init packet with size %zu instead of"
-                      " %zu", sizeof(server_init_data), init_pack->dataLength);
+            U8 const* iter = in_pack->data;
+            if(check_pack_size(sizeof(NetSsInit), iter, in_pack) != LUX_OK) {
+                LUX_FATAL("failed to receive init packet");
+            }
+
+            deserialize(&iter, &ss_init.name);
+            deserialize(&iter, &ss_init.tick_rate);
+            LUX_ASSERT(iter == in_pack->data + in_pack->dataLength);
+
+            client.server_name = String((char const*)ss_init.name);
+            client.tick_rate = ss_init.tick_rate;
         }
-
-        std::memcpy((U8*)&server_init_data, init_pack->data,
-                    sizeof(server_init_data));
-        net_order(&client.tick_rate, &server_init_data.tick_rate);
-        client.server_name = String((char const*)server_init_data.name.data());
         LUX_LOG("successfully connected to server %s",
                 client.server_name.c_str());
         LUX_LOG("tick rate %u", client.tick_rate);
@@ -145,97 +152,100 @@ void connect_to_server(char const* hostname, U16 port) {
 }
 
 LUX_MAY_FAIL handle_tick(ENetPacket* in_pack) {
-    if(in_pack->dataLength != sizeof(NetServerTick)) {
-        LUX_LOG("received tick packet has unexpected size");
-        LUX_LOG("    expected size: %zuB", sizeof(NetServerTick));
-        LUX_LOG("    size: %zuB", in_pack->dataLength);
+    U8 const* iter = in_pack->data;
+    if(check_pack_size(sizeof(NetSsTick), iter, in_pack) != LUX_OK) {
+        LUX_LOG("failed to handle tick");
         return LUX_FAIL;
     }
 
-    NetServerTick *tick = (NetServerTick*)in_pack->data;
-    net_order(&player_pos, &tick->player_pos);
+    deserialize(&iter, &player_pos);
+    LUX_ASSERT(iter == in_pack->data + in_pack->dataLength);
     return LUX_OK;
 }
 
-//@CONSIDER shared version
 LUX_MAY_FAIL handle_signal(ENetPacket* in_pack) {
-    SizeT sz = in_pack->dataLength;
-    if(sz < 1) {
-        LUX_LOG("couldn't read signal header, ignoring signal");
+    U8 const* iter = in_pack->data;
+    if(check_pack_size_atleast(sizeof(NetSsSgnl::Header), iter, in_pack)
+           != LUX_OK) {
+        LUX_LOG("couldn't read signal header");
         return LUX_FAIL;
     }
 
-    SizeT static_sz;
-    SizeT dynamic_sz;
-    Slice<U8> dynamic_segment;
-    NetServerSignal* signal = (NetServerSignal*)in_pack->data;
+    NetSsSgnl sgnl;
+    deserialize(&iter, (U8*)&sgnl.header);
 
-    { ///verify size
-        SizeT needed_static_sz;
-        switch(signal->type) {
-            case NetServerSignal::MAP_LOAD: {
-                needed_static_sz = 1 + sizeof(NetServerSignal::MapLoad);
-            } break;
-            case NetServerSignal::LIGHT_UPDATE: {
-                needed_static_sz = 1 + sizeof(NetServerSignal::LightUpdate);
-            } break;
-            default: {
-                LUX_LOG("unexpected signal type, ignoring signal");
-                LUX_LOG("    type: %u", signal->type);
-                LUX_LOG("    size: %zuB", in_pack->dataLength);
-                return LUX_FAIL;
-            }
-        }
-        if(sz < needed_static_sz) {
-            LUX_LOG("received packet static segment too small");
-            LUX_LOG("    expected size: atleast %zuB", needed_static_sz);
-            LUX_LOG("    size: %zuB", sz);
-            return LUX_FAIL;
-        }
-        static_sz = needed_static_sz;
-        dynamic_sz = sz - static_sz;
-        SizeT needed_dynamic_sz;
-        switch(signal->type) {
-            case NetServerSignal::MAP_LOAD: {
-                needed_dynamic_sz = signal->map_load.chunks.len *
-                                    sizeof(NetServerSignal::MapLoad::Chunk);
-            } break;
-            case NetServerSignal::LIGHT_UPDATE: {
-                needed_dynamic_sz = signal->light_update.chunks.len *
-                                    sizeof(NetServerSignal::LightUpdate::Chunk);
-            } break;
-            default: LUX_ASSERT(false);
-        }
-        if(dynamic_sz != needed_dynamic_sz) {
-            LUX_LOG("received packet dynamic segment size differs from expected");
-            LUX_LOG("    expected size: %zuB", needed_dynamic_sz + static_sz);
-            LUX_LOG("    size: %zuB", in_pack->dataLength);
-            return LUX_FAIL;
-        }
-        dynamic_segment.set((U8*)(in_pack->data + static_sz), dynamic_sz);
+    if(sgnl.header >= NetSsSgnl::HEADER_MAX) {
+        LUX_LOG("unexpected signal header %u", sgnl.header);
+        return LUX_FAIL;
+    }
+
+    SizeT expected_stt_sz;
+    switch(sgnl.header) {
+        case NetSsSgnl::MAP_LOAD: {
+            expected_stt_sz = sizeof(NetSsSgnl::MapLoad);
+        } break;
+        case NetSsSgnl::LIGHT_UPDATE: {
+            expected_stt_sz = sizeof(NetSsSgnl::LightUpdate);
+        } break;
+        default: LUX_UNREACHABLE();
+    }
+    if(check_pack_size_atleast(expected_stt_sz, iter, in_pack) != LUX_OK) {
+        LUX_LOG("couldn't read static segment");
+        return LUX_FAIL;
+    }
+
+    SizeT expected_dyn_sz;
+    switch(sgnl.header) {
+        case NetSsSgnl::MAP_LOAD: {
+            deserialize(&iter, &sgnl.map_load.chunks.len);
+            expected_dyn_sz = sgnl.map_load.chunks.len *
+                sizeof(NetSsSgnl::MapLoad::Chunk);
+        } break;
+        case NetSsSgnl::LIGHT_UPDATE: {
+            deserialize(&iter, &sgnl.light_update.chunks.len);
+            expected_dyn_sz = sgnl.light_update.chunks.len *
+                sizeof(NetSsSgnl::LightUpdate::Chunk);
+        } break;
+        default: LUX_UNREACHABLE();
+    }
+    if(check_pack_size(expected_dyn_sz, iter, in_pack) != LUX_OK) {
+        LUX_LOG("couldn't read dynamic segment");
+        return LUX_FAIL;
     }
 
     { ///parse the packet
-        switch(signal->type) {
-            case NetServerSignal::MAP_LOAD: {
-                typedef NetServerSignal::MapLoad::Chunk NetChunk;
-                Slice<NetChunk> chunks = dynamic_segment;
+        switch(sgnl.header) {
+            case NetSsSgnl::MAP_LOAD: {
+                typedef NetSsSgnl::MapLoad::Chunk NetChunk;
+                Slice<NetChunk> chunks;
+                chunks.len = sgnl.map_load.chunks.len;
+                chunks.beg = lux_alloc<NetChunk>(chunks.len);
+                LUX_DEFER { lux_free(chunks.beg); };
 
                 for(Uns i = 0; i < chunks.len; ++i) {
+                    deserialize(&iter, &chunks[i].pos);
+                    deserialize(&iter, &chunks[i].voxels);
+                    deserialize(&iter, &chunks[i].light_lvls);
                     load_chunk(chunks[i]);
                 }
             } break;
-            case NetServerSignal::LIGHT_UPDATE: {
-                typedef NetServerSignal::LightUpdate::Chunk NetChunk;
-                Slice<NetChunk> chunks = dynamic_segment;
+            case NetSsSgnl::LIGHT_UPDATE: {
+                typedef NetSsSgnl::LightUpdate::Chunk NetChunk;
+                Slice<NetChunk> chunks;
+                chunks.len = sgnl.light_update.chunks.len;
+                chunks.beg = lux_alloc<NetChunk>(chunks.len);
+                LUX_DEFER { lux_free(chunks.beg); };
 
                 for(Uns i = 0; i < chunks.len; ++i) {
+                    deserialize(&iter, &chunks[i].pos);
+                    deserialize(&iter, &chunks[i].light_lvls);
                     light_update(chunks[i]);
                 }
             } break;
-            default: LUX_ASSERT(false);
+            default: LUX_UNREACHABLE();
         }
     }
+    LUX_ASSERT(iter == in_pack->data + in_pack->dataLength);
     return LUX_OK;
 }
 
@@ -272,26 +282,27 @@ void do_tick() {
                 client.sent_requests.emplace(request);
                 LUX_LOG("requesting chunk {%zd, %zd, %zd}",
                         request.x, request.y, request.z);
-                net_order(&request, &*it);
                 it = chunk_requests.erase(it);
             } else ++it;
         }
         chunk_requests.clear();
         if(pending_requests.size() > 0) {
-            SizeT constexpr static_sz = 1 + sizeof(NetClientSignal::MapRequest);
-            SizeT dynamic_sz = pending_requests.size() * sizeof(ChkPos);
+            SizeT pack_sz = sizeof(NetCsSgnl::Header) +
+                sizeof(NetCsSgnl::MapRequest) + pending_requests.size() *
+                sizeof(ChkPos);
 
-            ENetPacket* pack;
-            if(create_reliable_pack(pack, static_sz + dynamic_sz) != LUX_OK) {
-                return;
+            ENetPacket* out_pack;
+            if(create_reliable_pack(out_pack, pack_sz) != LUX_OK) {
+                return; //@CONSIDER LUX_FAIL
             }
-            NetClientSignal* signal = (NetClientSignal*)pack->data;
-            signal->type = NetClientSignal::MAP_REQUEST;
-            U32 requests_len = pending_requests.size();
-            net_order(&signal->map_request.requests.len, &requests_len);
-            ChkPos* pack_requests = (ChkPos*)(pack->data + static_sz);
-            std::memcpy(pack_requests, pending_requests.data(), dynamic_sz);
-            if(send_packet(client.peer, pack, SIGNAL_CHANNEL) != LUX_OK) {
+            U8* iter = out_pack->data;
+            serialize(&iter, (U8 const&)NetCsSgnl::MAP_REQUEST);
+            serialize(&iter, (U32 const&)pending_requests.size());
+            for(auto const& request : pending_requests) {
+                serialize(&iter, request);
+            }
+            LUX_ASSERT(iter == out_pack->data + out_pack->dataLength);
+            if(send_packet(client.peer, out_pack, SIGNAL_CHANNEL) != LUX_OK) {
                 return;
             }
             pending_requests.clear();
@@ -300,11 +311,11 @@ void do_tick() {
 
     ///send tick
     {
-        ENetPacket* pack;
-        if(create_unreliable_pack(pack, sizeof(NetClientTick)) != LUX_OK) {
+        ENetPacket* out_pack;
+        if(create_unreliable_pack(out_pack, sizeof(NetCsTick)) != LUX_OK) {
             return;
         }
-        NetClientTick* tick = (NetClientTick*)pack->data;
+        U8* iter = out_pack->data;
         Vec2F dir = {0.f, 0.f};
         if(glfwGetKey(glfw_window, GLFW_KEY_W) == GLFW_PRESS) {
             dir.y = -1.f;
@@ -320,8 +331,9 @@ void do_tick() {
             dir = glm::normalize(dir);
             dir = glm::rotate(dir, get_aim_rotation());
         }
-        net_order(&tick->player_dir, &dir);
-        (void)send_packet(client.peer, pack, TICK_CHANNEL);
+        serialize(&iter, dir);
+        LUX_ASSERT(iter == out_pack->data + out_pack->dataLength);
+        (void)send_packet(client.peer, out_pack, TICK_CHANNEL);
     }
 
     { ///IO
@@ -382,7 +394,7 @@ int main(int argc, char** argv) {
     {
         U8 constexpr client_name[] = "lux-client";
         static_assert(sizeof(client_name) <= CLIENT_NAME_LEN);
-        std::memcpy(conf.name.data(), client_name, sizeof(client_name));
+        std::memcpy(conf.name, client_name, sizeof(client_name));
     }
 
     connect_to_server(server_hostname, server_port);

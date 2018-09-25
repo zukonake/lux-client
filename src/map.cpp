@@ -1,10 +1,11 @@
+#include <cstring>
+//
 #define GLM_FORCE_PURE
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 //
 #include <lux_shared/common.hpp>
 #include <lux_shared/map.hpp>
-#include <lux_shared/net/net_order.hpp>
 #include <lux_shared/util/packer.hpp>
 //
 #include <rendering.hpp>
@@ -114,9 +115,8 @@ bool is_chunk_loaded(ChkPos const& pos) {
     return chunks.count(pos) > 0;
 }
 
-void load_chunk(NetServerSignal::MapLoad::Chunk const& net_chunk) {
-    ChkPos pos;
-    net_order(&pos, &net_chunk.pos);
+void load_chunk(NetSsSgnl::MapLoad::Chunk const& net_chunk) {
+    ChkPos const& pos = net_chunk.pos;
     LUX_LOG("loading chunk");
     LUX_LOG("    pos: {%zd, %zd, %zd}", pos.x, pos.y, pos.z);
     if(is_chunk_loaded(pos)) {
@@ -124,23 +124,21 @@ void load_chunk(NetServerSignal::MapLoad::Chunk const& net_chunk) {
         return;
     }
     Chunk& chunk = chunks[pos];
-    for(Uns i = 0; i < CHK_VOL; ++i) {
-        net_order(&chunk.voxels[i], &net_chunk.voxels[i]);
-        net_order(&chunk.light_lvls[i], &net_chunk.light_lvls[i]);
-    }
+    std::memcpy(chunk.voxels    , net_chunk.voxels,
+                CHK_VOL * sizeof(VoxelId));
+    std::memcpy(chunk.light_lvls, net_chunk.light_lvls,
+                CHK_VOL * sizeof(LightLvl));
 }
 
-void light_update(NetServerSignal::LightUpdate::Chunk const& net_chunk) {
-    ChkPos pos;
-    net_order(&pos, &net_chunk.pos);
+void light_update(NetSsSgnl::LightUpdate::Chunk const& net_chunk) {
+    ChkPos const& pos = net_chunk.pos;
     if(!is_chunk_loaded(pos)) {
         LUX_LOG("chunk is not loaded");
         return;
     }
     Chunk& chunk = chunks.at(pos);
-    for(Uns i = 0; i < CHK_VOL; ++i) {
-        net_order(&chunk.light_lvls[i], &net_chunk.light_lvls[i]);
-    }
+    std::memcpy(chunk.light_lvls, net_chunk.light_lvls,
+                CHK_VOL * sizeof(LightLvl));
     Chunk::Mesh& mesh = chunk.mesh;
     if(mesh.is_built) {
         //@TODO hacky and slow
