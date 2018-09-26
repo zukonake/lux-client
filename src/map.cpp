@@ -210,30 +210,23 @@ static void build_mesh(Chunk &chunk, ChkPos const &pos) {
     for(ChkIdx i = 0; i < CHK_VOL; ++i) {
         MapPos map_pos = to_map_pos(pos, i);
         VoxelType vox_type = db_voxel_type(get_voxel(map_pos));
-        bool is_solid = db_voxel_type(chunk.voxels[i]).shape != VoxelType::EMPTY;
-        if(!is_solid) continue;
+        if(db_voxel_type(chunk.voxels[i]).shape == VoxelType::EMPTY) continue;
         for(U32 j = 0; j < 4; ++j) {
             constexpr MapPos vert_offsets[4] =
-                {{0, 0, 0}, {0, 1, 0}, {1, 0, 0}, {1, 1, 0}};
-            MapPos v_sign = glm::sign((Vec3F)quad[j] - Vec3F(0.5, 0.5, 0));
-            Vec3U col_avg(0.f);
+                {{-1, -1, 0}, {-1, 0, 0}, {0, -1, 0}, {0, 0, 0}};
+            MapPos vert_pos = map_pos + quad[j];
+            Vec3F col_avg(0.f);
             for(auto const &vert_offset : vert_offsets) {
-                MapPos v_off_pos = map_pos + vert_offset * v_sign;
+                MapPos v_off_pos = vert_pos + vert_offset;
                 LightLvl light_lvl =
                     get_chunk(to_chk_pos(v_off_pos)).light_lvls[to_chk_idx(v_off_pos)];
-                col_avg += Vec3U(
-                    (F32)((light_lvl & 0xF000) >> 12) * 17,
-                    (F32)((light_lvl & 0x0F00) >>  8) * 17,
-                    (F32)((light_lvl & 0x00F0) >>  4) * 17);
+                col_avg += Vec3F((light_lvl & 0xF000) >> 12,
+                                 (light_lvl & 0x0F00) >>  8,
+                                 (light_lvl & 0x00F0) >>  4) * 17.f;
             }
-            LightLvl light_lvl = chunk.light_lvls[i];
-            col_avg += Vec3U(
-                (F32)((light_lvl & 0xF000) >> 12) * 17,
-                (F32)((light_lvl & 0x0F00) >>  8) * 17,
-                (F32)((light_lvl & 0x00F0) >>  4) * 17);
-            col_avg /= 5.f;
+            col_avg /= 4.f;
             Chunk::Mesh::GVert& g_vert = g_verts.emplace_back();
-            g_vert.pos = map_pos + quad[j];
+            g_vert.pos = vert_pos;
             g_vert.tex_pos = vox_type.tex_pos + tex_positions[j];
             Chunk::Mesh::LVert& l_vert = l_verts.emplace_back();
             l_vert.col = col_avg;
