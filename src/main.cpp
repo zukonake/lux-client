@@ -370,12 +370,7 @@ int main(int argc, char** argv) {
     rendering_init();
     LUX_DEFER { rendering_deinit(); };
     glfwSetWindowSizeCallback(glfw_window, window_resize_cb);
-    MapAssets assets = {
-        "glsl/map",
-        "tileset.png",
-        {16, 16},
-    };
-    map_init(assets);
+    map_init();
     check_opengl_error();
 
     if(enet_initialize() < 0) {

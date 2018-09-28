@@ -27,18 +27,13 @@ VecSet<ChkPos> chunk_requests;
 static void build_mesh(Chunk &chunk, ChkPos const &pos);
 static bool try_build_mesh(ChkPos const& pos);
 
-void map_init(MapAssets assets) {
-    String base_shader_path = String(assets.shader_path) +
-#if   LUX_GL_VARIANT == LUX_GL_VARIANT_3_3
-        String("-3.3");
-#elif LUX_GL_VARIANT == LUX_GL_VARIANT_ES_2_0
-        String("-es-2.0");
-#endif
-    program = load_program((base_shader_path + String(".vert")).c_str(),
-                           (base_shader_path + String(".frag")).c_str());
+void map_init() {
+    char const* tileset_path = "tileset.png";
+    Vec2U const tile_size = {16, 16};
+    program = load_program("glsl/map.vert", "glsl/map.frag");
     Vec2U tileset_size;
-    tileset = load_texture(assets.tileset_path, tileset_size);
-    Vec2F tex_scale = (Vec2F)assets.tile_size / (Vec2F)tileset_size;
+    tileset = load_texture(tileset_path, tileset_size);
+    Vec2F tex_scale = (Vec2F)tile_size / (Vec2F)tileset_size;
     glUseProgram(program);
 
     shader_attribs.pos     = glGetAttribLocation(program, "pos");

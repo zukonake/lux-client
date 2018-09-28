@@ -1,5 +1,6 @@
 #include <config.hpp>
 //
+#include <cstring>
 #include <vector>
 #include <fstream>
 //
@@ -99,7 +100,14 @@ void check_opengl_error()
 
 GLuint load_shader(GLenum type, char const* path) {
     GLuint id = glCreateShader(type);
-
+    char constexpr VERSION_DIRECTIVE[] = "#version "
+#if LUX_GL_VARIANT == LUX_GL_VARIANT_3_3
+        "330 core"
+#elif LUX_GL_VARIANT == LUX_GL_VARIANT_ES_2_0
+        "100"
+#endif
+        "\n";
+    constexpr SizeT VERSION_LEN = sizeof(VERSION_DIRECTIVE) - 1;
     char* str;
     {   std::ifstream file(path);
         file.seekg(0, file.end);
@@ -109,14 +117,15 @@ GLuint load_shader(GLenum type, char const* path) {
         }
         file.seekg(0, file.beg);
 
-        str = lux_alloc<char>((SizeT)len + 1);
-        file.read(str, len);
+        str = lux_alloc<char>((SizeT)len + VERSION_LEN + 1);
+        LUX_DEFER { lux_free(str); };
+        std::memcpy(str, VERSION_DIRECTIVE, VERSION_LEN);
+        file.read(str + VERSION_LEN, len);
         file.close();
-        str[(SizeT)len] = '\0';
+        str[(SizeT)len + VERSION_LEN] = '\0';
+        glShaderSource(id, 1, &str, nullptr);
+        glCompileShader(id);
     }
-    glShaderSource(id, 1, &str, nullptr);
-    glCompileShader(id);
-    lux_free(str);
 
     {   int success;
         glGetShaderiv(id, GL_COMPILE_STATUS, &success);
