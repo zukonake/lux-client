@@ -226,8 +226,17 @@ static void build_mesh(Chunk &chunk, ChkPos const &pos) {
             Chunk::Mesh::LVert& l_vert = l_verts.emplace_back();
             l_vert.col = col_avg;
         }
-        for(auto const &idx : {0, 1, 2, 2, 3, 0}) {
-            idxs.emplace_back(idx + idx_offset);
+        if(glm::length((Vec3F)l_verts[idx_offset + 0].col) +
+           glm::length((Vec3F)l_verts[idx_offset + 2].col) <
+           glm::length((Vec3F)l_verts[idx_offset + 1].col) +
+           glm::length((Vec3F)l_verts[idx_offset + 3].col)) {
+            for(auto const &idx : {0, 1, 2, 2, 3, 0}) {
+                idxs.emplace_back(idx + idx_offset);
+            }
+        } else {
+            for(auto const &idx : {0, 1, 3, 3, 2, 1}) {
+                idxs.emplace_back(idx + idx_offset);
+            }
         }
         idx_offset += 4;
     }
