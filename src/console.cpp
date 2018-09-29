@@ -2,6 +2,7 @@
 //
 #include <cstring>
 //
+#include <lua.hpp>
 #include <include_opengl.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -47,6 +48,7 @@ struct Console {
 
     Uns cursor_pos = 0;
     Uns cursor_scroll = 0;
+    lua_State* lua_L;
 } static console;
 
 struct {
@@ -105,6 +107,33 @@ void console_init(Vec2U win_size) {
 
     console_window_resize_cb(win_size.x, win_size.y);
     console_clear();
+
+    console.lua_L = luaL_newstate();
+    luaL_openlibs(console.lua_L);
+    luaL_loadstring(console.lua_L,
+                    "package.path = package.path .. \";api/?.lua\"");
+    lua_call(console.lua_L, 0, 0);
+    switch(luaL_loadfile(console.lua_L, "api/lux-api.lua")) {
+        case 0: break;
+        case LUA_ERRSYNTAX:
+            LUX_FATAL("lua syntax error: \n%s",
+                      lua_tolstring(console.lua_L, -1, nullptr));
+        case LUA_ERRMEM: LUX_FATAL("lua memory error");
+        default: LUX_FATAL("lua unknown error");
+    }
+    switch(lua_pcall(console.lua_L, 0, 0, 0)) {
+        case 0: break;
+        case LUA_ERRRUN:
+            LUX_FATAL("lua runtime error: \n%s",
+                      lua_tolstring(console.lua_L, -1, nullptr));
+        case LUA_ERRMEM: LUX_FATAL("lua memory error");
+        case LUA_ERRERR: LUX_FATAL("lua error handler error");
+        default: LUX_FATAL("lua unknown error");
+    }
+}
+
+void console_deinit() {
+    lua_close(console.lua_L);
 }
 
 void console_window_resize_cb(int win_w, int win_h) {
@@ -217,8 +246,8 @@ void console_clear() {
 }
 
 static void blit_character(Uns grid_idx, char character,
-                           Vec3<U8> const& fg_col = {0xFF, 0xFF, 0xFF},
-                           Vec3<U8> const& bg_col = {0x00, 0x00, 0x00}) {
+                             Vec3<U8> const& fg_col = {0xFF, 0xFF, 0xFF},
+                             Vec3<U8> const& bg_col = {0x00, 0x00, 0x00}) {
     Vec2F base_pos = {character % 16, character / 16};
     static const Vec2F quad[4] = {{0, 1}, {0, 0}, {1, 1}, {1, 0}};
     for(Uns i = 0; i < 4; ++i) {
@@ -226,6 +255,19 @@ static void blit_character(Uns grid_idx, char character,
         console.font_verts[grid_idx * 4 + i].fg_col = fg_col;
         console.font_verts[grid_idx * 4 + i].bg_col = bg_col;
     }
+}
+
+void console_print(char const* beg) {
+    auto const& grid_size = console.grid_size;
+    char const* end = beg;
+    while(*end != '\0' && (std::uintptr_t)(end - beg) < grid_size.x) {
+        ++end;
+    }
+    Uns len = end - beg;
+    std::memmove(console.out_buff.data() + grid_size.x,
+                 console.out_buff.data(), grid_size.x * (grid_size.y - 2));
+    std::memcpy(console.out_buff.data(), beg, len);
+    std::memset(console.out_buff.data() + len, 0, grid_size.x - len);
 }
 
 void console_render() {
@@ -331,13 +373,41 @@ static void console_delete() {
 
 static void console_enter() {
     auto const& grid_size = console.grid_size;
-    std::memmove(console.out_buff.data() + grid_size.x,
-                 console.out_buff.data(), grid_size.x * (grid_size.y - 2));
-    std::memcpy(console.out_buff.data(), console.in_buff,
-                std::min(grid_size.x, Console::IN_BUFF_WIDTH));
+    char const* beg = console.in_buff;
+    char const* end = beg;
+    while(*end != '\0' && (std::uintptr_t)(end - beg) < grid_size.x) {
+        ++end;
+    }
+    String command(beg, end - beg);
     std::memset(console.in_buff, 0, Console::IN_BUFF_WIDTH);
     console.cursor_pos = 0;
     console.cursor_scroll = 0;
+    if(command.size() > 2 && command[0] == '!') {
+        command.erase(0, 1);
+        switch(luaL_loadstring(console.lua_L, command.c_str())) {
+            case 0: break;
+            case LUA_ERRSYNTAX: {
+                console_print(lua_tolstring(console.lua_L, -1, nullptr));
+            } break;
+            case LUA_ERRMEM: LUX_FATAL("lua memory error");
+            default: {
+                console_print("unknown lua error");
+            } break;
+        }
+        switch(lua_pcall(console.lua_L, 0, 0, 0)) {
+            case 0: break;
+            case LUA_ERRRUN: {
+                console_print(lua_tolstring(console.lua_L, -1, nullptr));
+            } break;
+            case LUA_ERRMEM: LUX_FATAL("lua memory error");
+            case LUA_ERRERR: LUX_FATAL("lua error handler error");
+            default: {
+                console_print("unknown lua error");
+            } break;
+        }
+    } else {
+        console_print(command.c_str());
+    }
 }
 
 static Uns console_seek_last() {

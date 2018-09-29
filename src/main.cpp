@@ -387,6 +387,7 @@ int main(int argc, char** argv) {
         glfwGetWindowSize(glfw_window, &win_size.x, &win_size.y);
         console_init((Vec2U)win_size);
     }
+    LUX_DEFER { console_deinit(); };
     glfwSetWindowSizeCallback(glfw_window, window_resize_cb);
     glfwSetKeyCallback(glfw_window, key_cb);
     check_opengl_error();

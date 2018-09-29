@@ -36,6 +36,7 @@ include_directories("deps/lux-shared/include" "src"
                     "${PROJECT_BINARY_DIR}/include")
 add_subdirectory("deps/lux-shared")
 add_subdirectory("deps/lodepng")
+add_subdirectory("api")
 
 file(GLOB_RECURSE SOURCES "src/*.cpp")
 if(${LUX_GL_VARIANT} EQUAL ${LUX_GL_VARIANT_3_3})
@@ -52,6 +53,7 @@ find_library(ENET_LIB enet)
 find_library(GLFW_LIB glfw)
 find_library(GL_LIB GL)
 find_library(DL_LIB dl)
+find_library(LUAJIT_LIB luajit)
 
 target_link_libraries(lux-client lux)
 target_link_libraries(lux-client lodepng)
@@ -60,4 +62,5 @@ target_link_libraries(lux-client "${ENET_LIB}")
 target_link_libraries(lux-client "${GLFW_LIB}")
 target_link_libraries(lux-client "${GL_LIB}")
 target_link_libraries(lux-client "${DL_LIB}")
+target_link_libraries(lux-client "${LUAJIT_LIB}")
 
