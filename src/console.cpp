@@ -388,7 +388,7 @@ static void console_enter() {
     std::memset(console.in_buff, 0, Console::IN_BUFF_WIDTH);
     console.cursor_pos = 0;
     console.cursor_scroll = 0;
-    if(command.size() > 2 && command[0] == '!') {
+    if(command.size() > 2 && command[0] == '/') {
         command.erase(0, 1);
         if(command.size() > 2 && command[0] == 's') {
             command.erase(0, 1);

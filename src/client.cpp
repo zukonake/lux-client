@@ -425,9 +425,7 @@ LUX_MAY_FAIL send_command(char const* beg) {
         U8* iter = out_pack->data;
         serialize(&iter, (U8 const&)NetCsSgnl::COMMAND);
         serialize(&iter, (U32 const&)len);
-        for(char const* i = beg; i < end; ++i) {
-            serialize(&iter, *i);
-        }
+        serialize(&iter, beg, len);
         LUX_ASSERT(iter == out_pack->data + out_pack->dataLength);
         if(send_packet(client.peer, out_pack, SIGNAL_CHANNEL) != LUX_OK) {
             LUX_LOG("failed to send packet for command\n%s", beg);
