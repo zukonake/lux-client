@@ -27,7 +27,7 @@ VecSet<ChkPos> chunk_requests;
 static void build_mesh(Chunk &chunk, ChkPos const &pos);
 static bool try_build_mesh(ChkPos const& pos);
 
-void map_init() {
+static void map_load_program() {
     char const* tileset_path = "tileset.png";
     Vec2U const tile_size = {16, 16};
     program = load_program("glsl/map.vert", "glsl/map.frag");
@@ -42,6 +42,10 @@ void map_init() {
 
     set_uniform("tex_scale", program, glUniform2fv,
                 1, glm::value_ptr(tex_scale));
+}
+
+void map_init() {
+    map_load_program();
 }
 
 void map_render(EntityVec const& player_pos) {
@@ -105,6 +109,13 @@ void map_render(EntityVec const& player_pos) {
             }
         }
     }
+}
+
+void map_reload_program() {
+    LUX_LOG("reloading map program");
+    glDeleteTextures(1, &tileset);
+    glDeleteProgram(program);
+    map_load_program();
 }
 
 bool is_chunk_loaded(ChkPos const& pos) {
