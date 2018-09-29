@@ -17,6 +17,7 @@
 //
 #include <db.hpp>
 #include <map.hpp>
+#include <console.hpp>
 #include <rendering.hpp>
 
 struct {
@@ -38,11 +39,19 @@ struct {
 
 EntityVec player_pos = {0, 0, 0};
 
-static void window_resize_cb(GLFWwindow* window, int width, int height)
+void window_resize_cb(GLFWwindow* window, int win_w, int win_h)
 {
     (void)window;
-    LUX_LOG("window size change to %ux%u", width, height);
-    glViewport(0, 0, width, height);
+    LUX_LOG("window size change to %ux%u", win_w, win_h);
+    glViewport(0, 0, win_w, win_h);
+    console_window_resize_cb(win_w, win_h);
+}
+
+void key_cb(GLFWwindow* window, int key, int scancode, int action, int mods)
+{
+    //@TODO if console captures the key, it shouldn't control the entity etc.
+    //@CONSIDER a centralized input system
+    console_key_cb(key, scancode, action, mods);
 }
 
 void connect_to_server(char const* hostname, U16 port) {
@@ -342,6 +351,7 @@ void do_tick() {
         glClearColor(0, 0, 0, 1);
         glClear(GL_COLOR_BUFFER_BIT);
         map_render(player_pos);
+        console_render();
         check_opengl_error();
         glfwSwapBuffers(glfw_window);
     }
@@ -369,8 +379,13 @@ int main(int argc, char** argv) {
     db_init();
     rendering_init();
     LUX_DEFER { rendering_deinit(); };
-    glfwSetWindowSizeCallback(glfw_window, window_resize_cb);
     map_init();
+    {   Vec2<int> win_size;
+        glfwGetWindowSize(glfw_window, &win_size.x, &win_size.y);
+        console_init((Vec2U)win_size);
+    }
+    glfwSetWindowSizeCallback(glfw_window, window_resize_cb);
+    glfwSetKeyCallback(glfw_window, key_cb);
     check_opengl_error();
 
     if(enet_initialize() < 0) {
