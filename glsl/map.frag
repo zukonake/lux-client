@@ -16,5 +16,5 @@ void main()
 {
     //float luma = dot(f_col * luma_mul, vec3(1.0));
     vec3 texel = vec3(texture2D(tileset, f_tex_pos));
-    gl_FragColor = vec4(texel * pow(f_col * 2.0, vec3(1.0 / 2.2)), 1.0);
+    gl_FragColor = vec4(texel * f_col * 2.0, 1.0);
 } 
