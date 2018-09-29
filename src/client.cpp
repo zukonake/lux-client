@@ -14,6 +14,7 @@
 #include <map.hpp>
 #include <console.hpp>
 #include <rendering.hpp>
+#include "client.hpp"
 
 struct {
     ENetHost* host;
@@ -233,6 +234,9 @@ LUX_MAY_FAIL static handle_signal(ENetPacket* in_pack) {
         case NetSsSgnl::LIGHT_UPDATE: {
             expected_stt_sz = sizeof(NetSsSgnl::LightUpdate);
         } break;
+        case NetSsSgnl::MSG: {
+            expected_stt_sz = sizeof(NetSsSgnl::Msg);
+        } break;
         default: LUX_UNREACHABLE();
     }
     if(check_pack_size_atleast(expected_stt_sz, iter, in_pack) != LUX_OK) {
@@ -251,6 +255,10 @@ LUX_MAY_FAIL static handle_signal(ENetPacket* in_pack) {
             deserialize(&iter, &sgnl.light_update.chunks.len);
             expected_dyn_sz = sgnl.light_update.chunks.len *
                 sizeof(NetSsSgnl::LightUpdate::Chunk);
+        } break;
+        case NetSsSgnl::MSG: {
+            deserialize(&iter, &sgnl.msg.contents.len);
+            expected_dyn_sz = sgnl.msg.contents.len;
         } break;
         default: LUX_UNREACHABLE();
     }
@@ -287,6 +295,16 @@ LUX_MAY_FAIL static handle_signal(ENetPacket* in_pack) {
                     deserialize(&iter, &chunks[i].light_lvls);
                     light_update(chunks[i]);
                 }
+            } break;
+            case NetSsSgnl::MSG: {
+                Slice<char> msg;
+                msg.len = sgnl.msg.contents.len;
+                msg.beg = lux_alloc<char>(msg.len);
+                LUX_DEFER { lux_free(msg.beg); };
+                for(Uns i = 0; i < msg.len; ++i) {
+                    deserialize(&iter, &msg.beg[i]);
+                }
+                console_print(msg.beg);
             } break;
             default: LUX_UNREACHABLE();
         }
@@ -387,4 +405,32 @@ void client_tick(GLFWwindow* glfw_window, Vec3F& player_pos) {
         LUX_ASSERT(iter == out_pack->data + out_pack->dataLength);
         (void)send_packet(client.peer, out_pack, TICK_CHANNEL);
     }
+}
+
+LUX_MAY_FAIL send_command(char const* beg) {
+    char const* end = beg;
+    while(*end != '\0') ++end;
+    SizeT len = end - beg;
+    if(len > 0) {
+        SizeT pack_sz = sizeof(NetCsSgnl::Header) +
+            sizeof(NetCsSgnl::Command) + len;
+
+        ENetPacket* out_pack;
+        if(create_reliable_pack(out_pack, pack_sz) != LUX_OK) {
+            LUX_LOG("failed to create packet for command\n%s", beg);
+            return LUX_FAIL;
+        }
+        U8* iter = out_pack->data;
+        serialize(&iter, (U8 const&)NetCsSgnl::COMMAND);
+        serialize(&iter, (U32 const&)len);
+        for(Uns i = 0; i < len; ++i) {
+            serialize(&iter, beg[i]);
+        }
+        LUX_ASSERT(iter == out_pack->data + out_pack->dataLength);
+        if(send_packet(client.peer, out_pack, SIGNAL_CHANNEL) != LUX_OK) {
+            LUX_LOG("failed to send packet for command\n%s", beg);
+            return LUX_FAIL;
+        }
+    }
+    return LUX_OK;
 }

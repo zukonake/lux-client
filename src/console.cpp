@@ -393,10 +393,12 @@ static void console_enter() {
             case 0: break;
             case LUA_ERRSYNTAX: {
                 console_print(lua_tolstring(console.lua_L, -1, nullptr));
+                return;
             } break;
             case LUA_ERRMEM: LUX_FATAL("lua memory error");
             default: {
                 console_print("unknown lua error");
+                return;
             } break;
         }
         switch(lua_pcall(console.lua_L, 0, 0, 0)) {
