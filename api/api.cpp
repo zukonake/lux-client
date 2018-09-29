@@ -1,5 +1,6 @@
 #include <map.hpp>
 #include <console.hpp>
+#include <client.hpp>
 
 extern "C" {
 
@@ -16,7 +17,7 @@ void reload_program() {
 }
 
 void quit() {
-    print("unimplemented");
+    client_quit();
 }
 
 }
