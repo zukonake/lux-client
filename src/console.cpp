@@ -278,13 +278,15 @@ void console_render() {
         for(Uns i = 0; i < grid_size.x && i < Console::IN_BUFF_WIDTH; ++i) {
             if(i == console.cursor_pos - console.cursor_scroll) {
                 blit_character(i, console.in_buff[i + console.cursor_scroll],
-                    {0x00, 0x00, 0x00}, {0xFF, 0x00, 0x00});
+                    {0x40, 0x40, 0x40}, {0xFF, 0x00, 0x00});
             } else {
-                blit_character(i, console.in_buff[i + console.cursor_scroll]);
+                blit_character(i, console.in_buff[i + console.cursor_scroll],
+                    {0xFF, 0xFF, 0xFF}, {0x40, 0x40, 0x40});
             }
         }
         for(Uns i = grid_size.x; i < grid_size.x * grid_size.y; ++i) {
-            blit_character(i, console.out_buff[i - grid_size.x]);
+            blit_character(i, console.out_buff[i - grid_size.x],
+                    {0xD0, 0xD0, 0xD0}, {0x00, 0x00, 0x00});
         }
         glBindBuffer(GL_ARRAY_BUFFER, console.font_vbo);
         glBufferData(GL_ARRAY_BUFFER, sizeof(FontVert) * console.font_verts.size(),
