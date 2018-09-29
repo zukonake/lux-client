@@ -268,6 +268,9 @@ void console_print(char const* beg) {
                  console.out_buff.data(), grid_size.x * (grid_size.y - 2));
     std::memcpy(console.out_buff.data(), beg, len);
     std::memset(console.out_buff.data() + len, 0, grid_size.x - len);
+    if((std::uintptr_t)(end - beg) >= grid_size.x) {
+        console_print(end);
+    }
 }
 
 void console_render() {
