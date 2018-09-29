@@ -24,7 +24,7 @@ struct FontVert {
 #pragma pack(pop)
 
 struct Console {
-    static constexpr Uns IN_BUFF_WIDTH = 0x40;
+    static constexpr Uns IN_BUFF_WIDTH = 0x60;
     Vec2U grid_size = {0, 10};
     Uns scale     = 3;
     Uns char_size = 8;
@@ -59,6 +59,7 @@ struct {
 static void console_move_cursor(bool forward);
 static void console_enter();
 static void console_backspace();
+static void console_delete();
 static void console_input_char(char character);
 static Uns  console_seek_last();
 
@@ -193,6 +194,8 @@ void console_key_cb(int key, int code, int action, int mods) {
                     console_input_char(' ');
                 } else if(key == GLFW_KEY_BACKSPACE) {
                     console_backspace();
+                } else if(key == GLFW_KEY_DELETE) {
+                    console_delete();
                 } else if(key == GLFW_KEY_ENTER) {
                     console_enter();
                 } else if(key == GLFW_KEY_LEFT) {
@@ -301,6 +304,9 @@ static void console_move_cursor(bool forward) {
 
 static void console_input_char(char character) {
     if(console.cursor_pos < Console::IN_BUFF_WIDTH) {
+        std::memmove(console.in_buff + console.cursor_pos + 1,
+                     console.in_buff + console.cursor_pos,
+                     console_seek_last() - console.cursor_pos);
         console.in_buff[console.cursor_pos] = character;
         console_move_cursor(true);
     }
@@ -309,6 +315,14 @@ static void console_input_char(char character) {
 static void console_backspace() {
     if(console.cursor_pos > 0) {
         console_move_cursor(false);
+        std::memmove(console.in_buff + console.cursor_pos,
+                     console.in_buff + console.cursor_pos + 1,
+                     console_seek_last() - console.cursor_pos);
+    }
+}
+
+static void console_delete() {
+    if(console.cursor_pos > 0) {
         std::memmove(console.in_buff + console.cursor_pos,
                      console.in_buff + console.cursor_pos + 1,
                      console_seek_last() - console.cursor_pos);

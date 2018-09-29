@@ -29,8 +29,6 @@ void main()
     f_font_pos  = font_pos * font_pos_scale;
 
 //branches in shader?
-    if(fg_col == TRANSPARENT_COL) f_fg_col = vec4(0.0);
-    else f_fg_col = vec4(fg_col, 1.0);
-    if(bg_col == TRANSPARENT_COL) f_bg_col = vec4(0.0);
-    else f_bg_col = vec4(bg_col, 1.0);
+    f_fg_col = vec4(fg_col, fg_col != TRANSPARENT_COL);
+    f_bg_col = vec4(bg_col, bg_col != TRANSPARENT_COL);
 }
