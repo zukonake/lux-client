@@ -24,9 +24,4 @@ lux.mt.__index = function(tab, k)
     end
 end
 
-function s(str)
-    assert(type(str) == "string")
-    lux.server_command(str)
-end
-
 setmetatable(lux, lux.mt)

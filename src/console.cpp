@@ -10,6 +10,7 @@
 #include <lux_shared/common.hpp>
 //
 #include <rendering.hpp>
+#include <client.hpp>
 #include "console.hpp"
 
 #pragma pack(push, 1)
@@ -380,7 +381,7 @@ static void console_enter() {
     auto const& grid_size = console.grid_size;
     char const* beg = console.in_buff;
     char const* end = beg;
-    while(*end != '\0' && (std::uintptr_t)(end - beg) < grid_size.x) {
+    while(*end != '\0' && (std::uintptr_t)(end - beg) < Console::IN_BUFF_WIDTH) {
         ++end;
     }
     String command(beg, end - beg);
@@ -389,28 +390,36 @@ static void console_enter() {
     console.cursor_scroll = 0;
     if(command.size() > 2 && command[0] == '!') {
         command.erase(0, 1);
-        switch(luaL_loadstring(console.lua_L, command.c_str())) {
-            case 0: break;
-            case LUA_ERRSYNTAX: {
-                console_print(lua_tolstring(console.lua_L, -1, nullptr));
-                return;
-            } break;
-            case LUA_ERRMEM: LUX_FATAL("lua memory error");
-            default: {
-                console_print("unknown lua error");
-                return;
-            } break;
-        }
-        switch(lua_pcall(console.lua_L, 0, 0, 0)) {
-            case 0: break;
-            case LUA_ERRRUN: {
-                console_print(lua_tolstring(console.lua_L, -1, nullptr));
-            } break;
-            case LUA_ERRMEM: LUX_FATAL("lua memory error");
-            case LUA_ERRERR: LUX_FATAL("lua error handler error");
-            default: {
-                console_print("unknown lua error");
-            } break;
+        if(command.size() > 2 && command[0] == 's') {
+            command.erase(0, 1);
+            if(send_command(command.c_str()) != LUX_OK) {
+                console_print("failed to send server command");
+                console_print(command.c_str());
+            }
+        } else {
+            switch(luaL_loadstring(console.lua_L, command.c_str())) {
+                case 0: break;
+                case LUA_ERRSYNTAX: {
+                    console_print(lua_tolstring(console.lua_L, -1, nullptr));
+                    return;
+                } break;
+                case LUA_ERRMEM: LUX_FATAL("lua memory error");
+                default: {
+                    console_print("unknown lua error");
+                    return;
+                } break;
+            }
+            switch(lua_pcall(console.lua_L, 0, 0, 0)) {
+                case 0: break;
+                case LUA_ERRRUN: {
+                    console_print(lua_tolstring(console.lua_L, -1, nullptr));
+                } break;
+                case LUA_ERRMEM: LUX_FATAL("lua memory error");
+                case LUA_ERRERR: LUX_FATAL("lua error handler error");
+                default: {
+                    console_print("unknown lua error");
+                } break;
+            }
         }
     } else {
         console_print(command.c_str());

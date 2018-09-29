@@ -26,7 +26,6 @@ void window_resize_cb(GLFWwindow* window, int win_w, int win_h)
 
 void key_cb(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
-    //@TODO if console captures the key, it shouldn't control the entity etc.
     //@CONSIDER a centralized input system
     console_key_cb(key, scancode, action, mods);
 }
