@@ -24,7 +24,7 @@ struct FontVert {
 
 struct {
     Vec2U grid_size = {0, 10};
-    Uns scale     = 4;
+    Uns scale     = 3;
     Uns char_size = 8;
 
     U32 idxs_count = 0;
@@ -134,8 +134,8 @@ void console_window_resize_cb(int win_w, int win_h) {
 void console_key_cb(int key, int code, int action, int mods) {
 #define CASE_CHAR(key, normal, shift) \
     case GLFW_KEY_##key: { \
-        if(mods & GLFW_MOD_SHIFT) console_input_char(normal); \
-        else                      console_input_char(shift); \
+        if(mods & GLFW_MOD_SHIFT) console_input_char(shift); \
+        else                      console_input_char(normal); \
     } break
 
     if(action != GLFW_PRESS) return;
@@ -200,6 +200,9 @@ void console_render() {
         for(Uns i = 0; i < console.font_buff.size(); ++i) {
             Vec2F base_pos = {console.font_buff[i] % 16,
                               console.font_buff[i] / 16};
+            if(i < console.grid_size.x && i == console.cursor_pos) {
+                base_pos = {'|' % 16, '|' / 16};
+            }
             console.font_verts[i * 4 + 0].font_pos = base_pos + Vec2F(0, 1);
             console.font_verts[i * 4 + 1].font_pos = base_pos + Vec2F(0, 0);
             console.font_verts[i * 4 + 2].font_pos = base_pos + Vec2F(1, 1);
@@ -251,7 +254,6 @@ static void console_input_char(char character) {
         console.font_buff[console.cursor_pos] = character;
         ++console.cursor_pos;
     }
-
 }
 
 static void console_backspace() {

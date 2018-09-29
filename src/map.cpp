@@ -50,7 +50,7 @@ void map_render(EntityVec const& player_pos) {
     //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     {   Vec2U window_size = get_window_size();
         F32 ratio = (F32)window_size.x / (F32)window_size.y;
-        F32 constexpr BASE_SCALE = 0.04f;
+        F32 constexpr BASE_SCALE = 0.06f;
         glm::mat4 matrix(1.f);
         matrix = glm::scale(matrix, Vec3F(BASE_SCALE, -BASE_SCALE * ratio, 1.f));
         matrix = glm::translate(matrix, -player_pos);

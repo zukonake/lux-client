@@ -326,19 +326,22 @@ void do_tick() {
         }
         U8* iter = out_pack->data;
         Vec2F dir = {0.f, 0.f};
-        if(glfwGetKey(glfw_window, GLFW_KEY_W) == GLFW_PRESS) {
-            dir.y = -1.f;
-        } else if(glfwGetKey(glfw_window, GLFW_KEY_S) == GLFW_PRESS) {
-            dir.y = 1.f;
-        }
-        if(glfwGetKey(glfw_window, GLFW_KEY_A) == GLFW_PRESS) {
-            dir.x = -1.f;
-        } else if(glfwGetKey(glfw_window, GLFW_KEY_D) == GLFW_PRESS) {
-            dir.x = 1.f;
-        }
-        if(dir.x != 0.f || dir.y != 0.f) {
-            dir = glm::normalize(dir);
-            dir = glm::rotate(dir, get_aim_rotation());
+        ///we ignore the input if console is opened up
+        if(!console_is_active()) {
+            if(glfwGetKey(glfw_window, GLFW_KEY_W) == GLFW_PRESS) {
+                dir.y = -1.f;
+            } else if(glfwGetKey(glfw_window, GLFW_KEY_S) == GLFW_PRESS) {
+                dir.y = 1.f;
+            }
+            if(glfwGetKey(glfw_window, GLFW_KEY_A) == GLFW_PRESS) {
+                dir.x = -1.f;
+            } else if(glfwGetKey(glfw_window, GLFW_KEY_D) == GLFW_PRESS) {
+                dir.x = 1.f;
+            }
+            if(dir.x != 0.f || dir.y != 0.f) {
+                dir = glm::normalize(dir);
+                dir = glm::rotate(dir, get_aim_rotation());
+            }
         }
         serialize(&iter, dir);
         LUX_ASSERT(iter == out_pack->data + out_pack->dataLength);
