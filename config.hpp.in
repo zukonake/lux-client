@@ -8,6 +8,10 @@
     #error "no opengl version selected"
 #endif
 
+#if defined(LUX_GL_3_3) + defined(LUX_GLES_2_0) > 1
+    #error "more than one version of opengl defined"
+#endif
+
 #pragma once
 
 #if defined(LUX_GLES_2_0)
