@@ -5,8 +5,7 @@
 #include <fstream>
 //
 #include <include_opengl.hpp>
-#include <include_glfw.hpp>
-#define GLM_FORCE_PURE
+#include <GLFW/glfw3.h>
 #include <glm/gtc/constants.hpp>
 #include <lodepng.h>
 //
@@ -38,11 +37,11 @@ void rendering_init() {
         glfwInit();
         glfwSetErrorCallback(glfw_error_cb);
         LUX_LOG("initializing GLFW window");
-#if   LUX_GL_VARIANT == LUX_GL_VARIANT_3_3
+#if defined(LUX_GL_3_3)
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-#elif LUX_GL_VARIANT == LUX_GL_VARIANT_ES_2_0
+#elif defined(LUX_GLES_2_0)
         glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
         glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
@@ -64,9 +63,9 @@ void rendering_init() {
 
     { ///GLAD
         LUX_LOG("initializing GLAD");
-#if   LUX_GL_VARIANT == LUX_GL_VARIANT_3_3
+#if defined(LUX_GL_3_3)
         if(gladLoadGLLoader((GLADloadproc)glfwGetProcAddress) == 0)
-#elif LUX_GL_VARIANT == LUX_GL_VARIANT_ES_2_0
+#elif defined(LUX_GLES_2_0)
         if(gladLoadGLES2Loader((GLADloadproc)glfwGetProcAddress) == 0)
 #endif
         {
@@ -101,9 +100,9 @@ void check_opengl_error()
 GLuint load_shader(GLenum type, char const* path) {
     GLuint id = glCreateShader(type);
     char constexpr VERSION_DIRECTIVE[] = "#version "
-#if LUX_GL_VARIANT == LUX_GL_VARIANT_3_3
+#if defined(LUX_GL_3_3)
         "330 core"
-#elif LUX_GL_VARIANT == LUX_GL_VARIANT_ES_2_0
+#elif defined(LUX_GLES_2_0)
         "100"
 #endif
         "\n";

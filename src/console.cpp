@@ -35,7 +35,7 @@ struct Console {
     GLuint grid_vbo;
     GLuint font_vbo;
     GLuint ebo;
-#if LUX_GL_VARIANT == LUX_GL_VARIANT_3_3
+#if defined(LUX_GL_3_3)
     GLuint vao;
 #endif
 
@@ -85,7 +85,7 @@ void console_init(Vec2U win_size) {
     glGenBuffers(1, &console.font_vbo);
     glGenBuffers(1, &console.ebo);
 
-#if LUX_GL_VARIANT == LUX_GL_VARIANT_3_3
+#if defined(LUX_GL_3_3)
     glGenVertexArrays(1, &console.vao);
     glBindVertexArray(console.vao);
 
@@ -298,7 +298,7 @@ void console_render() {
 
         glUseProgram(console.program);
         glBindTexture(GL_TEXTURE_2D, console.font);
-#if LUX_GL_VARIANT == LUX_GL_VARIANT_ES_2_0
+#if defined(LUX_GLES_2_0)
         glBindBuffer(GL_ARRAY_BUFFER, console.grid_vbo);
         glVertexAttribPointer(shader_attribs.pos,
             2, GL_FLOAT, GL_FALSE, sizeof(GridVert),
@@ -314,7 +314,7 @@ void console_render() {
         glVertexAttribPointer(shader_attribs.bg_col,
             3, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(FontVert),
             (void*)offsetof(FontVert, bg_col));
-#else
+#elif defined(LUX_GL_3_3)
         glBindVertexArray(console.vao);
 #endif
         glEnableVertexAttribArray(shader_attribs.pos);

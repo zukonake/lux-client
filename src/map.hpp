@@ -1,5 +1,7 @@
 #pragma once
 
+#include <config.hpp>
+//
 #include <include_opengl.hpp>
 //
 #include <lux_shared/map.hpp>
@@ -13,9 +15,9 @@ struct Chunk {
         static constexpr GLenum INDEX_GL_TYPE = GL_UNSIGNED_INT;
 #pragma pack(push, 1)
         struct GVert {
-#if   LUX_GL_VARIANT == LUX_GL_VARIANT_ES_2_0
+#if defined(LUX_GLES_2_0)
             Vec2<F32> pos;
-#elif LUX_GL_VARIANT == LUX_GL_VARIANT_3_3
+#elif defined(LUX_GL_3_3)
             Vec2<I32> pos;
 #endif
             Vec2<U16> tex_pos;
@@ -29,7 +31,7 @@ struct Chunk {
         GLuint g_vbo;
         GLuint l_vbo;
         GLuint ebo;
-#if LUX_GL_VARIANT == LUX_GL_VARIANT_3_3
+#if defined(LUX_GL_3_3)
         GLuint vao;
 #endif
         U32 trig_count;

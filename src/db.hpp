@@ -1,5 +1,7 @@
 #pragma once
 
+#include <config.hpp>
+//
 #include <lux_shared/common.hpp>
 #include <lux_shared/map.hpp>
 

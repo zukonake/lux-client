@@ -1,5 +1,7 @@
 #pragma once
 
+#include <config.hpp>
+//
 #include <lux_shared/common.hpp>
 
 void client_init(char const* server_hostname, U16 server_port, F64& tick_rate);

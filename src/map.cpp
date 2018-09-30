@@ -1,6 +1,7 @@
+#include <config.hpp>
+//
 #include <cstring>
 //
-#define GLM_FORCE_PURE
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -79,7 +80,7 @@ void map_render(EntityVec const& player_pos) {
                 if(!mesh.is_built) {
                     if(!try_build_mesh(iter)) continue;
                 }
-#if LUX_GL_VARIANT == LUX_GL_VARIANT_ES_2_0
+#if defined(LUX_GLES_2_0)
                 glBindBuffer(GL_ARRAY_BUFFER, mesh.g_vbo);
                 glVertexAttribPointer(shader_attribs.pos,
                     2, GL_FLOAT, GL_FALSE, sizeof(Chunk::Mesh::GVert),
@@ -91,7 +92,7 @@ void map_render(EntityVec const& player_pos) {
                 glVertexAttribPointer(shader_attribs.col,
                     3, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Chunk::Mesh::LVert),
                     (void*)offsetof(Chunk::Mesh::LVert, col));
-#elif LUX_GL_VARIANT == LUX_GL_VARIANT_3_3
+#elif defined(LUX_GL_3_3)
                 glBindVertexArray(mesh.vao);
 #endif
                 glEnableVertexAttribArray(shader_attribs.pos);
@@ -256,7 +257,7 @@ static void build_mesh(Chunk &chunk, ChkPos const &pos) {
     glGenBuffers(1, &mesh.g_vbo);
     glGenBuffers(1, &mesh.l_vbo);
     glGenBuffers(1, &mesh.ebo);
-#if LUX_GL_VARIANT == LUX_GL_VARIANT_3_3
+#if defined(LUX_GL_3_3)
     glGenVertexArrays(1, &mesh.vao);
     glBindVertexArray(mesh.vao);
 #endif
@@ -264,7 +265,7 @@ static void build_mesh(Chunk &chunk, ChkPos const &pos) {
     glBindBuffer(GL_ARRAY_BUFFER, mesh.g_vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(Chunk::Mesh::GVert) * g_verts.size(),
                  g_verts.data(), GL_DYNAMIC_DRAW);
-#if LUX_GL_VARIANT == LUX_GL_VARIANT_3_3
+#if defined(LUX_GL_3_3)
     glVertexAttribPointer(shader_attribs.pos,
         2, GL_INT, GL_FALSE, sizeof(Chunk::Mesh::GVert),
         (void*)offsetof(Chunk::Mesh::GVert, pos));
@@ -276,7 +277,7 @@ static void build_mesh(Chunk &chunk, ChkPos const &pos) {
     glBindBuffer(GL_ARRAY_BUFFER, mesh.l_vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(Chunk::Mesh::LVert) * l_verts.size(),
                  l_verts.data(), GL_DYNAMIC_DRAW);
-#if LUX_GL_VARIANT == LUX_GL_VARIANT_3_3
+#if defined(LUX_GL_3_3)
     glVertexAttribPointer(shader_attribs.col,
         3, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Chunk::Mesh::LVert),
         (void*)offsetof(Chunk::Mesh::LVert, col));
