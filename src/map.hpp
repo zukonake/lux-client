@@ -36,16 +36,11 @@ struct Chunk {
     } mesh;
 };
 
-struct MapAssets {
-    char const* shader_path;
-    char const* tileset_path;
-    Vec2U tile_size;
-};
-
 extern VecSet<ChkPos> chunk_requests;
 
-void map_init(MapAssets assets);
+void map_init();
 void map_render(EntityVec const& player_pos);
+void map_reload_program();
 bool is_chunk_loaded(ChkPos const& pos);
 void load_chunk(NetSsSgnl::MapLoad::Chunk const& net_chunk);
 void light_update(NetSsSgnl::LightUpdate::Chunk const& net_chunk);

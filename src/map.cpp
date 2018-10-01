@@ -28,18 +28,13 @@ VecSet<ChkPos> chunk_requests;
 static void build_mesh(Chunk &chunk, ChkPos const &pos);
 static bool try_build_mesh(ChkPos const& pos);
 
-void map_init(MapAssets assets) {
-    String base_shader_path = String(assets.shader_path) +
-#if   LUX_GL_VARIANT == LUX_GL_VARIANT_3_3
-        String("-3.3");
-#elif LUX_GL_VARIANT == LUX_GL_VARIANT_ES_2_0
-        String("-es-2.0");
-#endif
-    program = load_program((base_shader_path + String(".vert")).c_str(),
-                           (base_shader_path + String(".frag")).c_str());
+static void map_load_program() {
+    char const* tileset_path = "tileset.png";
+    Vec2U const tile_size = {16, 16};
+    program = load_program("glsl/map.vert", "glsl/map.frag");
     Vec2U tileset_size;
-    tileset = load_texture(assets.tileset_path, tileset_size);
-    Vec2F tex_scale = (Vec2F)assets.tile_size / (Vec2F)tileset_size;
+    tileset = load_texture(tileset_path, tileset_size);
+    Vec2F tex_scale = (Vec2F)tile_size / (Vec2F)tileset_size;
     glUseProgram(program);
 
     shader_attribs.pos     = glGetAttribLocation(program, "pos");
@@ -50,12 +45,17 @@ void map_init(MapAssets assets) {
                 1, glm::value_ptr(tex_scale));
 }
 
+void map_init() {
+    map_load_program();
+}
+
 void map_render(EntityVec const& player_pos) {
     glUseProgram(program);
     glBindTexture(GL_TEXTURE_2D, tileset);
+    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     {   Vec2U window_size = get_window_size();
         F32 ratio = (F32)window_size.x / (F32)window_size.y;
-        F32 constexpr BASE_SCALE = 0.08f;
+        F32 constexpr BASE_SCALE = 0.06f;
         glm::mat4 matrix(1.f);
         matrix = glm::scale(matrix, Vec3F(BASE_SCALE, -BASE_SCALE * ratio, 1.f));
         matrix = glm::translate(matrix, -player_pos);
@@ -110,6 +110,13 @@ void map_render(EntityVec const& player_pos) {
             }
         }
     }
+}
+
+void map_reload_program() {
+    LUX_LOG("reloading map program");
+    glDeleteTextures(1, &tileset);
+    glDeleteProgram(program);
+    map_load_program();
 }
 
 bool is_chunk_loaded(ChkPos const& pos) {
@@ -211,36 +218,38 @@ static void build_mesh(Chunk &chunk, ChkPos const &pos) {
     for(ChkIdx i = 0; i < CHK_VOL; ++i) {
         MapPos map_pos = to_map_pos(pos, i);
         VoxelType vox_type = db_voxel_type(get_voxel(map_pos));
-        bool is_solid = db_voxel_type(chunk.voxels[i]).shape != VoxelType::EMPTY;
-        if(!is_solid) continue;
+        if(db_voxel_type(chunk.voxels[i]).shape == VoxelType::EMPTY) continue;
         for(U32 j = 0; j < 4; ++j) {
             constexpr MapPos vert_offsets[4] =
-                {{0, 0, 0}, {0, 1, 0}, {1, 0, 0}, {1, 1, 0}};
-            MapPos v_sign = glm::sign((Vec3F)quad[j] - Vec3F(0.5, 0.5, 0));
-            Vec3U col_avg(0.f);
+                {{-1, -1, 0}, {-1, 0, 0}, {0, -1, 0}, {0, 0, 0}};
+            MapPos vert_pos = map_pos + quad[j];
+            Vec3F col_avg(0.f);
             for(auto const &vert_offset : vert_offsets) {
-                MapPos v_off_pos = map_pos + vert_offset * v_sign;
+                MapPos v_off_pos = vert_pos + vert_offset;
                 LightLvl light_lvl =
                     get_chunk(to_chk_pos(v_off_pos)).light_lvls[to_chk_idx(v_off_pos)];
-                col_avg += Vec3U(
-                    (F32)((light_lvl & 0xF000) >> 12) * 17,
-                    (F32)((light_lvl & 0x0F00) >>  8) * 17,
-                    (F32)((light_lvl & 0x00F0) >>  4) * 17);
+                col_avg += Vec3F((light_lvl & 0xF000) >> 12,
+                                 (light_lvl & 0x0F00) >>  8,
+                                 (light_lvl & 0x00F0) >>  4) * 17.f;
             }
-            LightLvl light_lvl = chunk.light_lvls[i];
-            col_avg += Vec3U(
-                (F32)((light_lvl & 0xF000) >> 12) * 17,
-                (F32)((light_lvl & 0x0F00) >>  8) * 17,
-                (F32)((light_lvl & 0x00F0) >>  4) * 17);
-            col_avg /= 5.f;
+            col_avg /= 4.f;
             Chunk::Mesh::GVert& g_vert = g_verts.emplace_back();
-            g_vert.pos = map_pos + quad[j];
+            g_vert.pos = vert_pos;
             g_vert.tex_pos = vox_type.tex_pos + tex_positions[j];
             Chunk::Mesh::LVert& l_vert = l_verts.emplace_back();
             l_vert.col = col_avg;
         }
-        for(auto const &idx : {0, 1, 2, 2, 3, 0}) {
-            idxs.emplace_back(idx + idx_offset);
+        if(glm::length((Vec3F)l_verts[idx_offset + 0].col) +
+           glm::length((Vec3F)l_verts[idx_offset + 2].col) <
+           glm::length((Vec3F)l_verts[idx_offset + 1].col) +
+           glm::length((Vec3F)l_verts[idx_offset + 3].col)) {
+            for(auto const &idx : {0, 1, 2, 2, 3, 0}) {
+                idxs.emplace_back(idx + idx_offset);
+            }
+        } else {
+            for(auto const &idx : {0, 1, 3, 3, 2, 1}) {
+                idxs.emplace_back(idx + idx_offset);
+            }
         }
         idx_offset += 4;
     }
