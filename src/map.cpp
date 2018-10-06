@@ -36,6 +36,9 @@ struct MaterialMesh {
     };
 #pragma pack(pop)
     GLuint vbo;
+#if defined(LUX_GL_3_3)
+    GLuint vao;
+#endif
 };
 
 struct {
@@ -106,10 +109,13 @@ void map_render(EntityVec const& player_pos) {
         set_uniform("scale", program, glUniform2fv,
                     1, glm::value_ptr(scale));
     }
+#if defined(LUX_GLES_2_0)
     glBindBuffer(GL_ARRAY_BUFFER, geometry_mesh.vbo);
     glVertexAttribPointer(shader_attribs.pos,
         2, GL_UNSIGNED_INT, GL_FALSE, sizeof(GeometryMesh::Vert),
         (void*)offsetof(GeometryMesh::Vert, pos));
+    glEnableVertexAttribArray(shader_attribs.pos);
+#endif
 
     U32 constexpr RENDER_DIST = 2;
     ChkPos center = to_chk_pos(player_pos);
@@ -128,25 +134,31 @@ void map_render(EntityVec const& player_pos) {
                 set_uniform("translation", program, glUniform2fv,
                             1, glm::value_ptr(translation));
 
-                glBindBuffer(GL_ARRAY_BUFFER, meshes.at(iter).vbo);
+                MaterialMesh const& mesh = meshes.at(iter);
+#if defined(LUX_GLES_2_0)
+                glBindBuffer(GL_ARRAY_BUFFER, mesh.vbo);
                 glVertexAttribPointer(shader_attribs.tex_pos,
                     2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof(MaterialMesh::Vert),
                     (void*)offsetof(MaterialMesh::Vert, tex_pos));
-
-                glEnableVertexAttribArray(shader_attribs.pos);
                 glEnableVertexAttribArray(shader_attribs.tex_pos);
 
                 glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, geometry_mesh.ebo);
+#elif defined(LUX_GL_3_3)
+                glBindVertexArray(mesh.vao);
+#endif
                 glDrawElements(GL_TRIANGLES, CHK_VOL * 2 * 3,
                     GeometryMesh::IDX_GL_TYPE, 0);
-
-                glDisableVertexAttribArray(shader_attribs.pos);
+#if defined(LUX_GLES_2_0)
                 glDisableVertexAttribArray(shader_attribs.tex_pos);
+#endif
             } else {
                 chunk_requests.emplace(iter);
             }
         }
     }
+#if defined(LUX_GLES_2_0)
+    glDisableVertexAttribArray(shader_attribs.pos);
+#endif
 }
 
 void map_reload_program() {
@@ -177,6 +189,24 @@ void load_chunk(NetSsSgnl::MapLoad::Chunk const& net_chunk) {
     MaterialMesh& mesh = meshes[pos];
     glGenBuffers(1, &mesh.vbo);
     build_material_mesh(mesh, chunk);
+#if defined(LUX_GL_3_3)
+    glGenVertexArrays(1, &mesh.vao);
+    glBindVertexArray(mesh.vao);
+
+    glBindBuffer(GL_ARRAY_BUFFER, geometry_mesh.vbo);
+    glVertexAttribPointer(shader_attribs.pos,
+        2, GL_UNSIGNED_INT, GL_FALSE, sizeof(GeometryMesh::Vert),
+        (void*)offsetof(GeometryMesh::Vert, pos));
+    glEnableVertexAttribArray(shader_attribs.pos);
+
+    glBindBuffer(GL_ARRAY_BUFFER, mesh.vbo);
+    glVertexAttribPointer(shader_attribs.tex_pos,
+        2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof(MaterialMesh::Vert),
+        (void*)offsetof(MaterialMesh::Vert, tex_pos));
+    glEnableVertexAttribArray(shader_attribs.tex_pos);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, geometry_mesh.ebo);
+#endif
 }
 
 void light_update(NetSsSgnl::LightUpdate::Chunk const& net_chunk) {

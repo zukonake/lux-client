@@ -89,10 +89,12 @@ void console_init(Vec2U win_size) {
     glGenVertexArrays(1, &console.vao);
     glBindVertexArray(console.vao);
 
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, console.ebo);
     glBindBuffer(GL_ARRAY_BUFFER, console.grid_vbo);
     glVertexAttribPointer(shader_attribs.pos,
         2, GL_FLOAT, GL_FALSE, sizeof(GridVert),
         (void*)offsetof(GridVert, pos));
+    glEnableVertexAttribArray(shader_attribs.pos);
 
     glBindBuffer(GL_ARRAY_BUFFER, console.font_vbo);
     glVertexAttribPointer(shader_attribs.font_pos,
@@ -104,6 +106,9 @@ void console_init(Vec2U win_size) {
     glVertexAttribPointer(shader_attribs.bg_col,
         3, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(FontVert),
         (void*)offsetof(FontVert, bg_col));
+    glEnableVertexAttribArray(shader_attribs.font_pos);
+    glEnableVertexAttribArray(shader_attribs.fg_col);
+    glEnableVertexAttribArray(shader_attribs.bg_col);
 #endif
 
     console_window_resize_cb(win_size.x, win_size.y);
@@ -314,19 +319,22 @@ void console_render() {
         glVertexAttribPointer(shader_attribs.bg_col,
             3, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(FontVert),
             (void*)offsetof(FontVert, bg_col));
-#elif defined(LUX_GL_3_3)
-        glBindVertexArray(console.vao);
-#endif
         glEnableVertexAttribArray(shader_attribs.pos);
         glEnableVertexAttribArray(shader_attribs.font_pos);
         glEnableVertexAttribArray(shader_attribs.fg_col);
         glEnableVertexAttribArray(shader_attribs.bg_col);
+
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, console.ebo);
+#elif defined(LUX_GL_3_3)
+        glBindVertexArray(console.vao);
+#endif
         glDrawElements(GL_TRIANGLES, console.idxs_count, GL_UNSIGNED_INT, 0);
+#if defined(LUX_GLES_2_0)
         glDisableVertexAttribArray(shader_attribs.pos);
         glDisableVertexAttribArray(shader_attribs.font_pos);
         glDisableVertexAttribArray(shader_attribs.fg_col);
         glDisableVertexAttribArray(shader_attribs.bg_col);
+#endif
     }
 }
 
