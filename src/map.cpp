@@ -22,7 +22,7 @@ struct GeometryMesh {
     static constexpr GLenum IDX_GL_TYPE = GL_UNSIGNED_INT;
 #pragma pack(push, 1)
     struct Vert {
-        Vec2<U32> pos;
+        Vec2<U16> pos;
     };
 #pragma pack(pop)
     GLuint vbo;
@@ -79,8 +79,8 @@ void map_init() {
     for(ChkIdx i = 0; i < CHK_VOL; ++i) {
         IdxPos idx_pos = to_idx_pos(i);
         for(Uns j = 0; j < 4; ++j) {
-            constexpr Vec2<U32> quad[4] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
-            verts[i * 4 + j].pos = (Vec2<U32>)idx_pos + quad[j];
+            constexpr Vec2<U16> quad[4] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
+            verts[i * 4 + j].pos = (Vec2<U16>)idx_pos + quad[j];
         }
         GeometryMesh::Idx constexpr idx_order[6] = {0, 1, 2, 2, 3, 0};
         for(Uns j = 0; j < 6; ++j) {
@@ -112,7 +112,7 @@ void map_render(EntityVec const& player_pos) {
 #if defined(LUX_GLES_2_0)
     glBindBuffer(GL_ARRAY_BUFFER, geometry_mesh.vbo);
     glVertexAttribPointer(shader_attribs.pos,
-        2, GL_UNSIGNED_INT, GL_FALSE, sizeof(GeometryMesh::Vert),
+        2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof(GeometryMesh::Vert),
         (void*)offsetof(GeometryMesh::Vert, pos));
     glEnableVertexAttribArray(shader_attribs.pos);
 #endif
@@ -195,7 +195,7 @@ void load_chunk(NetSsSgnl::MapLoad::Chunk const& net_chunk) {
 
     glBindBuffer(GL_ARRAY_BUFFER, geometry_mesh.vbo);
     glVertexAttribPointer(shader_attribs.pos,
-        2, GL_UNSIGNED_INT, GL_FALSE, sizeof(GeometryMesh::Vert),
+        2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof(GeometryMesh::Vert),
         (void*)offsetof(GeometryMesh::Vert, pos));
     glEnableVertexAttribArray(shader_attribs.pos);
 
