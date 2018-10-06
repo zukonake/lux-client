@@ -139,6 +139,10 @@ void console_init(Vec2U win_size) {
         case LUA_ERRERR: LUX_FATAL("lua error handler error");
         default: LUX_FATAL("lua unknown error");
     }
+
+    ///bind some useful stuff
+    console_bind_key('q', "/lux.quit()");
+    console_bind_key('r', "/lux.reload_program()");
 }
 
 void console_deinit() {
