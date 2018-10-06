@@ -50,6 +50,7 @@ struct Console {
     Uns cursor_pos = 0;
     Uns cursor_scroll = 0;
     lua_State* lua_L;
+    HashTable<char, String> key_bindings;
 } static console;
 
 struct {
@@ -64,6 +65,8 @@ static void console_enter();
 static void console_backspace();
 static void console_delete();
 static void console_input_char(char character);
+static void console_exec_command(char const* str);
+static char parse_glfw_key(int key, int mods);
 static Uns  console_seek_last();
 
 void console_init(Vec2U win_size) {
@@ -181,71 +184,37 @@ void console_window_resize_cb(int win_w, int win_h) {
 }
 
 void console_key_cb(int key, int code, int action, int mods) {
-#define CASE_CHAR(key, normal, shift) \
-    case GLFW_KEY_##key: { \
-        if(mods & GLFW_MOD_SHIFT) console_input_char(shift); \
-        else                      console_input_char(normal); \
-    } break
-
     if(action != GLFW_PRESS) return;
     if(!console.is_active) {
         if(key == GLFW_KEY_T) {
             console.is_active = true;
+        } else {
+            char parsed_char = parse_glfw_key(key, mods);
+            if(parsed_char != '\0' &&
+               console.key_bindings.count(parsed_char) > 0) {
+                console_exec_command(console.key_bindings.at(parsed_char).c_str());
+            }
         }
     } else {
-        if(key == GLFW_KEY_ESCAPE) {
-            console.is_active = false;
-        } else switch(key) {
-            CASE_CHAR(APOSTROPHE   , '\'', '"');
-            CASE_CHAR(COMMA        , ',' , '<');
-            CASE_CHAR(MINUS        , '-' , '_');
-            CASE_CHAR(PERIOD       , '.' , '>');
-            CASE_CHAR(SLASH        , '/' , '?');
-            CASE_CHAR(SEMICOLON    , ';' , ':');
-            CASE_CHAR(EQUAL        , '=' , '+');
-            CASE_CHAR(LEFT_BRACKET , '[' , '{');
-            CASE_CHAR(BACKSLASH    , '\\', '|');
-            CASE_CHAR(RIGHT_BRACKET, ']' , '}');
-            CASE_CHAR(GRAVE_ACCENT , '`' , '~');
-            default: {
-                if(key >= GLFW_KEY_0 && key <= GLFW_KEY_9) {
-                    if(mods & GLFW_MOD_SHIFT) {
-                        switch(key) {
-                            case '0': { console_input_char(')'); } break;
-                            case '1': { console_input_char('!'); } break;
-                            case '2': { console_input_char('@'); } break;
-                            case '3': { console_input_char('#'); } break;
-                            case '4': { console_input_char('$'); } break;
-                            case '5': { console_input_char('%'); } break;
-                            case '6': { console_input_char('^'); } break;
-                            case '7': { console_input_char('&'); } break;
-                            case '8': { console_input_char('*'); } break;
-                            case '9': { console_input_char('('); } break;
-                            default: LUX_UNREACHABLE();
-                        }
-                    } else console_input_char(key);
-                } else if(key >= GLFW_KEY_A && key <= GLFW_KEY_Z) {
-                    if(mods & GLFW_MOD_SHIFT) console_input_char(key);
-                    else                      console_input_char(key + 32);
-                } else if(key == GLFW_KEY_SPACE) {
-                    console_input_char(' ');
-                } else if(key == GLFW_KEY_BACKSPACE) {
-                    console_backspace();
-                } else if(key == GLFW_KEY_DELETE) {
-                    console_delete();
-                } else if(key == GLFW_KEY_ENTER) {
-                    console_enter();
-                } else if(key == GLFW_KEY_LEFT) {
-                    if(console.cursor_pos > 0) console_move_cursor(false);
-                } else if(key == GLFW_KEY_RIGHT) {
-                    if(console.cursor_pos < Console::IN_BUFF_WIDTH) {
-                        console_move_cursor(true);
-                    }
+        switch(key) {
+            case GLFW_KEY_ESCAPE:    { console.is_active = false; } break;
+            case GLFW_KEY_BACKSPACE: { console_backspace();       } break;
+            case GLFW_KEY_DELETE:    { console_delete();          } break;
+            case GLFW_KEY_ENTER:     { console_enter();           } break;
+            case GLFW_KEY_LEFT: {
+                if(console.cursor_pos > 0) console_move_cursor(false);
+            } break;
+            case GLFW_KEY_RIGHT: {
+                if(console.cursor_pos < Console::IN_BUFF_WIDTH) {
+                    console_move_cursor(true);
                 }
+            } break;
+            default: {
+                char parsed_char = parse_glfw_key(key, mods);
+                if(parsed_char != '\0') console_input_char(parsed_char);
             } break;
         }
     }
-#undef CASE_CHAR
 }
 
 void console_clear() {
@@ -344,6 +313,11 @@ bool console_is_active() {
     return console.is_active;
 }
 
+void console_bind_key(char key, char const* input) {
+    //@TODO check if length < IN_BUFF_WIDTH
+    console.key_bindings[key] = String(input);
+}
+
 static void console_move_cursor(bool forward) {
     if(forward) {
         LUX_ASSERT(console.cursor_pos < Console::IN_BUFF_WIDTH);
@@ -387,17 +361,13 @@ static void console_delete() {
     }
 }
 
-static void console_enter() {
-    auto const& grid_size = console.grid_size;
-    char const* beg = console.in_buff;
+static void console_exec_command(char const* str) {
+    char const* beg = str;
     char const* end = beg;
     while(*end != '\0' && (std::uintptr_t)(end - beg) < Console::IN_BUFF_WIDTH) {
         ++end;
     }
     String command(beg, end - beg);
-    std::memset(console.in_buff, 0, Console::IN_BUFF_WIDTH);
-    console.cursor_pos = 0;
-    console.cursor_scroll = 0;
     if(command.size() > 2 && command[0] == '/') {
         command.erase(0, 1);
         if(command.size() > 2 && command[0] == 's') {
@@ -436,10 +406,56 @@ static void console_enter() {
     }
 }
 
+static void console_enter() {
+    auto const& grid_size = console.grid_size;
+    console_exec_command(console.in_buff);
+    std::memset(console.in_buff, 0, Console::IN_BUFF_WIDTH);
+    console.cursor_pos = 0;
+    console.cursor_scroll = 0;
+}
+
 static Uns console_seek_last() {
     Uns pos = 0;
     while(pos < Console::IN_BUFF_WIDTH && console.in_buff[pos] != 0) {
         ++pos;
     }
     return pos;
+}
+
+static char parse_glfw_key(int key, int mods) {
+#define CASE_CHAR(key, normal, shift) \
+    case GLFW_KEY_##key: { \
+        if(mods & GLFW_MOD_SHIFT) return shift; \
+        else                      return normal; \
+    } break
+
+    switch(key) {
+        CASE_CHAR(APOSTROPHE    , '\'', '"');
+        CASE_CHAR(COMMA         , ',' , '<');
+        CASE_CHAR(MINUS         , '-' , '_');
+        CASE_CHAR(PERIOD        , '.' , '>');
+        CASE_CHAR(SLASH         , '/' , '?');
+        CASE_CHAR(SEMICOLON     , ';' , ':');
+        CASE_CHAR(EQUAL         , '=' , '+');
+        CASE_CHAR(LEFT_BRACKET  , '[' , '{');
+        CASE_CHAR(BACKSLASH     , '\\', '|');
+        CASE_CHAR(RIGHT_BRACKET , ']' , '}');
+        CASE_CHAR(GRAVE_ACCENT  , '`' , '~');
+        CASE_CHAR(0             , '0' , ')');
+        CASE_CHAR(1             , '1' , '!');
+        CASE_CHAR(2             , '2' , '@');
+        CASE_CHAR(3             , '3' , '#');
+        CASE_CHAR(4             , '4' , '$');
+        CASE_CHAR(5             , '5' , '%');
+        CASE_CHAR(6             , '6' , '^');
+        CASE_CHAR(7             , '7' , '&');
+        CASE_CHAR(8             , '8' , '*');
+        CASE_CHAR(9             , '9' , '(');
+        CASE_CHAR(SPACE         , ' ' , ' ');
+        default: if(key >= GLFW_KEY_A && key <= GLFW_KEY_Z) {
+            if(mods & GLFW_MOD_SHIFT) return key;
+            else                      return key + 32;
+        } else return '\0';
+    }
+#undef CASE_CHAR
 }

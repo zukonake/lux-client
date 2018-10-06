@@ -16,6 +16,10 @@ void reload_program() {
     map_reload_program();
 }
 
+void bind_key(char key, char const* input) {
+    console_bind_key(key, input);
+}
+
 void quit() {
     client_quit();
 }
