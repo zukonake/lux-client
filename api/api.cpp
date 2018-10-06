@@ -20,4 +20,12 @@ void quit() {
     client_quit();
 }
 
+void wfon() {
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+}
+
+void wfoff() {
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+}
+
 }

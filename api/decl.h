@@ -4,3 +4,5 @@ void server_command(char const* str);
 
 void reload_program();
 void quit();
+void wfon();
+void wfoff();

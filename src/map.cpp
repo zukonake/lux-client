@@ -53,7 +53,6 @@ void map_init() {
 void map_render(EntityVec const& player_pos) {
     glUseProgram(program);
     glBindTexture(GL_TEXTURE_2D, tileset);
-    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     {   Vec2U window_size = get_window_size();
         F32 ratio = (F32)window_size.x / (F32)window_size.y;
         F32 constexpr BASE_SCALE = 0.06f;
