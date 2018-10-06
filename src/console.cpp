@@ -143,13 +143,15 @@ void console_deinit() {
 }
 
 void console_window_resize_cb(int win_w, int win_h) {
+    static DynArr<GridVert> grid_verts;
+    static DynArr<U32>            idxs;
+
     console.grid_size.x = win_w / (console.char_size * console.scale);
     auto const& grid_size = console.grid_size;
     console.out_buff.resize(grid_size.x * (grid_size.y - 1));
     console.font_verts.resize(4 * grid_size.x * grid_size.y);
-    //@CONSIDER static buffs
-    DynArr<GridVert> grid_verts(4 * grid_size.x * grid_size.y);
-    DynArr<U32>            idxs(6 * grid_size.x * grid_size.y);
+    grid_verts.resize(4 * grid_size.x * grid_size.y);
+    idxs.resize(6 * grid_size.x * grid_size.y);
     for(Uns i = 0; i < grid_size.x * grid_size.y; ++i) {
         Vec2F base_pos = {i % grid_size.x, i / grid_size.x};
         static const Vec2F quad[4] = {{0, 0}, {0, 1}, {1, 0}, {1, 1}};
@@ -163,10 +165,10 @@ void console_window_resize_cb(int win_w, int win_h) {
     }
     glBindBuffer(GL_ARRAY_BUFFER, console.grid_vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(GridVert) * grid_verts.size(),
-                 grid_verts.data(), GL_STATIC_DRAW);
+        grid_verts.data(), GL_STATIC_DRAW);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, console.ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(U32) * idxs.size(),
-                 idxs.data(), GL_STATIC_DRAW);
+        idxs.data(), GL_STATIC_DRAW);
     console.idxs_count = idxs.size();
 
     glUseProgram(console.program);
