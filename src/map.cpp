@@ -17,17 +17,39 @@
 GLuint program;
 GLuint tileset;
 
+struct GeometryMesh {
+    typedef U32 Idx;
+    static constexpr GLenum IDX_GL_TYPE = GL_UNSIGNED_INT;
+#pragma pack(push, 1)
+    struct Vert {
+        Vec2<U32> pos;
+    };
+#pragma pack(pop)
+    GLuint vbo;
+    GLuint ebo;
+};
+
+struct MaterialMesh {
+#pragma pack(push, 1)
+    struct Vert {
+        Vec2<U16> tex_pos;
+    };
+#pragma pack(pop)
+    GLuint vbo;
+};
+
 struct {
     GLint pos;
     GLint tex_pos;
-    GLint col;
 } shader_attribs;
 
-VecMap<ChkPos, Chunk> chunks;
+static GeometryMesh   geometry_mesh;
+//@CONSIDER putting mesh into chunk?
+VecMap<ChkPos, Chunk>        chunks;
+VecMap<ChkPos, MaterialMesh> meshes;
 VecSet<ChkPos> chunk_requests;
 
-static void build_mesh(Chunk &chunk, ChkPos const &pos);
-static bool try_build_mesh(ChkPos const& pos);
+static void build_material_mesh(MaterialMesh& mesh, Chunk const& chunk);
 
 static void map_load_program() {
     char const* tileset_path = "tileset.png";
@@ -40,7 +62,6 @@ static void map_load_program() {
 
     shader_attribs.pos     = glGetAttribLocation(program, "pos");
     shader_attribs.tex_pos = glGetAttribLocation(program, "tex_pos");
-    shader_attribs.col     = glGetAttribLocation(program, "col");
 
     set_uniform("tex_scale", program, glUniform2fv,
                 1, glm::value_ptr(tex_scale));
@@ -48,6 +69,31 @@ static void map_load_program() {
 
 void map_init() {
     map_load_program();
+
+    Arr<GeometryMesh::Vert, CHK_VOL * 4> verts;
+    Arr<GeometryMesh::Idx,  CHK_VOL * 2 * 3>  idxs;
+
+    for(ChkIdx i = 0; i < CHK_VOL; ++i) {
+        IdxPos idx_pos = to_idx_pos(i);
+        for(Uns j = 0; j < 4; ++j) {
+            constexpr Vec2<U32> quad[4] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
+            verts[i * 4 + j].pos = (Vec2<U32>)idx_pos + quad[j];
+        }
+        GeometryMesh::Idx constexpr idx_order[6] = {0, 1, 2, 2, 3, 0};
+        for(Uns j = 0; j < 6; ++j) {
+            idxs[i * 6 + j] = i * 4 + idx_order[j];
+        }
+    }
+    glGenBuffers(1, &geometry_mesh.vbo);
+    glGenBuffers(1, &geometry_mesh.ebo);
+
+    glBindBuffer(GL_ARRAY_BUFFER, geometry_mesh.vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(GeometryMesh::Vert) *
+        CHK_VOL * 4, verts, GL_STATIC_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, geometry_mesh.ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GeometryMesh::Idx) *
+        CHK_VOL * 2 * 3, idxs, GL_STATIC_DRAW);
 }
 
 void map_render(EntityVec const& player_pos) {
@@ -55,13 +101,15 @@ void map_render(EntityVec const& player_pos) {
     glBindTexture(GL_TEXTURE_2D, tileset);
     {   Vec2U window_size = get_window_size();
         F32 ratio = (F32)window_size.x / (F32)window_size.y;
-        F32 constexpr BASE_SCALE = 0.06f;
-        glm::mat4 matrix(1.f);
-        matrix = glm::scale(matrix, Vec3F(BASE_SCALE, -BASE_SCALE * ratio, 1.f));
-        matrix = glm::translate(matrix, -player_pos);
-        set_uniform("matrix", program, glUniformMatrix4fv,
-                    1, GL_FALSE, glm::value_ptr(matrix));
+        F32 constexpr BASE_SCALE = 0.03f;
+        Vec2F scale       = Vec2F(BASE_SCALE, -BASE_SCALE * ratio);
+        set_uniform("scale", program, glUniform2fv,
+                    1, glm::value_ptr(scale));
     }
+    glBindBuffer(GL_ARRAY_BUFFER, geometry_mesh.vbo);
+    glVertexAttribPointer(shader_attribs.pos,
+        2, GL_UNSIGNED_INT, GL_FALSE, sizeof(GeometryMesh::Vert),
+        (void*)offsetof(GeometryMesh::Vert, pos));
 
     U32 constexpr RENDER_DIST = 2;
     ChkPos center = to_chk_pos(player_pos);
@@ -75,36 +123,25 @@ void map_render(EntityVec const& player_pos) {
             iter.x++) {
             if(is_chunk_loaded(iter)) {
                 Chunk const& chunk = get_chunk(iter);
-                Chunk::Mesh const& mesh = chunk.mesh;
-                if(!mesh.is_built) {
-                    if(!try_build_mesh(iter)) continue;
-                }
-#if defined(LUX_GLES_2_0)
-                glBindBuffer(GL_ARRAY_BUFFER, mesh.g_vbo);
-                glVertexAttribPointer(shader_attribs.pos,
-                    2, GL_FLOAT, GL_FALSE, sizeof(Chunk::Mesh::GVert),
-                    (void*)offsetof(Chunk::Mesh::GVert, pos));
+                Vec2F translation = Vec2F(-player_pos) +
+                    (Vec2F)(iter * ChkPos(CHK_SIZE));
+                set_uniform("translation", program, glUniform2fv,
+                            1, glm::value_ptr(translation));
+
+                glBindBuffer(GL_ARRAY_BUFFER, meshes.at(iter).vbo);
                 glVertexAttribPointer(shader_attribs.tex_pos,
-                    2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof(Chunk::Mesh::GVert),
-                    (void*)offsetof(Chunk::Mesh::GVert, tex_pos));
-                glBindBuffer(GL_ARRAY_BUFFER, mesh.l_vbo);
-                glVertexAttribPointer(shader_attribs.col,
-                    3, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Chunk::Mesh::LVert),
-                    (void*)offsetof(Chunk::Mesh::LVert, col));
-#elif defined(LUX_GL_3_3)
-                glBindVertexArray(mesh.vao);
-#endif
+                    2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof(MaterialMesh::Vert),
+                    (void*)offsetof(MaterialMesh::Vert, tex_pos));
+
                 glEnableVertexAttribArray(shader_attribs.pos);
                 glEnableVertexAttribArray(shader_attribs.tex_pos);
-                glEnableVertexAttribArray(shader_attribs.col);
 
-                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.ebo);
-                glDrawElements(GL_TRIANGLES, mesh.trig_count * 3,
-                               Chunk::Mesh::INDEX_GL_TYPE, 0);
+                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, geometry_mesh.ebo);
+                glDrawElements(GL_TRIANGLES, CHK_VOL * 2 * 3,
+                    GeometryMesh::IDX_GL_TYPE, 0);
 
                 glDisableVertexAttribArray(shader_attribs.pos);
                 glDisableVertexAttribArray(shader_attribs.tex_pos);
-                glDisableVertexAttribArray(shader_attribs.col);
             } else {
                 chunk_requests.emplace(iter);
             }
@@ -136,6 +173,10 @@ void load_chunk(NetSsSgnl::MapLoad::Chunk const& net_chunk) {
                 CHK_VOL * sizeof(VoxelId));
     std::memcpy(chunk.light_lvls, net_chunk.light_lvls,
                 CHK_VOL * sizeof(LightLvl));
+    ///insert new mesh
+    MaterialMesh& mesh = meshes[pos];
+    glGenBuffers(1, &mesh.vbo);
+    build_material_mesh(mesh, chunk);
 }
 
 void light_update(NetSsSgnl::LightUpdate::Chunk const& net_chunk) {
@@ -147,16 +188,8 @@ void light_update(NetSsSgnl::LightUpdate::Chunk const& net_chunk) {
     Chunk& chunk = chunks.at(pos);
     std::memcpy(chunk.light_lvls, net_chunk.light_lvls,
                 CHK_VOL * sizeof(LightLvl));
-    Chunk::Mesh& mesh = chunk.mesh;
-    if(mesh.is_built) {
-        //@TODO hacky and slow
-        glDeleteBuffers(1, &mesh.g_vbo);
-        glDeleteBuffers(1, &mesh.l_vbo);
-        glDeleteBuffers(1, &mesh.ebo);
-        mesh.is_built = false;
-        mesh.has_empty = false;
-        mesh.trig_count = 0;
-    }
+    LUX_UNIMPLEMENTED();
+    //@TODO mesh
 }
 
 Chunk const& get_chunk(ChkPos const& pos) {
@@ -164,127 +197,20 @@ Chunk const& get_chunk(ChkPos const& pos) {
     return chunks.at(pos);
 }
 
-static bool try_build_mesh(ChkPos const& pos) {
-    constexpr ChkPos offsets[9] =
-        {{ 0,  0,  0}, {-1, -1,  0}, {-1,  0,  0}, {-1,  1,  0}, { 0, -1,  0},
-         { 0,  1,  0}, { 1, -1,  0}, { 1,  0,  0}, { 1,  1,  0}};
+static void build_material_mesh(MaterialMesh& mesh, Chunk const& chunk) {
+    Arr<MaterialMesh::Vert, CHK_VOL * 4> verts;
 
-    bool can_build = true;
-    for(auto const& offset : offsets) {
-        if(!is_chunk_loaded(pos + offset)) {
-            chunk_requests.emplace(pos + offset);
-            can_build = false;
-        }
-    }
-
-    if(!can_build) return false;
-
-    Chunk &chunk = chunks.at(pos);
-    LUX_ASSERT(!chunk.mesh.is_built);
-
-    build_mesh(chunk, pos);
-    return true;
-}
-
-//@CONSIDER replacing stuff with arrays
-static void build_mesh(Chunk &chunk, ChkPos const &pos) {
-    static DynArr<Chunk::Mesh::GVert> g_verts;
-    static DynArr<Chunk::Mesh::LVert> l_verts;
-    static DynArr<Chunk::Mesh::Idx>  idxs;
-
-    g_verts.clear();
-    l_verts.clear();
-    idxs.clear();
-
-    //@TODO this should be done only once
-    g_verts.reserve(CHK_VOL * 4);
-    l_verts.reserve(CHK_VOL * 4);
-    idxs.reserve(CHK_VOL * 6);
-
-    constexpr MapPos quad[4] =
-         {{0, 0, 0}, {0, 1, 0}, {1, 1, 0}, {1, 0, 0}};
-    constexpr Vec2U tex_positions[4] =
+    constexpr Vec2<U16> tex_quad[4] =
         {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
 
-    Chunk::Mesh& mesh = chunk.mesh;
-    Chunk::Mesh::Idx idx_offset = 0;
-
-    auto get_voxel = [&] (MapPos const &pos) -> VoxelId
-    {
-        //@TODO use current chunk to reduce to_chk_* calls, and chunks access
-        return chunks[to_chk_pos(pos)].voxels[to_chk_idx(pos)];
-    };
-
     for(ChkIdx i = 0; i < CHK_VOL; ++i) {
-        MapPos map_pos = to_map_pos(pos, i);
-        VoxelType vox_type = db_voxel_type(get_voxel(map_pos));
-        if(db_voxel_type(chunk.voxels[i]).shape == VoxelType::EMPTY) continue;
+        VoxelType const& vox_type = db_voxel_type(chunk.voxels[i]);
         for(U32 j = 0; j < 4; ++j) {
-            constexpr MapPos vert_offsets[4] =
-                {{-1, -1, 0}, {-1, 0, 0}, {0, -1, 0}, {0, 0, 0}};
-            MapPos vert_pos = map_pos + quad[j];
-            Vec3F col_avg(0.f);
-            for(auto const &vert_offset : vert_offsets) {
-                MapPos v_off_pos = vert_pos + vert_offset;
-                LightLvl light_lvl =
-                    get_chunk(to_chk_pos(v_off_pos)).light_lvls[to_chk_idx(v_off_pos)];
-                col_avg += Vec3F((light_lvl & 0xF000) >> 12,
-                                 (light_lvl & 0x0F00) >>  8,
-                                 (light_lvl & 0x00F0) >>  4) * 17.f;
-            }
-            col_avg /= 4.f;
-            Chunk::Mesh::GVert& g_vert = g_verts.emplace_back();
-            g_vert.pos = vert_pos;
-            g_vert.tex_pos = vox_type.tex_pos + tex_positions[j];
-            Chunk::Mesh::LVert& l_vert = l_verts.emplace_back();
-            l_vert.col = col_avg;
+            verts[i * 4 + j].tex_pos = (Vec2<U16>)vox_type.tex_pos + tex_quad[j];
         }
-        if(glm::length((Vec3F)l_verts[idx_offset + 0].col) +
-           glm::length((Vec3F)l_verts[idx_offset + 2].col) <
-           glm::length((Vec3F)l_verts[idx_offset + 1].col) +
-           glm::length((Vec3F)l_verts[idx_offset + 3].col)) {
-            for(auto const &idx : {0, 1, 2, 2, 3, 0}) {
-                idxs.emplace_back(idx + idx_offset);
-            }
-        } else {
-            for(auto const &idx : {0, 1, 3, 3, 2, 1}) {
-                idxs.emplace_back(idx + idx_offset);
-            }
-        }
-        idx_offset += 4;
     }
-    glGenBuffers(1, &mesh.g_vbo);
-    glGenBuffers(1, &mesh.l_vbo);
-    glGenBuffers(1, &mesh.ebo);
-#if defined(LUX_GL_3_3)
-    glGenVertexArrays(1, &mesh.vao);
-    glBindVertexArray(mesh.vao);
-#endif
 
-    glBindBuffer(GL_ARRAY_BUFFER, mesh.g_vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(Chunk::Mesh::GVert) * g_verts.size(),
-                 g_verts.data(), GL_DYNAMIC_DRAW);
-#if defined(LUX_GL_3_3)
-    glVertexAttribPointer(shader_attribs.pos,
-        2, GL_INT, GL_FALSE, sizeof(Chunk::Mesh::GVert),
-        (void*)offsetof(Chunk::Mesh::GVert, pos));
-    glVertexAttribPointer(shader_attribs.tex_pos,
-        2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof(Chunk::Mesh::GVert),
-        (void*)offsetof(Chunk::Mesh::GVert, tex_pos));
-#endif
-
-    glBindBuffer(GL_ARRAY_BUFFER, mesh.l_vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(Chunk::Mesh::LVert) * l_verts.size(),
-                 l_verts.data(), GL_DYNAMIC_DRAW);
-#if defined(LUX_GL_3_3)
-    glVertexAttribPointer(shader_attribs.col,
-        3, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Chunk::Mesh::LVert),
-        (void*)offsetof(Chunk::Mesh::LVert, col));
-#endif
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(Chunk::Mesh::Idx) * idxs.size(),
-                 idxs.data(), GL_STATIC_DRAW);
-    mesh.is_built = true;
-    mesh.trig_count = idxs.size() / 3; //@TODO
+    glBindBuffer(GL_ARRAY_BUFFER, mesh.vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(MaterialMesh::Vert) *
+        CHK_VOL * 4, verts, GL_DYNAMIC_DRAW);
 }
