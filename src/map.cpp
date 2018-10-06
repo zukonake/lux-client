@@ -100,6 +100,25 @@ void map_init() {
 }
 
 void map_render(EntityVec const& player_pos) {
+    U32 constexpr RENDER_DIST = 2;
+
+    static DynArr<ChkPos> render_list;
+    render_list.reserve(std::pow(2 * RENDER_DIST - 1, 2));
+
+    ChkPos center = to_chk_pos(player_pos);
+    ChkPos iter;
+    iter.z = center.z;
+    for(iter.y  = center.y - RENDER_DIST;
+        iter.y <= center.y + RENDER_DIST;
+        iter.y++) {
+        for(iter.x  = center.x - RENDER_DIST;
+            iter.x <= center.x + RENDER_DIST;
+            iter.x++) {
+            if(is_chunk_loaded(iter)) render_list.emplace_back(iter);
+            else                      chunk_requests.emplace(iter);
+        }
+    }
+
     glUseProgram(program);
     glBindTexture(GL_TEXTURE_2D, tileset);
     {   Vec2U window_size = get_window_size();
@@ -117,48 +136,36 @@ void map_render(EntityVec const& player_pos) {
     glEnableVertexAttribArray(shader_attribs.pos);
 #endif
 
-    U32 constexpr RENDER_DIST = 2;
-    ChkPos center = to_chk_pos(player_pos);
-    ChkPos iter;
-    iter.z = center.z;
-    for(iter.y  = center.y - RENDER_DIST;
-        iter.y <= center.y + RENDER_DIST;
-        iter.y++) {
-        for(iter.x  = center.x - RENDER_DIST;
-            iter.x <= center.x + RENDER_DIST;
-            iter.x++) {
-            if(is_chunk_loaded(iter)) {
-                Chunk const& chunk = get_chunk(iter);
-                Vec2F translation = Vec2F(-player_pos) +
-                    (Vec2F)(iter * ChkPos(CHK_SIZE));
-                set_uniform("translation", program, glUniform2fv,
-                            1, glm::value_ptr(translation));
+    for(auto const& chk_pos : render_list) {
+        Chunk const& chunk = get_chunk(chk_pos);
+        Vec2F translation = Vec2F(-player_pos) +
+            (Vec2F)(chk_pos * ChkPos(CHK_SIZE));
+        set_uniform("translation", program, glUniform2fv,
+                    1, glm::value_ptr(translation));
 
-                MaterialMesh const& mesh = meshes.at(iter);
+        MaterialMesh const& mesh = meshes.at(chk_pos);
 #if defined(LUX_GLES_2_0)
-                glBindBuffer(GL_ARRAY_BUFFER, mesh.vbo);
-                glVertexAttribPointer(shader_attribs.tex_pos,
-                    2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof(MaterialMesh::Vert),
-                    (void*)offsetof(MaterialMesh::Vert, tex_pos));
-                glEnableVertexAttribArray(shader_attribs.tex_pos);
+        glBindBuffer(GL_ARRAY_BUFFER, mesh.vbo);
+        glVertexAttribPointer(shader_attribs.tex_pos,
+            2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof(MaterialMesh::Vert),
+            (void*)offsetof(MaterialMesh::Vert, tex_pos));
+        glEnableVertexAttribArray(shader_attribs.tex_pos);
 
-                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, geometry_mesh.ebo);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, geometry_mesh.ebo);
 #elif defined(LUX_GL_3_3)
-                glBindVertexArray(mesh.vao);
+        glBindVertexArray(mesh.vao);
 #endif
-                glDrawElements(GL_TRIANGLES, CHK_VOL * 2 * 3,
-                    GeometryMesh::IDX_GL_TYPE, 0);
+        glDrawElements(GL_TRIANGLES, CHK_VOL * 2 * 3,
+            GeometryMesh::IDX_GL_TYPE, 0);
 #if defined(LUX_GLES_2_0)
-                glDisableVertexAttribArray(shader_attribs.tex_pos);
+        glDisableVertexAttribArray(shader_attribs.tex_pos);
 #endif
-            } else {
-                chunk_requests.emplace(iter);
-            }
-        }
     }
+
 #if defined(LUX_GLES_2_0)
     glDisableVertexAttribArray(shader_attribs.pos);
 #endif
+    render_list.clear();
 }
 
 void map_reload_program() {
@@ -185,7 +192,7 @@ void load_chunk(NetSsSgnl::MapLoad::Chunk const& net_chunk) {
                 CHK_VOL * sizeof(VoxelId));
     std::memcpy(chunk.light_lvls, net_chunk.light_lvls,
                 CHK_VOL * sizeof(LightLvl));
-    ///insert new mesh
+
     MaterialMesh& mesh = meshes[pos];
     glGenBuffers(1, &mesh.vbo);
     build_material_mesh(mesh, chunk);
