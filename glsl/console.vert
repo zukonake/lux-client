@@ -28,7 +28,6 @@ void main()
     gl_Position = transform * vec4(pos, 0.0, 1.0);
     f_font_pos  = font_pos * font_pos_scale;
 
-//branches in shader?
     f_fg_col = vec4(fg_col, fg_col != TRANSPARENT_COL);
     f_bg_col = vec4(bg_col, bg_col != TRANSPARENT_COL);
 }

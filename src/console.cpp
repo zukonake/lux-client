@@ -91,8 +91,8 @@ void console_init(Vec2U win_size) {
 #if defined(LUX_GL_3_3)
     glGenVertexArrays(1, &console.vao);
     glBindVertexArray(console.vao);
-
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, console.ebo);
+
     glBindBuffer(GL_ARRAY_BUFFER, console.grid_vbo);
     glVertexAttribPointer(shader_attribs.pos,
         2, GL_FLOAT, GL_FALSE, sizeof(GridVert),
@@ -170,10 +170,10 @@ void console_window_resize_cb(int win_w, int win_h) {
             idxs[i * 6 + j] = i * 4 + idx_order[j];
         }
     }
+    glBindVertexArray(console.vao);
     glBindBuffer(GL_ARRAY_BUFFER, console.grid_vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(GridVert) * grid_verts.size(),
         grid_verts.data(), GL_STATIC_DRAW);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, console.ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(U32) * idxs.size(),
         idxs.data(), GL_STATIC_DRAW);
     console.idxs_count = idxs.size();
@@ -279,6 +279,7 @@ void console_render() {
         glUseProgram(console.program);
         glBindTexture(GL_TEXTURE_2D, console.font);
 #if defined(LUX_GLES_2_0)
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, console.ebo);
         glBindBuffer(GL_ARRAY_BUFFER, console.grid_vbo);
         glVertexAttribPointer(shader_attribs.pos,
             2, GL_FLOAT, GL_FALSE, sizeof(GridVert),
@@ -298,8 +299,6 @@ void console_render() {
         glEnableVertexAttribArray(shader_attribs.font_pos);
         glEnableVertexAttribArray(shader_attribs.fg_col);
         glEnableVertexAttribArray(shader_attribs.bg_col);
-
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, console.ebo);
 #elif defined(LUX_GL_3_3)
         glBindVertexArray(console.vao);
 #endif
@@ -353,7 +352,7 @@ static void console_backspace() {
         console_move_cursor(false);
         std::memmove(console.in_buff + console.cursor_pos,
                      console.in_buff + console.cursor_pos + 1,
-                     console_seek_last() - console.cursor_pos);
+                     console_seek_last() + 1 - console.cursor_pos);
     }
 }
 
@@ -361,7 +360,7 @@ static void console_delete() {
     if(console.cursor_pos > 0) {
         std::memmove(console.in_buff + console.cursor_pos,
                      console.in_buff + console.cursor_pos + 1,
-                     console_seek_last() - console.cursor_pos);
+                     console_seek_last() + 1 - console.cursor_pos);
     }
 }
 
