@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 2.8)
 project(lux-client)
-set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE Release)
 
 set(LUX_CLIENT_VERSION_MAJOR 0)
 set(LUX_CLIENT_VERSION_MINOR 0)
