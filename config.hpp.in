@@ -4,12 +4,19 @@
 #define LUX_CLIENT_VERSION_MINOR @LUX_CLIENT_VERSION_MINOR@
 #define LUX_CLIENT_VERSION_PATCH @LUX_CLIENT_VERSION_PATCH@
 
-#define LUX_GL_VARIANT_3_3    @LUX_GL_VARIANT_3_3@
-#define LUX_GL_VARIANT_ES_2_0 @LUX_GL_VARIANT_ES_2_0@
-
-#define LUX_GL_VARIANT        @LUX_GL_VARIANT@
-
-#if LUX_GL_VARIANT != LUX_GL_VARIANT_3_3    && \
-    LUX_GL_VARIANT != LUX_GL_VARIANT_ES_2_0
-#   error "invalid LUX_GL_VARIANT value"
+#if !defined(LUX_GL_3_3) && !defined(LUX_GLES_2_0)
+    #error "no opengl version selected"
 #endif
+
+#if defined(LUX_GL_3_3) + defined(LUX_GLES_2_0) > 1
+    #error "more than one version of opengl defined"
+#endif
+
+#pragma once
+
+#if defined(LUX_GLES_2_0)
+    #define GLFW_INCLUDE_ES2
+#endif
+
+#define GLM_FORCE_PURE
+#define GLM_ENABLE_EXPERIMENTAL

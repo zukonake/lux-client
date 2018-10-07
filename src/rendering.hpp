@@ -1,7 +1,9 @@
 #pragma once
 
+#include <config.hpp>
+//
 #include <include_opengl.hpp>
-#include <include_glfw.hpp>
+#include <GLFW/glfw3.h>
 //
 #include <lux_shared/common.hpp>
 

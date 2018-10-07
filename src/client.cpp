@@ -1,8 +1,8 @@
+#include <config.hpp>
+//
 #include <cstring>
 //
 #include <enet/enet.h>
-#define GLM_FORCE_PURE
-#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/rotate_vector.hpp>
 //
 #include <lux_shared/common.hpp>

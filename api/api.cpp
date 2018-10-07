@@ -16,8 +16,28 @@ void reload_program() {
     map_reload_program();
 }
 
+void bind_key(char key, char const* input) {
+    console_bind_key(key, input);
+}
+
 void quit() {
     client_quit();
+}
+
+void wfon() {
+#ifdef LUX_GLES_2_0
+    print("unsupported in OpenGL ES 2.0");
+#else
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+#endif
+}
+
+void wfoff() {
+#ifdef LUX_GLES_2_0
+    print("unsupported in OpenGL ES 2.0");
+#else
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+#endif
 }
 
 }
