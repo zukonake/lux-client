@@ -247,8 +247,7 @@ bool is_chunk_loaded(ChkPos const& pos) {
     return chunks.count(pos) > 0;
 }
 
-void load_chunk(NetSsSgnl::MapLoad::Chunk const& net_chunk) {
-    ChkPos const& pos = net_chunk.pos;
+void load_chunk(ChkPos const& pos, NetSsSgnl::MapLoad::Chunk const& net_chunk) {
     LUX_LOG("loading chunk");
     LUX_LOG("    pos: {%zd, %zd, %zd}", pos.x, pos.y, pos.z);
     if(is_chunk_loaded(pos)) {
@@ -301,8 +300,8 @@ void load_chunk(NetSsSgnl::MapLoad::Chunk const& net_chunk) {
 #endif
 }
 
-void light_update(NetSsSgnl::LightUpdate::Chunk const& net_chunk) {
-    ChkPos const& pos = net_chunk.pos;
+void light_update(ChkPos const& pos,
+                  NetSsSgnl::LightUpdate::Chunk const& net_chunk) {
     if(!is_chunk_loaded(pos)) {
         LUX_LOG("chunk is not loaded");
         return;

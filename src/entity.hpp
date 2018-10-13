@@ -6,4 +6,4 @@
 #include <lux_shared/entity.hpp>
 
 void entity_init();
-void entity_render(EntityVec const& player_pos, Slice<EntityVec> entities);
+void entity_render(EntityVec const& player_pos, EntityComps const& comps);

@@ -47,7 +47,7 @@ void entity_init() {
 #endif
 }
 
-void entity_render(EntityVec const& player_pos, Slice<EntityVec> entities) {
+void entity_render(EntityVec const& player_pos, EntityComps const& comps) {
 
     Vec2F scale = {0, 0};
     {   Vec2U window_size = get_window_size();
@@ -72,17 +72,19 @@ void entity_render(EntityVec const& player_pos, Slice<EntityVec> entities) {
     static DynArr<Vert::Idx> idxs;
     static DynArr<Vert>     verts;
 
-    idxs.resize(entities.len * 2 * 3);
-    verts.resize(entities.len * 4);
-    for(Uns i = 0; i < entities.len; ++i) {
-        verts[i * 4 + 0] = {Vec2F(0, 0) + Vec2F(entities.beg[i])};
-        verts[i * 4 + 1] = {Vec2F(1, 0) + Vec2F(entities.beg[i])};
-        verts[i * 4 + 2] = {Vec2F(0, 1) + Vec2F(entities.beg[i])};
-        verts[i * 4 + 3] = {Vec2F(1, 1) + Vec2F(entities.beg[i])};
+    idxs.resize(comps.pos.size() * 2 * 3);
+    verts.resize(comps.pos.size() * 4);
+    U32 off = 0;
+    for(auto const& entity : comps.pos) {
+        verts[off * 4 + 0] = {Vec2F(0, 0) + Vec2F(entity.second)};
+        verts[off * 4 + 1] = {Vec2F(1, 0) + Vec2F(entity.second)};
+        verts[off * 4 + 2] = {Vec2F(0, 1) + Vec2F(entity.second)};
+        verts[off * 4 + 3] = {Vec2F(1, 1) + Vec2F(entity.second)};
         Vert::Idx constexpr idx_order[] = {0, 1, 2, 2, 3, 1};
         for(Uns j = 0; j < 6; ++j) {
-            idxs[i * 6 + j] = idx_order[j] + i * 4;
+            idxs[off * 6 + j] = idx_order[j] + off * 4;
         }
+        off += 4;
     }
 
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
