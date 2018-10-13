@@ -13,6 +13,7 @@
 #include <console.hpp>
 #include <rendering.hpp>
 #include <client.hpp>
+#include <entity.hpp>
 
 struct {
     Vec2U window_size = {800, 600};
@@ -60,6 +61,7 @@ int main(int argc, char** argv) {
         console_init((Vec2U)win_size);
     }
     LUX_DEFER { console_deinit(); };
+    entity_init();
     glfwSetWindowSizeCallback(glfw_window, window_resize_cb);
     glfwSetKeyCallback(glfw_window, key_cb);
     check_opengl_error();

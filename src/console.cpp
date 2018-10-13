@@ -2,7 +2,7 @@
 //
 #include <cstring>
 //
-#include <lua5.1/lua.hpp>
+#include <lua.hpp>
 #include <include_opengl.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>

@@ -14,6 +14,7 @@
 #include <map.hpp>
 #include <console.hpp>
 #include <rendering.hpp>
+#include <entity.hpp>
 #include "client.hpp"
 
 struct {
@@ -212,15 +213,19 @@ LUX_MAY_FAIL static handle_tick(ENetPacket* in_pack) {
         LUX_LOG("failed to read entity position components");
         return LUX_FAIL;
     }
-    Slice<NetSsTick::EntityComps::Pos> pos_comps;
+    Slice<EntityVec> pos_comps;
     pos_comps.len = tick.comps.pos.len;
-    pos_comps.beg = lux_alloc<NetSsTick::EntityComps::Pos>(pos_comps.len);
+    pos_comps.beg = lux_alloc<EntityVec>(pos_comps.len);
     LUX_DEFER { lux_free(pos_comps.beg); };
+    EntityVec player_pos = {0, 0, 0};
     for(Uns i = 0; i < pos_comps.len; ++i) {
-        deserialize(&iter, &pos_comps[i].id);
-        deserialize(&iter, &pos_comps[i].pos);
-        if(i == tick.player_id) map_render(pos_comps[i].pos);
+        U32 id;
+        deserialize(&iter, &id);
+        deserialize(&iter, &pos_comps[i]);
+        if(id == tick.player_id) player_pos = pos_comps[i];
     }
+    map_render(player_pos);
+    entity_render(player_pos, pos_comps);
     LUX_ASSERT(iter == in_pack->data + in_pack->dataLength);
     return LUX_OK;
 }
