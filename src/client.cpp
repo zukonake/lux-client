@@ -198,14 +198,29 @@ static void connect_to_server(char const* hostname, U16 port, F64& tick_rate) {
     }
 }
 
-LUX_MAY_FAIL static handle_tick(ENetPacket* in_pack, Vec3F& player_pos) {
+LUX_MAY_FAIL static handle_tick(ENetPacket* in_pack) {
     U8 const* iter = in_pack->data;
-    if(check_pack_size(sizeof(NetSsTick), iter, in_pack) != LUX_OK) {
-        LUX_LOG("failed to handle tick");
+    if(check_pack_size_atleast(sizeof(NetSsTick), iter, in_pack) != LUX_OK) {
         return LUX_FAIL;
     }
 
-    deserialize(&iter, &player_pos);
+    NetSsTick tick;
+    deserialize(&iter, &tick.player_id);
+    deserialize(&iter, &tick.comps.pos.len);
+    if(check_pack_size(sizeof(NetSsTick::EntityComps::Pos) * tick.comps.pos.len,
+                       iter, in_pack) != LUX_OK) {
+        LUX_LOG("failed to read entity position components");
+        return LUX_FAIL;
+    }
+    Slice<NetSsTick::EntityComps::Pos> pos_comps;
+    pos_comps.len = tick.comps.pos.len;
+    pos_comps.beg = lux_alloc<NetSsTick::EntityComps::Pos>(pos_comps.len);
+    LUX_DEFER { lux_free(pos_comps.beg); };
+    for(Uns i = 0; i < pos_comps.len; ++i) {
+        deserialize(&iter, &pos_comps[i].id);
+        deserialize(&iter, &pos_comps[i].pos);
+        if(i == tick.player_id) map_render(pos_comps[i].pos);
+    }
     LUX_ASSERT(iter == in_pack->data + in_pack->dataLength);
     return LUX_OK;
 }
@@ -241,6 +256,7 @@ LUX_MAY_FAIL static handle_signal(ENetPacket* in_pack) {
     }
     if(check_pack_size_atleast(expected_stt_sz, iter, in_pack) != LUX_OK) {
         LUX_LOG("couldn't read static segment");
+        LUX_LOG("signal header %u", sgnl.header);
         return LUX_FAIL;
     }
 
@@ -264,6 +280,7 @@ LUX_MAY_FAIL static handle_signal(ENetPacket* in_pack) {
     }
     if(check_pack_size(expected_dyn_sz, iter, in_pack) != LUX_OK) {
         LUX_LOG("couldn't read dynamic segment");
+        LUX_LOG("signal header %u", sgnl.header);
         return LUX_FAIL;
     }
 
@@ -314,7 +331,7 @@ LUX_MAY_FAIL static handle_signal(ENetPacket* in_pack) {
 }
 
 //@TODO err handling
-void client_tick(GLFWwindow* glfw_window, Vec3F& player_pos) {
+void client_tick(GLFWwindow* glfw_window) {
     { ///handle events
         if(glfwWindowShouldClose(glfw_window)) client_quit();
         ENetEvent event;
@@ -326,11 +343,16 @@ void client_tick(GLFWwindow* glfw_window, Vec3F& player_pos) {
             } else if(event.type == ENET_EVENT_TYPE_RECEIVE) {
                 LUX_DEFER { enet_packet_destroy(event.packet); };
                 if(event.channelID == TICK_CHANNEL) {
-                    if(handle_tick(event.packet, player_pos) != LUX_OK) {
+                    if(handle_tick(event.packet) != LUX_OK) {
+                        LUX_LOG("ignoring tick");
                         continue;
                     }
                 } else if(event.channelID == SIGNAL_CHANNEL) {
-                    if(handle_signal(event.packet) != LUX_OK) continue;
+                    if(handle_signal(event.packet) != LUX_OK) {
+                        //@TODO consider crashing here
+                        LUX_LOG("ignoring signal");
+                        continue;
+                    }
                 } else {
                     LUX_LOG("ignoring unexpected packet");
                     LUX_LOG("    channel: %u", event.channelID);

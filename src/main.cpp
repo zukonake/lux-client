@@ -70,11 +70,9 @@ int main(int argc, char** argv) {
         while(!client_should_close()) {
             clock.start();
             glfwPollEvents();
-            Vec3F player_pos;
-            client_tick(glfw_window, player_pos);
             glClearColor(0, 0, 0, 1);
             glClear(GL_COLOR_BUFFER_BIT);
-            map_render(player_pos);
+            client_tick(glfw_window);
             console_render();
             check_opengl_error();
             glfwSwapBuffers(glfw_window);
