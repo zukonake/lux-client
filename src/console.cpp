@@ -50,7 +50,7 @@ struct Console {
     Uns cursor_pos = 0;
     Uns cursor_scroll = 0;
     lua_State* lua_L;
-    HashTable<char, String> key_bindings;
+    HashTable<char, DynStr> key_bindings;
 } static console;
 
 struct {
@@ -71,7 +71,7 @@ static Uns  console_seek_last();
 
 void console_init(Vec2U win_size) {
     char const* font_path = "font.png";
-    console.program = load_program("glsl/console.vert", "glsl/console.frag");
+    console.program = load_program("glsl/text.vert", "glsl/text.frag");
     Vec2U font_size;
     console.font = load_texture(font_path, font_size);
     Vec2F font_pos_scale = Vec2F(console.char_size) / (Vec2F)font_size;
@@ -318,7 +318,7 @@ bool console_is_active() {
 
 void console_bind_key(char key, char const* input) {
     //@TODO check if length < IN_BUFF_WIDTH
-    console.key_bindings[key] = String(input);
+    console.key_bindings[key] = DynStr(input);
 }
 
 static void console_move_cursor(bool forward) {
@@ -370,7 +370,7 @@ static void console_exec_command(char const* str) {
     while(*end != '\0' && (std::uintptr_t)(end - beg) < Console::IN_BUFF_WIDTH) {
         ++end;
     }
-    String command(beg, end - beg);
+    DynStr command(beg, end - beg);
     if(command.size() > 2 && command[0] == '/') {
         command.erase(0, 1);
         if(command.size() > 2 && command[0] == 's') {

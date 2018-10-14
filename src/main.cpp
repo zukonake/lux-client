@@ -14,6 +14,7 @@
 #include <rendering.hpp>
 #include <client.hpp>
 #include <entity.hpp>
+#include <ui.hpp>
 
 struct {
     Vec2U window_size = {800, 600};
@@ -58,6 +59,7 @@ int main(int argc, char** argv) {
     map_init();
     {   Vec2<int> win_size;
         glfwGetWindowSize(glfw_window, &win_size.x, &win_size.y);
+        ui_init((Vec2U)win_size);
         console_init((Vec2U)win_size);
     }
     LUX_DEFER { console_deinit(); };

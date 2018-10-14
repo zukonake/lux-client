@@ -22,9 +22,10 @@ struct {
     ENetHost* host;
     ENetPeer* peer;
 
-    String server_name  = "unnamed";
+    DynStr server_name  = "unnamed";
     bool   should_close = false;
     VecSet<ChkPos> sent_requests;
+    EntityVec last_player_pos = {0, 0, 0};
 } client;
 
 static void connect_to_server(char const* hostname, U16 port, F64& tick_rate);
@@ -177,7 +178,7 @@ static void connect_to_server(char const* hostname, U16 port, F64& tick_rate) {
                 LUX_FATAL("failed to receive init packet");
             }
 
-            client.server_name = String((char const*)ss_init.name);
+            client.server_name = DynStr((char const*)ss_init.name);
             tick_rate = ss_init.tick_rate;
         }
         LUX_LOG("successfully connected to server %s",
@@ -193,12 +194,11 @@ LUX_MAY_FAIL static handle_tick(ENetPacket* in_pack) {
         return LUX_FAIL;
     }
 
-    EntityVec player_pos = {0, 0, 0};
     if(tick.comps.pos.count(tick.player_id) > 0) {
-        player_pos = tick.comps.pos.at(tick.player_id);
-        map_render(player_pos);
-        entity_render(player_pos, tick.comps);
+        client.last_player_pos = tick.comps.pos.at(tick.player_id);
     }
+    map_render(client.last_player_pos);
+    entity_render(client.last_player_pos, tick.comps);
     return LUX_OK;
 }
 
