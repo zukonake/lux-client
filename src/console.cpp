@@ -170,7 +170,6 @@ void console_window_resize_cb(int win_w, int win_h) {
             idxs[i * 6 + j] = i * 4 + idx_order[j];
         }
     }
-    glBindVertexArray(console.vao);
     glBindBuffer(GL_ARRAY_BUFFER, console.grid_vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(GridVert) * grid_verts.size(),
         grid_verts.data(), GL_STATIC_DRAW);

@@ -2,7 +2,7 @@
 attribute vec2 pos;
 attribute vec3 col;
 
-flat varying vec3 f_col;
+varying vec3 f_col;
 #elif __VERSION__ == 330
 in vec2 pos;
 in vec3 col;

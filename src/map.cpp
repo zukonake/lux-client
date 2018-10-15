@@ -373,7 +373,9 @@ static void build_light_mesh(LightMesh& mesh, Chunk const& chunk) {
     glBufferData(GL_ARRAY_BUFFER, sizeof(LightMesh::Vert) *
         CHK_VOL, verts, GL_DYNAMIC_DRAW);
 
+#if defined(LUX_GL_3_3)
     glBindVertexArray(mesh.vao);
+#endif
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(LightMesh::Idx) *
         LightMesh::IDX_NUM, idxs, GL_DYNAMIC_DRAW);
