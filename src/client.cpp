@@ -26,9 +26,12 @@ struct {
     bool   should_close = false;
     VecSet<ChkPos> sent_requests;
     EntityVec last_player_pos = {0, 0, 0};
-    NetSsTick ss_tick;
-    NetSsSgnl ss_sgnl;
-} client;
+} static client;
+
+static NetCsTick cs_tick;
+static NetCsSgnl cs_sgnl;
+static NetSsTick ss_tick;
+static NetSsSgnl ss_sgnl;
 
 static void connect_to_server(char const* hostname, U16 port, F64& tick_rate);
 
@@ -140,7 +143,7 @@ static void connect_to_server(char const* hostname, U16 port, F64& tick_rate) {
         std::memcpy(cs_init.name, client_name, sizeof(client_name));
         std::memset(cs_init.name + sizeof(client_name), 0,
                     CLIENT_NAME_LEN - sizeof(client_name));
-        if(send_net_data(client.peer, cs_init, INIT_CHANNEL) != LUX_OK) {
+        if(send_net_data(client.peer, &cs_init, INIT_CHANNEL) != LUX_OK) {
             //@TODO return
             LUX_FATAL("failed to send init packet");
         }
@@ -190,38 +193,36 @@ static void connect_to_server(char const* hostname, U16 port, F64& tick_rate) {
 }
 
 LUX_MAY_FAIL static handle_tick(ENetPacket* in_pack) {
-    auto& tick = client.ss_tick;
-    if(deserialize_packet(in_pack, &tick) != LUX_OK) {
+    if(deserialize_packet(in_pack, &ss_tick) != LUX_OK) {
         LUX_LOG("deserialization failed");
         return LUX_FAIL;
     }
 
-    if(tick.comps.pos.count(tick.player_id) > 0) {
-        client.last_player_pos = tick.comps.pos.at(tick.player_id);
+    if(ss_tick.comps.pos.count(ss_tick.player_id) > 0) {
+        client.last_player_pos = ss_tick.comps.pos.at(ss_tick.player_id);
     }
     return LUX_OK;
 }
 
 LUX_MAY_FAIL static handle_signal(ENetPacket* in_pack) {
-    auto& sgnl = client.ss_sgnl;
-    if(deserialize_packet(in_pack, &sgnl) != LUX_OK) {
+    if(deserialize_packet(in_pack, &ss_sgnl) != LUX_OK) {
         return LUX_FAIL;
     }
 
     { ///parse the packet
-        switch(sgnl.tag) {
+        switch(ss_sgnl.tag) {
             case NetSsSgnl::MAP_LOAD: {
-                for(auto const& chunk : sgnl.map_load.chunks) {
+                for(auto const& chunk : ss_sgnl.map_load.chunks) {
                     load_chunk(chunk.first, chunk.second);
                 }
             } break;
             case NetSsSgnl::LIGHT_UPDATE: {
-                for(auto const& chunk : sgnl.light_update.chunks) {
+                for(auto const& chunk : ss_sgnl.light_update.chunks) {
                     light_update(chunk.first, chunk.second);
                 }
             } break;
             case NetSsSgnl::MSG: {
-                console_print(sgnl.msg.contents.data());
+                console_print(ss_sgnl.msg.contents.data());
             } break;
             default: LUX_UNREACHABLE();
         }
@@ -260,23 +261,22 @@ void client_tick(GLFWwindow* glfw_window) {
         }
     }
     map_render(client.last_player_pos);
-    entity_render(client.last_player_pos, client.ss_tick.comps);
+    entity_render(client.last_player_pos, ss_tick.comps);
 
     ///send map request signal
-    {   NetCsSgnl sgnl;
-        sgnl.tag = NetCsSgnl::MAP_REQUEST;
+    {   cs_sgnl.tag = NetCsSgnl::MAP_REQUEST;
         for(auto it  = chunk_requests.cbegin(); it != chunk_requests.cend();) {
             if(client.sent_requests.count(*it) == 0) {
                 LUX_LOG("requesting chunk {%zd, %zd, %zd}",
                         it->x, it->y, it->z);
-                sgnl.map_request.requests.emplace(*it);
+                cs_sgnl.map_request.requests.emplace(*it);
                 client.sent_requests.emplace(*it);
                 it = chunk_requests.erase(it);
             } else ++it;
         }
         chunk_requests.clear();
-        if(sgnl.map_request.requests.size() > 0) {
-            if(send_net_data(client.peer, sgnl, SIGNAL_CHANNEL) != LUX_OK) {
+        if(cs_sgnl.map_request.requests.size() > 0) {
+            if(send_net_data(client.peer, &cs_sgnl, SIGNAL_CHANNEL) != LUX_OK) {
                 //@TODO ?
                 return;
             }
@@ -284,27 +284,25 @@ void client_tick(GLFWwindow* glfw_window) {
     }
 
     ///send tick
-    {
-        NetCsTick tick;
-        tick.player_dir = {0.f, 0.f};
+    {   cs_tick.player_dir = {0.f, 0.f};
         if(!console_is_active()) {
+            auto& dir = cs_tick.player_dir;
             if(glfwGetKey(glfw_window, GLFW_KEY_W) == GLFW_PRESS) {
-                tick.player_dir.y = -1.f;
+                dir.y = -1.f;
             } else if(glfwGetKey(glfw_window, GLFW_KEY_S) == GLFW_PRESS) {
-                tick.player_dir.y = 1.f;
+                dir.y = 1.f;
             }
             if(glfwGetKey(glfw_window, GLFW_KEY_A) == GLFW_PRESS) {
-                tick.player_dir.x = -1.f;
+                dir.x = -1.f;
             } else if(glfwGetKey(glfw_window, GLFW_KEY_D) == GLFW_PRESS) {
-                tick.player_dir.x = 1.f;
+                dir.x = 1.f;
             }
-            if(tick.player_dir.x != 0.f || tick.player_dir.y != 0.f) {
-                tick.player_dir = glm::normalize(tick.player_dir);
-                tick.player_dir =
-                    glm::rotate(tick.player_dir, get_aim_rotation());
+            if(dir.x != 0.f || dir.y != 0.f) {
+                dir = glm::normalize(dir);
+                dir = glm::rotate(dir, get_aim_rotation());
             }
         }
-        (void)send_net_data(client.peer, tick, TICK_CHANNEL);
+        (void)send_net_data(client.peer, &cs_tick, TICK_CHANNEL);
     }
 }
 
@@ -315,13 +313,12 @@ LUX_MAY_FAIL send_command(char const* beg) {
     ++end;
     SizeT len = end - beg;
     if(len > 0) {
-        NetCsSgnl sgnl;
-        sgnl.tag = NetCsSgnl::COMMAND;
-        sgnl.command.contents.resize(len);
+        cs_sgnl.tag = NetCsSgnl::COMMAND;
+        cs_sgnl.command.contents.resize(len);
         for(Uns i = 0; i < len; ++i) {
-            sgnl.command.contents[i] = beg[i];
+            cs_sgnl.command.contents[i] = beg[i];
         }
-        if(send_net_data(client.peer, sgnl, SIGNAL_CHANNEL) != LUX_OK) {
+        if(send_net_data(client.peer, &cs_sgnl, SIGNAL_CHANNEL) != LUX_OK) {
             return LUX_FAIL;
         }
     }
