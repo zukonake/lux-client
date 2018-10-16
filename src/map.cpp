@@ -321,7 +321,7 @@ static void build_mat_mesh(MatMesh& mesh, Chunk const& chunk) {
     Arr<MatMesh::Vert, CHK_VOL * 4> verts;
 
     constexpr Vec2<U16> tex_quad[4] =
-        {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
+        {{0, 0}, {1, 0}, {0, 1}, {1, 1}};
 
     for(ChkIdx i = 0; i < CHK_VOL; ++i) {
         VoxelType const& vox_type = db_voxel_type(chunk.voxels[i]);
