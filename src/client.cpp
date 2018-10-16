@@ -26,6 +26,8 @@ struct {
     bool   should_close = false;
     VecSet<ChkPos> sent_requests;
     EntityVec last_player_pos = {0, 0, 0};
+    NetSsTick ss_tick;
+    NetSsSgnl ss_sgnl;
 } client;
 
 static void connect_to_server(char const* hostname, U16 port, F64& tick_rate);
@@ -188,7 +190,7 @@ static void connect_to_server(char const* hostname, U16 port, F64& tick_rate) {
 }
 
 LUX_MAY_FAIL static handle_tick(ENetPacket* in_pack) {
-    NetSsTick tick;
+    auto& tick = client.ss_tick;
     if(deserialize_packet(in_pack, &tick) != LUX_OK) {
         LUX_LOG("deserialization failed");
         return LUX_FAIL;
@@ -197,19 +199,17 @@ LUX_MAY_FAIL static handle_tick(ENetPacket* in_pack) {
     if(tick.comps.pos.count(tick.player_id) > 0) {
         client.last_player_pos = tick.comps.pos.at(tick.player_id);
     }
-    map_render(client.last_player_pos);
-    entity_render(client.last_player_pos, tick.comps);
     return LUX_OK;
 }
 
 LUX_MAY_FAIL static handle_signal(ENetPacket* in_pack) {
-    NetSsSgnl sgnl;
+    auto& sgnl = client.ss_sgnl;
     if(deserialize_packet(in_pack, &sgnl) != LUX_OK) {
         return LUX_FAIL;
     }
 
     { ///parse the packet
-        switch(sgnl.header) {
+        switch(sgnl.tag) {
             case NetSsSgnl::MAP_LOAD: {
                 for(auto const& chunk : sgnl.map_load.chunks) {
                     load_chunk(chunk.first, chunk.second);
@@ -259,10 +259,12 @@ void client_tick(GLFWwindow* glfw_window) {
             }
         }
     }
+    map_render(client.last_player_pos);
+    entity_render(client.last_player_pos, client.ss_tick.comps);
 
     ///send map request signal
     {   NetCsSgnl sgnl;
-        sgnl.header = NetCsSgnl::MAP_REQUEST;
+        sgnl.tag = NetCsSgnl::MAP_REQUEST;
         for(auto it  = chunk_requests.cbegin(); it != chunk_requests.cend();) {
             if(client.sent_requests.count(*it) == 0) {
                 LUX_LOG("requesting chunk {%zd, %zd, %zd}",
@@ -314,7 +316,7 @@ LUX_MAY_FAIL send_command(char const* beg) {
     SizeT len = end - beg;
     if(len > 0) {
         NetCsSgnl sgnl;
-        sgnl.header = NetCsSgnl::COMMAND;
+        sgnl.tag = NetCsSgnl::COMMAND;
         sgnl.command.contents.resize(len);
         for(Uns i = 0; i < len; ++i) {
             sgnl.command.contents[i] = beg[i];
