@@ -108,10 +108,10 @@ void map_init() {
     for(ChkIdx i = 0; i < CHK_VOL; ++i) {
         IdxPos idx_pos = to_idx_pos(i);
         for(Uns j = 0; j < 4; ++j) {
-            constexpr Vec2<U16> quad[4] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
+            constexpr Vec2<U16> quad[4] = {{0, 0}, {1, 0}, {0, 1}, {1, 1}};
             verts[i * 4 + j].pos = (Vec2<U16>)idx_pos + quad[j];
         }
-        GeometryMesh::Idx constexpr idx_order[6] = {0, 1, 2, 2, 3, 0};
+        GeometryMesh::Idx constexpr idx_order[6] = {0, 1, 2, 2, 3, 1};
         for(Uns j = 0; j < 6; ++j) {
             idxs[i * 6 + j] = i * 4 + idx_order[j];
         }
@@ -164,6 +164,7 @@ void map_render(EntityVec const& player_pos) {
         2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof(GeometryMesh::Vert),
         (void*)offsetof(GeometryMesh::Vert, pos));
     glEnableVertexAttribArray(tile_shader_attribs.pos);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, geometry_mesh.ebo);
 #endif
 
     for(auto const& chk_pos : render_list) {
@@ -179,8 +180,6 @@ void map_render(EntityVec const& player_pos) {
             2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof(MatMesh::Vert),
             (void*)offsetof(MatMesh::Vert, tex_pos));
         glEnableVertexAttribArray(tile_shader_attribs.tex_pos);
-
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, geometry_mesh.ebo);
 #elif defined(LUX_GL_3_3)
         glBindVertexArray(mesh.vao);
 #endif
@@ -273,7 +272,8 @@ void load_chunk(ChkPos const& pos, NetSsSgnl::MapLoad::Chunk const& net_chunk) {
     glBindVertexArray(mat_mesh.vao);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, geometry_mesh.ebo);
 
-    glBindBuffer(GL_ARRAY_BUFFER, geometry_mesh.vbo); glVertexAttribPointer(tile_shader_attribs.pos,
+    glBindBuffer(GL_ARRAY_BUFFER, geometry_mesh.vbo);
+    glVertexAttribPointer(tile_shader_attribs.pos,
         2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof(GeometryMesh::Vert),
         (void*)offsetof(GeometryMesh::Vert, pos));
     glEnableVertexAttribArray(tile_shader_attribs.pos);
@@ -336,8 +336,8 @@ static void build_mat_mesh(MatMesh& mesh, Chunk const& chunk) {
 }
 
 static void build_light_mesh(LightMesh& mesh, Chunk const& chunk) {
-    Arr<LightMesh::Vert, CHK_VOL>        verts;
-    Arr<LightMesh::Idx,  LightMesh::IDX_NUM> idxs = {0};
+    Arr<LightMesh::Vert, CHK_VOL>           verts;
+    Arr<LightMesh::Idx,  LightMesh::IDX_NUM> idxs;
 
     for(ChkIdx i = 0; i < CHK_VOL; ++i) {
         verts[i].pos = (Vec2<U16>)to_idx_pos(i);
