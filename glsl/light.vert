@@ -7,7 +7,7 @@ varying vec3 f_col;
 in vec2 pos;
 in vec3 col;
 
-flat out vec3 f_col;
+out vec3 f_col;
 #endif
 
 uniform vec2 scale;
