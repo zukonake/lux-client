@@ -76,10 +76,10 @@ void entity_render(EntityVec const& player_pos, EntityComps const& comps) {
     verts.resize(comps.pos.size() * 4);
     U32 off = 0;
     for(auto const& entity : comps.pos) {
-        verts[off * 4 + 0] = {Vec2F(0, 0) + Vec2F(entity.second)};
-        verts[off * 4 + 1] = {Vec2F(1, 0) + Vec2F(entity.second)};
-        verts[off * 4 + 2] = {Vec2F(0, 1) + Vec2F(entity.second)};
-        verts[off * 4 + 3] = {Vec2F(1, 1) + Vec2F(entity.second)};
+        verts[off * 4 + 0] = {Vec2F(-1, -1) + Vec2F(entity.second)};
+        verts[off * 4 + 1] = {Vec2F( 1, -1) + Vec2F(entity.second)};
+        verts[off * 4 + 2] = {Vec2F(-1,  1) + Vec2F(entity.second)};
+        verts[off * 4 + 3] = {Vec2F( 1,  1) + Vec2F(entity.second)};
         Vert::Idx constexpr idx_order[] = {0, 1, 2, 2, 3, 1};
         for(Uns j = 0; j < 6; ++j) {
             idxs[off * 6 + j] = idx_order[j] + off * 4;
