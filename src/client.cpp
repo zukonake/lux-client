@@ -1,3 +1,8 @@
+#if defined(__unix__)
+    #include <unistd.h>
+#elif defined(_WIN32)
+    #include <windows.h>
+#endif
 #include <config.hpp>
 //
 #include <cstring>
@@ -43,6 +48,24 @@ void client_quit() {
 
 bool client_should_close() {
     return client.should_close;
+}
+
+static void get_user_name(U8* buff) {
+    constexpr U8 unknown[] = "unknown";
+    static_assert(sizeof(unknown) - 1 <= CLIENT_NAME_LEN);
+    std::memset(buff, 0, CLIENT_NAME_LEN);
+#if defined(__unix__)
+    if(getlogin_r((char*)buff, CLIENT_NAME_LEN) != 0) {
+        std::memcpy(buff, unknown, sizeof(unknown) - 1);
+    }
+#elif defined(_WIN32)
+    LPDWORD sz = CLIENT_NAME_LEN;
+    if(GetUserName(buff, &sz) == 0) {
+        std::memcpy(buff, unknown, sizeof(unknown) - 1);
+    }
+#else
+    std::memcpy(buff, unknown, sizeof(unknown) - 1);
+#endif
 }
 
 LUX_MAY_FAIL client_init(char const* server_hostname, U16 server_port) {
@@ -144,11 +167,7 @@ LUX_MAY_FAIL static connect_to_server(char const* hostname, U16 port) {
         cs_init.net_ver.major = NET_VERSION_MAJOR;
         cs_init.net_ver.minor = NET_VERSION_MINOR;
         cs_init.net_ver.patch = NET_VERSION_PATCH;
-        U8 constexpr client_name[] = "lux-client";
-        static_assert(sizeof(client_name) <= CLIENT_NAME_LEN);
-        std::memcpy(cs_init.name, client_name, sizeof(client_name));
-        std::memset(cs_init.name + sizeof(client_name), 0,
-                    CLIENT_NAME_LEN - sizeof(client_name));
+        get_user_name(cs_init.name);
         LUX_RETHROW(send_net_data(client.peer, &cs_init, INIT_CHANNEL),
             "failed to send init packet");
         LUX_LOG("init packet sent successfully");
