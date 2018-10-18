@@ -119,6 +119,10 @@ void ui_render() {
     text_system.verts.clear();
     text_system.idxs.clear();
     for(auto const& text_field : text_fields) {
+        Vec4<U8> fg_col = {0xFF, 0xFF, 0xFF, 0xFF};
+        Vec4<U8> bg_col = {0x00, 0x00, 0x00, 0x00};
+        bool fg = false;
+        bool bg = false;
         Vec2F off = {0, 0};
         bool special = false;
         for(auto character : text_field.buff) {
@@ -126,9 +130,54 @@ void ui_render() {
                 special = true;
                 continue;
             }
-            if(special == true && character == '\n') {
-                off.y += 1.f;
-                off.x  = 0.f;
+            if(special == true) {
+                if(fg || bg) {
+                    Vec4<U8> col;
+                    switch(character) {
+                        case '0': col = {0x00, 0x00, 0x00, 0xFF}; break;
+                        case '1': col = {0x80, 0x00, 0x00, 0xFF}; break;
+                        case '2': col = {0x00, 0x80, 0x00, 0xFF}; break;
+                        case '3': col = {0x80, 0x80, 0x00, 0xFF}; break;
+                        case '4': col = {0x00, 0x00, 0x80, 0xFF}; break;
+                        case '5': col = {0x80, 0x00, 0x80, 0xFF}; break;
+                        case '6': col = {0x00, 0x80, 0x80, 0xFF}; break;
+                        case '7': col = {0xc0, 0xc0, 0xc0, 0xFF}; break;
+                        case '8': col = {0x80, 0x80, 0x80, 0xFF}; break;
+                        case '9': col = {0xff, 0x00, 0x00, 0xFF}; break;
+                        case 'a': col = {0x00, 0xff, 0x00, 0xFF}; break;
+                        case 'b': col = {0xff, 0xff, 0x00, 0xFF}; break;
+                        case 'c': col = {0x00, 0x00, 0xff, 0xFF}; break;
+                        case 'd': col = {0xff, 0x00, 0xff, 0xFF}; break;
+                        case 'e': col = {0x00, 0xff, 0xff, 0xFF}; break;
+                        case 'f': col = {0xff, 0xff, 0xff, 0xFF}; break;
+                        default: fg = false; bg = false;    break;
+                    }
+                    if(fg) {
+                        fg_col = col;
+                        fg = false;
+                        special = false;
+                    }
+                    if(bg) {
+                        bg_col = col;
+                        bg = false;
+                        special = false;
+                    }
+                }
+                else switch(character) {
+                    case '\n':
+                    off.y += 1.f;
+                    off.x  = 0.f;
+                    special = false;
+                    break;
+
+                    case 'f': fg = true; break;
+                    case 'b': bg = true; break;
+                    default:
+                    fg = false;
+                    bg = false;
+                    special = false;
+                    break;
+                }
                 continue;
             }
             for(Uns i = 0; i < 4; ++i) {
@@ -136,7 +185,7 @@ void ui_render() {
                 text_system.verts.push_back({
                     text_field.pos + ((Vec2F)quad[i] + off) * text_field.scale,
                     Vec2<U8>(character % 16, character / 16) + (Vec2<U8>)quad[i],
-                    Vec4<U8>(0xFF), Vec4<U8>(0x00)});
+                    fg_col, bg_col});
             }
             for(Uns i = 0; i < 6; ++i) {
                 constexpr U32 idxs[6] = {0, 1, 2, 2, 3, 1};
