@@ -7,6 +7,7 @@
 //
 #include <rendering.hpp>
 #include <ui.hpp>
+#include <viewport.hpp>
 
 static SparseDynArr<TextField> text_fields;
 
@@ -59,10 +60,9 @@ struct TextSystem {
     } shader_attribs;
 } static text_system;
 
-void ui_window_sz_cb(Vec2U const& window_sz) {
-    Vec2F scale = Vec2F(1.f) / (Vec2F)window_sz;
-    set_uniform("scale", text_system.program,
-                glUniform2fv, 1, glm::value_ptr(scale));
+void ui_window_sz_cb(Vec2U const& sz) {
+    world_viewport.scale.y = -world_viewport.scale.x * ((F32)sz.x / (F32)sz.y);
+    ui_viewport.scale.y    = -ui_viewport.scale.x * ((F32)sz.x / (F32)sz.y);
 }
 
 void ui_init() {

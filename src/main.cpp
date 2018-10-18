@@ -29,7 +29,6 @@ void window_resize_cb(GLFWwindow* window, int win_w, int win_h)
     glViewport(0, 0, win_w, win_h);
     console_window_sz_cb({win_w, win_h});
     ui_window_sz_cb({win_w, win_h});
-    world_viewport.scale.y = -world_viewport.scale.x * ((F32)win_w / (F32)win_h);
 }
 
 void key_cb(GLFWwindow* window, int key, int scancode, int action, int mods)
@@ -72,7 +71,7 @@ int main(int argc, char** argv) {
     Vec2<int> win_size;
     glfwGetWindowSize(glfw_window, &win_size.x, &win_size.y);
     window_resize_cb(glfw_window, win_size.x, win_size.y);
-    TextHandle coord_txt_h = create_text({-1.f, 1.0f}, {0.03f, -0.03f}, "");
+    TextHandle coord_txt_h = create_text({-1.f, 1.0f}, {0.f, 0.f}, "");
     { ///main loop
         auto tick_len = util::TickClock::Duration(1.0 / tick_rate);
         util::TickClock clock(tick_len);
@@ -89,6 +88,7 @@ int main(int argc, char** argv) {
              "\\\ny: " + std::to_string(last_player_pos.y) +
              "\\\nz: " + std::to_string(last_player_pos.z);
             auto& coord_txt = get_text_field(coord_txt_h);
+            coord_txt.scale = ui_viewport.scale * 0.5f;
             coord_txt.buff.resize(coord_str.size());
             std::memcpy(coord_txt.buff.data(),
                         coord_str.data(), coord_str.size());
