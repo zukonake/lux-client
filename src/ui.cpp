@@ -120,7 +120,17 @@ void ui_render() {
     text_system.idxs.clear();
     for(auto const& text_field : text_fields) {
         Vec2F off = {0, 0};
+        bool special = false;
         for(auto character : text_field.buff) {
+            if(character == '\\') {
+                special = true;
+                continue;
+            }
+            if(special == true && character == '\n') {
+                off.y += 1.f;
+                off.x  = 0.f;
+                continue;
+            }
             for(Uns i = 0; i < 4; ++i) {
                 constexpr Vec2I quad[4] = {{0, 0}, {0, 1}, {1, 0}, {1, 1}};
                 text_system.verts.push_back({

@@ -2,6 +2,7 @@
 //
 #include <cstdlib>
 #include <cmath>
+#include <cstring>
 //
 #include <enet/enet.h>
 //
@@ -71,6 +72,7 @@ int main(int argc, char** argv) {
     Vec2<int> win_size;
     glfwGetWindowSize(glfw_window, &win_size.x, &win_size.y);
     window_resize_cb(glfw_window, win_size.x, win_size.y);
+    TextHandle coord_txt_h = create_text({-1.f, 1.0f}, {0.03f, -0.03f}, "");
     { ///main loop
         auto tick_len = util::TickClock::Duration(1.0 / tick_rate);
         util::TickClock clock(tick_len);
@@ -82,6 +84,14 @@ int main(int argc, char** argv) {
             if(client_tick(glfw_window) != LUX_OK) {
                 LUX_FATAL("game state corrupted");
             }
+            DynStr coord_str =
+                 "x: " + std::to_string(last_player_pos.x) +
+             "\\\ny: " + std::to_string(last_player_pos.y) +
+             "\\\nz: " + std::to_string(last_player_pos.z);
+            auto& coord_txt = get_text_field(coord_txt_h);
+            coord_txt.buff.resize(coord_str.size());
+            std::memcpy(coord_txt.buff.data(),
+                        coord_str.data(), coord_str.size());
             world_viewport.pos = -Vec2F(last_player_pos);
             map_render();
             entity_render();
