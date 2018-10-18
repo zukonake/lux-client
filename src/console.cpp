@@ -173,6 +173,7 @@ void console_window_resize_cb(int win_w, int win_h) {
     glBindBuffer(GL_ARRAY_BUFFER, console.grid_vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(GridVert) * grid_verts.size(),
         grid_verts.data(), GL_STATIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, console.ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(U32) * idxs.size(),
         idxs.data(), GL_STATIC_DRAW);
     console.idxs_count = idxs.size();
