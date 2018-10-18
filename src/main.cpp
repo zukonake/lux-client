@@ -50,8 +50,9 @@ int main(int argc, char** argv) {
         server_port = raw_server_port;
     }
 
-    F64 tick_rate;
-    client_init(server_hostname, server_port, tick_rate);
+    if(client_init(server_hostname, server_port) != LUX_OK) {
+        LUX_FATAL("failed to initialize client");
+    }
     LUX_DEFER { client_deinit(); };
     db_init();
     rendering_init();
@@ -76,7 +77,11 @@ int main(int argc, char** argv) {
             glfwPollEvents();
             glClearColor(0, 0, 0, 1);
             glClear(GL_COLOR_BUFFER_BIT);
-            client_tick(glfw_window);
+            if(client_tick(glfw_window) != LUX_OK) {
+                LUX_FATAL("corrupted game state");
+            }
+            map_render();
+            entity_render();
             console_render();
             check_opengl_error();
             glfwSwapBuffers(glfw_window);

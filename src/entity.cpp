@@ -3,6 +3,7 @@
 #include <glm/gtc/type_ptr.hpp>
 //
 #include <rendering.hpp>
+#include <client.hpp>
 #include "entity.hpp"
 
 static GLuint program;
@@ -47,8 +48,9 @@ void entity_init() {
 #endif
 }
 
-void entity_render(EntityVec const& player_pos, EntityComps const& comps) {
-
+void entity_render() {
+    auto const& player_pos = last_player_pos;
+    auto const& comps = ss_tick.comps;
     Vec2F scale = {0, 0};
     {   Vec2U window_size = get_window_size();
         F32 aspect_ratio = (F32)window_size.x / (F32)window_size.y;
@@ -84,7 +86,7 @@ void entity_render(EntityVec const& player_pos, EntityComps const& comps) {
         for(Uns j = 0; j < 6; ++j) {
             idxs[off * 6 + j] = idx_order[j] + off * 4;
         }
-        off += 4;
+        ++off;
     }
 
     glBindBuffer(GL_ARRAY_BUFFER, vbo);

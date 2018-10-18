@@ -25,15 +25,17 @@ struct {
     DynStr server_name  = "unnamed";
     bool   should_close = false;
     VecSet<ChkPos> sent_requests;
-    EntityVec last_player_pos = {0, 0, 0};
 } static client;
 
-static NetCsTick cs_tick;
-static NetCsSgnl cs_sgnl;
-static NetSsTick ss_tick;
-static NetSsSgnl ss_sgnl;
+EntityVec last_player_pos = {0, 0, 0};
+F64 tick_rate = 0.f;
 
-static void connect_to_server(char const* hostname, U16 port, F64& tick_rate);
+NetCsTick cs_tick;
+NetCsSgnl cs_sgnl;
+NetSsTick ss_tick;
+NetSsSgnl ss_sgnl;
+
+LUX_MAY_FAIL static connect_to_server(char const* hostname, U16 port);
 
 void client_quit() {
     client.should_close = true;
@@ -43,22 +45,24 @@ bool client_should_close() {
     return client.should_close;
 }
 
-void client_init(char const* server_hostname, U16 server_port, F64& tick_rate) {
+LUX_MAY_FAIL client_init(char const* server_hostname, U16 server_port) {
     LUX_LOG("initializing client");
 
     //@TODO add logs there
     if(enet_initialize() < 0) {
-        LUX_FATAL("couldn't initialize ENet");
+        LUX_LOG("couldn't initialize ENet");
+        return LUX_FAIL;
     }
 
     { ///init client
         client.host = enet_host_create(nullptr, 1, CHANNEL_NUM, 0, 0);
         if(client.host == nullptr) {
-            LUX_FATAL("couldn't initialize ENet host");
+            LUX_LOG("couldn't initialize ENet host");
+            return LUX_FAIL;
         }
     }
 
-    connect_to_server(server_hostname, server_port, tick_rate);
+    return connect_to_server(server_hostname, server_port);
 }
 
 void client_deinit() {
@@ -93,10 +97,11 @@ void client_deinit() {
     enet_deinitialize();
 }
 
-static void connect_to_server(char const* hostname, U16 port, F64& tick_rate) {
+LUX_MAY_FAIL static connect_to_server(char const* hostname, U16 port) {
     ENetAddress addr;
     if(enet_address_set_host(&addr, hostname) < 0) {
-        LUX_FATAL("failed to set server hostname: %s", hostname);
+        LUX_LOG("failed to set server hostname: %s", hostname);
+        return LUX_FAIL;
     }
     addr.port = port;
     U8* ip = get_ip(addr);
@@ -104,7 +109,8 @@ static void connect_to_server(char const* hostname, U16 port, F64& tick_rate) {
             ip[0], ip[1], ip[2], ip[3], port);
     client.peer = enet_host_connect(client.host, &addr, CHANNEL_NUM, 0);
     if(client.peer == nullptr) {
-        LUX_FATAL("failed to connect to server");
+        LUX_LOG("failed to connect to server");
+        return LUX_FAIL;
     }
 
     { ///receive acknowledgement
@@ -124,7 +130,8 @@ static void connect_to_server(char const* hostname, U16 port, F64& tick_rate) {
             }
             if(tries >= MAX_TRIES) {
                 enet_peer_reset(client.peer);
-                LUX_FATAL("failed to acknowledge connection with server");
+                LUX_LOG("failed to acknowledge connection with server");
+                return LUX_FAIL;
             }
             ++tries;
         } while(true);
@@ -143,10 +150,8 @@ static void connect_to_server(char const* hostname, U16 port, F64& tick_rate) {
         std::memcpy(cs_init.name, client_name, sizeof(client_name));
         std::memset(cs_init.name + sizeof(client_name), 0,
                     CLIENT_NAME_LEN - sizeof(client_name));
-        if(send_net_data(client.peer, &cs_init, INIT_CHANNEL) != LUX_OK) {
-            //@TODO return
-            LUX_FATAL("failed to send init packet");
-        }
+        LUX_RETHROW(send_net_data(client.peer, &cs_init, INIT_CHANNEL),
+            "failed to send init packet");
         LUX_LOG("init packet sent successfully");
     }
 
@@ -179,9 +184,8 @@ static void connect_to_server(char const* hostname, U16 port, F64& tick_rate) {
         LUX_LOG("received init packet after %zu/%zu tries", tries, MAX_TRIES);
 
         {   NetSsInit ss_init;
-            if(deserialize_packet(in_pack, &ss_init) != LUX_OK) {
-                LUX_FATAL("failed to receive init packet");
-            }
+            LUX_RETHROW(deserialize_packet(in_pack, &ss_init),
+                "failed to receive init packet");
 
             client.server_name = DynStr((char const*)ss_init.name);
             tick_rate = ss_init.tick_rate;
@@ -190,24 +194,22 @@ static void connect_to_server(char const* hostname, U16 port, F64& tick_rate) {
                 client.server_name.c_str());
         LUX_LOG("tick rate %2.f", tick_rate);
     }
+    return LUX_OK;
 }
 
 LUX_MAY_FAIL static handle_tick(ENetPacket* in_pack) {
-    if(deserialize_packet(in_pack, &ss_tick) != LUX_OK) {
-        LUX_LOG("deserialization failed");
-        return LUX_FAIL;
-    }
+    LUX_RETHROW(deserialize_packet(in_pack, &ss_tick),
+        "failed to deserialize tick");
 
     if(ss_tick.comps.pos.count(ss_tick.player_id) > 0) {
-        client.last_player_pos = ss_tick.comps.pos.at(ss_tick.player_id);
+        last_player_pos = ss_tick.comps.pos.at(ss_tick.player_id);
     }
     return LUX_OK;
 }
 
 LUX_MAY_FAIL static handle_signal(ENetPacket* in_pack) {
-    if(deserialize_packet(in_pack, &ss_sgnl) != LUX_OK) {
-        return LUX_FAIL;
-    }
+    LUX_RETHROW(deserialize_packet(in_pack, &ss_sgnl),
+        "failed to deserialize signal");
 
     { ///parse the packet
         switch(ss_sgnl.tag) {
@@ -230,8 +232,7 @@ LUX_MAY_FAIL static handle_signal(ENetPacket* in_pack) {
     return LUX_OK;
 }
 
-//@TODO err handling
-void client_tick(GLFWwindow* glfw_window) {
+LUX_MAY_FAIL client_tick(GLFWwindow* glfw_window) {
     { ///handle events
         if(glfwWindowShouldClose(glfw_window)) client_quit();
         ENetEvent event;
@@ -239,7 +240,7 @@ void client_tick(GLFWwindow* glfw_window) {
             if(event.type == ENET_EVENT_TYPE_DISCONNECT) {
                 LUX_LOG("connection closed by server");
                 client.should_close = true;
-                return;
+                return LUX_OK;
             } else if(event.type == ENET_EVENT_TYPE_RECEIVE) {
                 LUX_DEFER { enet_packet_destroy(event.packet); };
                 if(event.channelID == TICK_CHANNEL) {
@@ -248,11 +249,8 @@ void client_tick(GLFWwindow* glfw_window) {
                         continue;
                     }
                 } else if(event.channelID == SIGNAL_CHANNEL) {
-                    if(handle_signal(event.packet) != LUX_OK) {
-                        //@TODO consider crashing here
-                        LUX_LOG("ignoring signal");
-                        continue;
-                    }
+                    LUX_RETHROW(handle_signal(event.packet),
+                        "failed to handle signal from server");
                 } else {
                     LUX_LOG("ignoring unexpected packet");
                     LUX_LOG("    channel: %u", event.channelID);
@@ -260,9 +258,6 @@ void client_tick(GLFWwindow* glfw_window) {
             }
         }
     }
-    map_render(client.last_player_pos);
-    entity_render(client.last_player_pos, ss_tick.comps);
-
     ///send map request signal
     {   cs_sgnl.tag = NetCsSgnl::MAP_REQUEST;
         for(auto it  = chunk_requests.cbegin(); it != chunk_requests.cend();) {
@@ -277,8 +272,7 @@ void client_tick(GLFWwindow* glfw_window) {
         chunk_requests.clear();
         if(cs_sgnl.map_request.requests.size() > 0) {
             if(send_net_data(client.peer, &cs_sgnl, SIGNAL_CHANNEL) != LUX_OK) {
-                //@TODO ?
-                return;
+                LUX_LOG("failed to send map requests");
             }
         }
     }
@@ -302,8 +296,11 @@ void client_tick(GLFWwindow* glfw_window) {
                 dir = glm::rotate(dir, get_aim_rotation());
             }
         }
-        (void)send_net_data(client.peer, &cs_tick, TICK_CHANNEL);
+        if(send_net_data(client.peer, &cs_tick, TICK_CHANNEL) != LUX_OK) { 
+            LUX_LOG("failed to send tick");
+        }
     }
+    return LUX_OK;
 }
 
 LUX_MAY_FAIL send_command(char const* beg) {
@@ -318,9 +315,8 @@ LUX_MAY_FAIL send_command(char const* beg) {
         for(Uns i = 0; i < len; ++i) {
             cs_sgnl.command.contents[i] = beg[i];
         }
-        if(send_net_data(client.peer, &cs_sgnl, SIGNAL_CHANNEL) != LUX_OK) {
-            return LUX_FAIL;
-        }
+        LUX_RETHROW(send_net_data(client.peer, &cs_sgnl, SIGNAL_CHANNEL),
+            "failed to send command");
     }
     return LUX_OK;
 }

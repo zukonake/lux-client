@@ -12,6 +12,7 @@
 //
 #include <rendering.hpp>
 #include <db.hpp>
+#include <client.hpp>
 #include "map.hpp"
 
 GLuint tile_program;
@@ -128,7 +129,8 @@ void map_init() {
         CHK_VOL * 2 * 3, idxs, GL_STATIC_DRAW);
 }
 
-void map_render(EntityVec const& player_pos) {
+void map_render() {
+    auto const& player_pos = last_player_pos;
     U32 constexpr RENDER_DIST = 2;
 
     static DynArr<ChkPos> render_list;
