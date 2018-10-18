@@ -141,8 +141,8 @@ void console_init(Vec2U win_size) {
     }
 
     ///bind some useful stuff
-    console_bind_key('q', "/lux.quit()");
-    console_bind_key('r', "/lux.reload_program()");
+    LUX_ASSERT(console_bind_key('q', "/lux.quit()"));
+    LUX_ASSERT(console_bind_key('r', "/lux.reload_program()"));
 }
 
 void console_deinit() {
@@ -187,6 +187,7 @@ void console_window_resize_cb(int win_w, int win_h) {
 }
 
 void console_key_cb(int key, int code, int action, int mods) {
+    (void)code;
     if(action != GLFW_PRESS) return;
     if(!console.is_active) {
         if(key == GLFW_KEY_T) {
@@ -315,9 +316,13 @@ bool console_is_active() {
     return console.is_active;
 }
 
-void console_bind_key(char key, char const* input) {
-    //@TODO check if length < IN_BUFF_WIDTH
+LUX_MAY_FAIL console_bind_key(char key, char const* input) {
+    if(std::strlen(input) >= Console::IN_BUFF_WIDTH) {
+        LUX_LOG("console binding too long");
+        return LUX_FAIL;
+    }
     console.key_bindings[key] = DynStr(input);
+    return LUX_OK;
 }
 
 static void console_move_cursor(bool forward) {
@@ -409,7 +414,6 @@ static void console_exec_command(char const* str) {
 }
 
 static void console_enter() {
-    auto const& grid_size = console.grid_size;
     console_exec_command(console.in_buff);
     std::memset(console.in_buff, 0, Console::IN_BUFF_WIDTH);
     console.cursor_pos = 0;

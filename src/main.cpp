@@ -78,7 +78,7 @@ int main(int argc, char** argv) {
             glClearColor(0, 0, 0, 1);
             glClear(GL_COLOR_BUFFER_BIT);
             if(client_tick(glfw_window) != LUX_OK) {
-                LUX_FATAL("corrupted game state");
+                LUX_FATAL("game state corrupted");
             }
             map_render();
             entity_render();

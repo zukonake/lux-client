@@ -48,7 +48,6 @@ bool client_should_close() {
 LUX_MAY_FAIL client_init(char const* server_hostname, U16 server_port) {
     LUX_LOG("initializing client");
 
-    //@TODO add logs there
     if(enet_initialize() < 0) {
         LUX_LOG("couldn't initialize ENet");
         return LUX_FAIL;

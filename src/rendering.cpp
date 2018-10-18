@@ -50,11 +50,9 @@ void rendering_init() {
 #endif
         glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
-        //@TODO win size
         glfw_window = glfwCreateWindow(WINDOW_SIZE.x, WINDOW_SIZE.y,
             "Lux", nullptr, nullptr);
         if(glfw_window == nullptr) {
-            //@TODO more info
             LUX_FATAL("couldn't create GLFW window");
         }
         glfwMakeContextCurrent(glfw_window);

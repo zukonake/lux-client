@@ -17,7 +17,9 @@ void reload_program() {
 }
 
 void bind_key(char key, char const* input) {
-    console_bind_key(key, input);
+    if(console_bind_key(key, input) != LUX_OK) {
+        print("failed to bind key");
+    }
 }
 
 void quit() {
