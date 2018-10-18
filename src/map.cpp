@@ -190,7 +190,29 @@ void map_render() {
 #if defined(LUX_GLES_2_0)
     glDisableVertexAttribArray(tile_shader_attribs.pos);
 #endif
+    render_list.clear();
+}
 
+void light_render() {
+    auto const& player_pos = last_player_pos;
+    U32 constexpr RENDER_DIST = 2;
+
+    static DynArr<ChkPos> render_list;
+    render_list.reserve(std::pow(2 * RENDER_DIST - 1, 2));
+
+    ChkPos center = to_chk_pos(player_pos);
+    ChkPos iter;
+    iter.z = center.z;
+    for(iter.y  = center.y - RENDER_DIST;
+        iter.y <= center.y + RENDER_DIST;
+        iter.y++) {
+        for(iter.x  = center.x - RENDER_DIST;
+            iter.x <= center.x + RENDER_DIST;
+            iter.x++) {
+            if(is_chunk_loaded(iter)) render_list.emplace_back(iter);
+            else                      chunk_requests.emplace(iter);
+        }
+    }
     glUseProgram(light_program);
     glEnable(GL_BLEND);
     glBlendFunc(GL_ZERO, GL_SRC_COLOR);

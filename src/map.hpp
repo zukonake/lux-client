@@ -16,6 +16,7 @@ extern VecSet<ChkPos> chunk_requests;
 
 void map_init();
 void map_render();
+void light_render();
 void map_reload_program();
 bool is_chunk_loaded(ChkPos const& pos);
 void load_chunk(ChkPos const& pos,

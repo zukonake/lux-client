@@ -95,6 +95,7 @@ int main(int argc, char** argv) {
             world_viewport.pos = -Vec2F(last_player_pos);
             map_render();
             entity_render();
+            light_render();
             console_render();
             ui_render();
             check_opengl_error();
