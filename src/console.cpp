@@ -91,7 +91,6 @@ void console_init() {
 #if defined(LUX_GL_3_3)
     glGenVertexArrays(1, &console.vao);
     glBindVertexArray(console.vao);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, console.ebo);
 
     glBindBuffer(GL_ARRAY_BUFFER, console.grid_vbo);
     glVertexAttribPointer(shader_attribs.pos,
@@ -280,7 +279,6 @@ void console_render() {
         glUseProgram(console.program);
         glBindTexture(GL_TEXTURE_2D, console.font);
 #if defined(LUX_GLES_2_0)
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, console.ebo);
         glBindBuffer(GL_ARRAY_BUFFER, console.grid_vbo);
         glVertexAttribPointer(shader_attribs.pos,
             2, GL_FLOAT, GL_FALSE, sizeof(GridVert),
@@ -303,6 +301,7 @@ void console_render() {
 #elif defined(LUX_GL_3_3)
         glBindVertexArray(console.vao);
 #endif
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, console.ebo);
         glDrawElements(GL_TRIANGLES, console.idxs_count, GL_UNSIGNED_INT, 0);
 #if defined(LUX_GLES_2_0)
         glDisableVertexAttribArray(shader_attribs.pos);

@@ -8,14 +8,6 @@
 #include <rendering.hpp>
 #include <ui.hpp>
 
-typedef U32 TextHandle;
-
-struct TextField {
-    Vec2I         pos;
-    F32           scale;
-    DynArr<char> buff;
-};
-
 static SparseDynArr<TextField> text_fields;
 
 TextHandle create_text(Vec2I pos, F32 scale, const char* str) {
@@ -31,6 +23,11 @@ TextHandle create_text(Vec2I pos, F32 scale, const char* str) {
 
 void delete_text(TextHandle handle) {
     text_fields.erase(handle);
+}
+
+TextField& get_text_field(TextHandle handle) {
+    LUX_ASSERT(text_fields.contains(handle));
+    return text_fields[handle];
 }
 
 struct TextSystem {
