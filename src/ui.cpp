@@ -10,7 +10,7 @@
 
 static SparseDynArr<TextField> text_fields;
 
-TextHandle create_text(Vec2I pos, F32 scale, const char* str) {
+TextHandle create_text(Vec2F pos, Vec2F scale, const char* str) {
     TextHandle handle = text_fields.emplace();
     TextField& text_field = text_fields[handle];
     text_field.pos   = pos;
@@ -31,12 +31,14 @@ TextField& get_text_field(TextHandle handle) {
 }
 
 struct TextSystem {
+#pragma pack(push, 1)
     struct Vert {
-        Vec2<U16> pos;
+        Vec2F    pos;
         Vec2<U8> font_pos;
         Vec4<U8> fg_col;
         Vec4<U8> bg_col;
     };
+#pragma pack(pop)
 
     GLuint program;
     GLuint vbo;
@@ -48,6 +50,7 @@ struct TextSystem {
     GLuint font_texture;
 
     DynArr<Vert> verts;
+    DynArr<U32>  idxs;
     struct {
         GLint pos;
         GLint font_pos;
@@ -67,7 +70,13 @@ void ui_init() {
     text_system.program = load_program("glsl/text.vert", "glsl/text.frag");
     Vec2U font_size;
     text_system.font_texture = load_texture(font_path, font_size);
+    Vec2F font_pos_scale = Vec2F(8.f, 8.f) / (Vec2F)font_size;
     glUseProgram(text_system.program);
+    set_uniform("font_pos_scale", text_system.program,
+                glUniform2fv, 1, glm::value_ptr(font_pos_scale));
+    glm::mat4 transform(1.f);
+    set_uniform("transform", text_system.program,
+                glUniformMatrix4fv, 1, GL_FALSE, glm::value_ptr(transform));
 
     text_system.shader_attribs.pos =
         glGetAttribLocation(text_system.program, "pos");
@@ -91,6 +100,57 @@ void ui_init() {
         2, GL_FLOAT, GL_FALSE, sizeof(TextSystem::Vert),
         (void*)offsetof(TextSystem::Vert, pos));
     glVertexAttribPointer(text_system.shader_attribs.font_pos,
+        2, GL_UNSIGNED_BYTE, GL_FALSE, sizeof(TextSystem::Vert),
+        (void*)offsetof(TextSystem::Vert, font_pos));
+    glVertexAttribPointer(text_system.shader_attribs.fg_col,
+        3, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(TextSystem::Vert),
+        (void*)offsetof(TextSystem::Vert, fg_col));
+    glVertexAttribPointer(text_system.shader_attribs.bg_col,
+        3, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(TextSystem::Vert),
+        (void*)offsetof(TextSystem::Vert, bg_col));
+    glEnableVertexAttribArray(text_system.shader_attribs.pos);
+    glEnableVertexAttribArray(text_system.shader_attribs.font_pos);
+    glEnableVertexAttribArray(text_system.shader_attribs.fg_col);
+    glEnableVertexAttribArray(text_system.shader_attribs.bg_col);
+#endif
+}
+
+void ui_render() {
+    text_system.verts.clear();
+    text_system.idxs.clear();
+    for(auto const& text_field : text_fields) {
+        Vec2F off = {0, 0};
+        for(auto character : text_field.buff) {
+            for(Uns i = 0; i < 4; ++i) {
+                constexpr Vec2I quad[4] = {{0, 0}, {0, 1}, {1, 0}, {1, 1}};
+                text_system.verts.push_back({
+                    text_field.pos + ((Vec2F)quad[i] + off) * text_field.scale,
+                    Vec2<U8>(character % 16, character / 16) + (Vec2<U8>)quad[i],
+                    Vec4<U8>(0xFF), Vec4<U8>(0x00)});
+            }
+            for(Uns i = 0; i < 6; ++i) {
+                constexpr U32 idxs[6] = {0, 1, 2, 2, 3, 1};
+                text_system.idxs.emplace_back(text_system.verts.size() - 4 + idxs[i]);
+            }
+            off.x += 1.f;
+        }
+    }
+    if(text_system.verts.size() == 0) return;
+    glBindBuffer(GL_ARRAY_BUFFER, text_system.vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(TextSystem::Vert) *
+        text_system.verts.size(), text_system.verts.data(), GL_DYNAMIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, text_system.ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(U32) *
+        text_system.idxs.size(), text_system.idxs.data(), GL_DYNAMIC_DRAW);
+
+    glUseProgram(text_system.program);
+    glBindTexture(GL_TEXTURE_2D, text_system.font_texture);
+#if defined(LUX_GLES_2_0)
+    glBindBuffer(GL_ARRAY_BUFFER, text_system.vbo);
+    glVertexAttribPointer(text_system.shader_attribs.pos,
+        2, GL_FLOAT, GL_FALSE, sizeof(TextSystem::Vert),
+        (void*)offsetof(TextSystem::Vert, pos));
+    glVertexAttribPointer(text_system.shader_attribs.font_pos,
         2, GL_FLOAT, GL_FALSE, sizeof(TextSystem::Vert),
         (void*)offsetof(TextSystem::Vert, font_pos));
     glVertexAttribPointer(text_system.shader_attribs.fg_col,
@@ -103,5 +163,14 @@ void ui_init() {
     glEnableVertexAttribArray(text_system.shader_attribs.font_pos);
     glEnableVertexAttribArray(text_system.shader_attribs.fg_col);
     glEnableVertexAttribArray(text_system.shader_attribs.bg_col);
+#elif defined(LUX_GL_3_3)
+    glBindVertexArray(text_system.vao);
+#endif
+    glDrawElements(GL_TRIANGLES, text_system.idxs.size(), GL_UNSIGNED_INT, 0);
+#if defined(LUX_GLES_2_0)
+    glDisableVertexAttribArray(text_system.shader_attribs.pos);
+    glDisableVertexAttribArray(text_system.shader_attribs.font_pos);
+    glDisableVertexAttribArray(text_system.shader_attribs.fg_col);
+    glDisableVertexAttribArray(text_system.shader_attribs.bg_col);
 #endif
 }

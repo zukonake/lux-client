@@ -5,6 +5,7 @@
 #include <rendering.hpp>
 #include <client.hpp>
 #include <viewport.hpp>
+#include <ui.hpp>
 #include "entity.hpp"
 
 static GLuint program;
@@ -49,6 +50,8 @@ void entity_init() {
 #endif
 }
 
+static HashTable<TextHandle, EntityHandle> entity_names;
+
 void entity_render() {
     auto const& player_pos = last_player_pos;
     auto const& comps = ss_tick.comps;
@@ -85,6 +88,22 @@ void entity_render() {
             idxs[off * 6 + j] = idx_order[j] + off * 4;
         }
         ++off;
+    }
+    for(auto const& entity : comps.name) {
+        if(comps.pos.count(entity.first) > 0) {
+            EntityHandle id = entity.first;
+            if(entity_names.count(id) == 0) {
+                DynStr name(entity.second.cbegin(), entity.second.cend());
+                entity_names[id] =
+                    create_text({0, 0}, {0, 0}, name.c_str());
+            }
+            TextField& text = get_text_field(entity_names[id]);
+            Vec2F world_pos = comps.pos.at(id);
+            text.pos   = transform_point(world_pos, world_viewport);
+            text.scale = world_viewport.scale * 0.5f;
+            text.pos.x -= ((F32)comps.name.at(id).size() / 2.f) * text.scale.x;
+            text.pos.y -= 3.f * text.scale.y;
+        }
     }
 
     glBindBuffer(GL_ARRAY_BUFFER, vbo);

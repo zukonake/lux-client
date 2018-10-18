@@ -71,7 +71,6 @@ int main(int argc, char** argv) {
     Vec2<int> win_size;
     glfwGetWindowSize(glfw_window, &win_size.x, &win_size.y);
     window_resize_cb(glfw_window, win_size.x, win_size.y);
-
     { ///main loop
         auto tick_len = util::TickClock::Duration(1.0 / tick_rate);
         util::TickClock clock(tick_len);
@@ -87,6 +86,7 @@ int main(int argc, char** argv) {
             map_render();
             entity_render();
             console_render();
+            ui_render();
             check_opengl_error();
             glfwSwapBuffers(glfw_window);
 
