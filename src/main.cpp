@@ -15,6 +15,7 @@
 #include <client.hpp>
 #include <entity.hpp>
 #include <ui.hpp>
+#include <viewport.hpp>
 
 struct {
     Vec2U window_size = {800, 600};
@@ -25,7 +26,9 @@ void window_resize_cb(GLFWwindow* window, int win_w, int win_h)
     (void)window;
     LUX_LOG("window size change to %ux%u", win_w, win_h);
     glViewport(0, 0, win_w, win_h);
-    console_window_resize_cb(win_w, win_h);
+    console_window_sz_cb({win_w, win_h});
+    ui_window_sz_cb({win_w, win_h});
+    world_viewport.scale.y = -world_viewport.scale.x * ((F32)win_w / (F32)win_h);
 }
 
 void key_cb(GLFWwindow* window, int key, int scancode, int action, int mods)
@@ -58,16 +61,16 @@ int main(int argc, char** argv) {
     rendering_init();
     LUX_DEFER { rendering_deinit(); };
     map_init();
-    {   Vec2<int> win_size;
-        glfwGetWindowSize(glfw_window, &win_size.x, &win_size.y);
-        ui_init((Vec2U)win_size);
-        console_init((Vec2U)win_size);
-    }
+    ui_init();
+    console_init();
     LUX_DEFER { console_deinit(); };
     entity_init();
+    check_opengl_error();
     glfwSetWindowSizeCallback(glfw_window, window_resize_cb);
     glfwSetKeyCallback(glfw_window, key_cb);
-    check_opengl_error();
+    Vec2<int> win_size;
+    glfwGetWindowSize(glfw_window, &win_size.x, &win_size.y);
+    window_resize_cb(glfw_window, win_size.x, win_size.y);
 
     { ///main loop
         auto tick_len = util::TickClock::Duration(1.0 / tick_rate);
@@ -80,6 +83,7 @@ int main(int argc, char** argv) {
             if(client_tick(glfw_window) != LUX_OK) {
                 LUX_FATAL("game state corrupted");
             }
+            world_viewport.pos = -Vec2F(last_player_pos);
             map_render();
             entity_render();
             console_render();

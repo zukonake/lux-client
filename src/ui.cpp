@@ -59,13 +59,13 @@ struct TextSystem {
     } shader_attribs;
 } static text_system;
 
-static void ui_window_sz_cb(Vec2U const& window_sz) {
+void ui_window_sz_cb(Vec2U const& window_sz) {
     Vec2F scale = Vec2F(1.f) / (Vec2F)window_sz;
     set_uniform("scale", text_system.program,
                 glUniform2fv, 1, glm::value_ptr(scale));
 }
 
-void ui_init(Vec2U const& window_sz) {
+void ui_init() {
     char const* font_path = "font.png";
     text_system.program = load_program("glsl/text.vert", "glsl/text.frag");
     Vec2U font_size;
@@ -107,5 +107,4 @@ void ui_init(Vec2U const& window_sz) {
     glEnableVertexAttribArray(text_system.shader_attribs.fg_col);
     glEnableVertexAttribArray(text_system.shader_attribs.bg_col);
 #endif
-    ui_window_sz_cb(window_sz);
 }

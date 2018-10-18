@@ -4,6 +4,7 @@
 //
 #include <rendering.hpp>
 #include <client.hpp>
+#include <viewport.hpp>
 #include "entity.hpp"
 
 static GLuint program;
@@ -51,15 +52,12 @@ void entity_init() {
 void entity_render() {
     auto const& player_pos = last_player_pos;
     auto const& comps = ss_tick.comps;
-    Vec2F scale = {0, 0};
-    {   Vec2U window_size = get_window_size();
-        F32 aspect_ratio = (F32)window_size.x / (F32)window_size.y;
-        F32 constexpr BASE_SCALE = 0.04f;
-        scale = Vec2F(BASE_SCALE, -BASE_SCALE * aspect_ratio);
-    }
 
     glUseProgram(program);
-    set_uniform("scale", program, glUniform2fv, 1, glm::value_ptr(scale));
+    set_uniform("scale", program, glUniform2fv,
+                1, glm::value_ptr(world_viewport.scale));
+    set_uniform("translation", program, glUniform2fv,
+                1, glm::value_ptr(world_viewport.pos));
 
 #if defined(LUX_GLES_2_0)
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
@@ -95,10 +93,6 @@ void entity_render() {
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER,
                  sizeof(Vert::Idx) * idxs.size(), idxs.data(), GL_DYNAMIC_DRAW);
-
-    Vec2F translation = Vec2F(-player_pos);
-    set_uniform("translation", program, glUniform2fv,
-                1, glm::value_ptr(translation));
 
     glDrawElements(GL_TRIANGLES, idxs.size(), Vert::IDX_GL_TYPE, 0);
 #if defined(LUX_GLES_2_0)

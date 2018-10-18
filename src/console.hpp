@@ -6,9 +6,9 @@
 //
 #include <lux_shared/common.hpp>
 
-void console_init(Vec2U win_size);
+void console_init();
 void console_deinit();
-void console_window_resize_cb(int win_w, int win_h);
+void console_window_sz_cb(Vec2U const& window_sz);
 void console_key_cb(int key, int code, int action, int mods);
 void console_print(char const* str);
 void console_render();

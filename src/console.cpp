@@ -69,7 +69,7 @@ static void console_exec_command(char const* str);
 static char parse_glfw_key(int key, int mods);
 static Uns  console_seek_last();
 
-void console_init(Vec2U win_size) {
+void console_init() {
     char const* font_path = "font.png";
     console.program = load_program("glsl/text.vert", "glsl/text.frag");
     Vec2U font_size;
@@ -114,7 +114,6 @@ void console_init(Vec2U win_size) {
     glEnableVertexAttribArray(shader_attribs.bg_col);
 #endif
 
-    console_window_resize_cb(win_size.x, win_size.y);
     console_clear();
 
     console.lua_L = luaL_newstate();
@@ -149,11 +148,11 @@ void console_deinit() {
     lua_close(console.lua_L);
 }
 
-void console_window_resize_cb(int win_w, int win_h) {
+void console_window_sz_cb(Vec2U const& window_sz) {
     static DynArr<GridVert> grid_verts;
     static DynArr<U32>            idxs;
 
-    console.grid_size.x = win_w / (console.char_size * console.scale);
+    console.grid_size.x = window_sz.x / (console.char_size * console.scale);
     auto const& grid_size = console.grid_size;
     console.out_buff.resize(grid_size.x * (grid_size.y - 1));
     console.font_verts.resize(4 * grid_size.x * grid_size.y);
@@ -181,10 +180,11 @@ void console_window_resize_cb(int win_w, int win_h) {
     glUseProgram(console.program);
     glm::mat4 transform(1.f);
     transform = glm::translate(transform, Vec3F(-1.f, -1.f, 0.f));
-    Vec2F vec_scale = (Vec2F)(console.char_size * console.scale) / Vec2F(win_w, win_h);
+    Vec2F vec_scale = (Vec2F)(console.char_size * console.scale) / (Vec2F)window_sz;
     transform = glm::scale(transform, Vec3F(vec_scale * 2.f, 1.f));
     set_uniform("transform", console.program,
                 glUniformMatrix4fv, 1, GL_FALSE, glm::value_ptr(transform));
+    console_clear();
 }
 
 void console_key_cb(int key, int code, int action, int mods) {

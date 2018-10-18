@@ -13,6 +13,7 @@
 #include <rendering.hpp>
 #include <db.hpp>
 #include <client.hpp>
+#include <viewport.hpp>
 #include "map.hpp"
 
 GLuint tile_program;
@@ -150,15 +151,9 @@ void map_render() {
         }
     }
 
-    Vec2F scale = {0, 0};
-    {   Vec2U window_size = get_window_size();
-        F32 aspect_ratio = (F32)window_size.x / (F32)window_size.y;
-        F32 constexpr BASE_SCALE = 0.04f;
-        scale = Vec2F(BASE_SCALE, -BASE_SCALE * aspect_ratio);
-    }
-
     glUseProgram(tile_program);
-    set_uniform("scale", tile_program, glUniform2fv, 1, glm::value_ptr(scale));
+    set_uniform("scale", tile_program, glUniform2fv,
+                1, glm::value_ptr(world_viewport.scale));
     glBindTexture(GL_TEXTURE_2D, tileset);
 #if defined(LUX_GLES_2_0)
     glBindBuffer(GL_ARRAY_BUFFER, geometry_mesh.vbo);
@@ -170,7 +165,7 @@ void map_render() {
 #endif
 
     for(auto const& chk_pos : render_list) {
-        Vec2F translation = Vec2F(-player_pos) +
+        Vec2F translation = world_viewport.pos +
             (Vec2F)(chk_pos * ChkPos(CHK_SIZE));
         set_uniform("translation", tile_program, glUniform2fv,
                     1, glm::value_ptr(translation));
@@ -199,9 +194,10 @@ void map_render() {
     glUseProgram(light_program);
     glEnable(GL_BLEND);
     glBlendFunc(GL_ZERO, GL_SRC_COLOR);
-    set_uniform("scale", light_program, glUniform2fv, 1, glm::value_ptr(scale));
+    set_uniform("scale", light_program, glUniform2fv,
+                1, glm::value_ptr(world_viewport.scale));
     for(auto const& chk_pos : render_list) {
-        Vec2F translation = Vec2F(-player_pos) +
+        Vec2F translation = world_viewport.pos +
             (Vec2F)(chk_pos * ChkPos(CHK_SIZE));
         set_uniform("translation", light_program, glUniform2fv,
                     1, glm::value_ptr(translation));
