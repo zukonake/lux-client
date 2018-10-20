@@ -182,10 +182,6 @@ GLuint load_texture(char const* path, Vec2U& size_out) {
     return id;
 }
 
-void generate_mipmaps(GLuint texture_id, U32 max_lvl) {
-    LUX_LOG("unimplemented");
-}
-
 F32 get_aim_rotation() {
     Vec2U window_size = get_window_size();
     Vec2D mouse_pos = (get_mouse_pos() / (Vec2D)window_size) - 0.5;

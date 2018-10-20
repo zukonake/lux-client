@@ -286,7 +286,7 @@ LUX_MAY_FAIL client_tick(GLFWwindow* glfw_window) {
     {   cs_sgnl.tag = NetCsSgnl::MAP_REQUEST;
         for(auto it  = chunk_requests.cbegin(); it != chunk_requests.cend();) {
             if(client.sent_requests.count(*it) == 0) {
-                LUX_LOG("requesting chunk {%zd, %zd, %zd}", it->x, it->y);
+                LUX_LOG("requesting chunk {%zd, %zd}", it->x, it->y);
                 cs_sgnl.map_request.requests.emplace(*it);
                 client.sent_requests.emplace(*it);
                 it = chunk_requests.erase(it);

@@ -76,8 +76,6 @@ void entity_init() {
 }
 
 void entity_render() {
-    auto const& player_pos = last_player_pos;
-
     glUseProgram(program);
     set_uniform("scale", program, glUniform2fv,
                 1, glm::value_ptr(world_viewport.scale));
