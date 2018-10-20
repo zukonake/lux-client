@@ -315,9 +315,11 @@ LUX_MAY_FAIL client_tick(GLFWwindow* glfw_window) {
             } else if(glfwGetKey(glfw_window, GLFW_KEY_D) == GLFW_PRESS) {
                 dir.x = 1.f;
             }
+            F32 angle = get_aim_rotation();
+            cs_tick.player_aim_angle = angle;
             if(dir.x != 0.f || dir.y != 0.f) {
                 dir = glm::normalize(dir);
-                dir = glm::rotate(dir, get_aim_rotation());
+                dir = glm::rotate(dir, angle);
             }
         }
         if(send_net_data(client.peer, &cs_tick, TICK_CHANNEL) != LUX_OK) { 
