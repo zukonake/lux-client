@@ -139,7 +139,6 @@ void map_render() {
 
     ChkPos center = to_chk_pos(player_pos);
     ChkPos iter;
-    iter.z = center.z;
     for(iter.y  = center.y - RENDER_DIST;
         iter.y <= center.y + RENDER_DIST;
         iter.y++) {
@@ -202,7 +201,6 @@ void light_render() {
 
     ChkPos center = to_chk_pos(player_pos);
     ChkPos iter;
-    iter.z = center.z;
     for(iter.y  = center.y - RENDER_DIST;
         iter.y <= center.y + RENDER_DIST;
         iter.y++) {
@@ -268,7 +266,7 @@ bool is_chunk_loaded(ChkPos const& pos) {
 
 void load_chunk(ChkPos const& pos, NetSsSgnl::MapLoad::Chunk const& net_chunk) {
     LUX_LOG("loading chunk");
-    LUX_LOG("    pos: {%zd, %zd, %zd}", pos.x, pos.y, pos.z);
+    LUX_LOG("    pos: {%zd, %zd}", pos.x, pos.y);
     if(is_chunk_loaded(pos)) {
         LUX_LOG("chunk already loaded, ignoring it");
         return;

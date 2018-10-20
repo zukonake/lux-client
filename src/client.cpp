@@ -32,7 +32,7 @@ struct {
     VecSet<ChkPos> sent_requests;
 } static client;
 
-EntityVec last_player_pos = {0, 0, 0};
+EntityVec last_player_pos = {0, 0};
 F64 tick_rate = 0.f;
 
 NetCsTick cs_tick;
@@ -286,8 +286,7 @@ LUX_MAY_FAIL client_tick(GLFWwindow* glfw_window) {
     {   cs_sgnl.tag = NetCsSgnl::MAP_REQUEST;
         for(auto it  = chunk_requests.cbegin(); it != chunk_requests.cend();) {
             if(client.sent_requests.count(*it) == 0) {
-                LUX_LOG("requesting chunk {%zd, %zd, %zd}",
-                        it->x, it->y, it->z);
+                LUX_LOG("requesting chunk {%zd, %zd, %zd}", it->x, it->y);
                 cs_sgnl.map_request.requests.emplace(*it);
                 client.sent_requests.emplace(*it);
                 it = chunk_requests.erase(it);

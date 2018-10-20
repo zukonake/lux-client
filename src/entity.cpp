@@ -129,6 +129,7 @@ void entity_render() {
                 text.pos   = transform_point(pos, world_viewport);
                 text.scale = world_viewport.scale * 0.5f;
                 text.pos.x -= ((F32)name.size() / 2.f) * text.scale.x;
+                //@TODO we should calculate the offset here
                 text.pos.y -= 3.f * text.scale.y;
             }
         }
