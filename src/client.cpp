@@ -219,9 +219,15 @@ LUX_MAY_FAIL static handle_tick(ENetPacket* in_pack) {
     LUX_RETHROW(deserialize_packet(in_pack, &ss_tick),
         "failed to deserialize tick");
 
-    if(ss_tick.comps.pos.count(ss_tick.player_id) > 0) {
-        last_player_pos = ss_tick.comps.pos.at(ss_tick.player_id);
+    //@TODO if we have no position, we should not render the map
+    if(ss_tick.entity_comps.pos.count(ss_tick.player_id) > 0) {
+        last_player_pos = ss_tick.entity_comps.pos.at(ss_tick.player_id);
     }
+    entities.clear();
+    for(auto const& id : ss_tick.entities) {
+        entities.emplace_back(id);
+    }
+    set_net_entity_comps(ss_tick.entity_comps);
     return LUX_OK;
 }
 

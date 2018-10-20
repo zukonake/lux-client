@@ -1,12 +1,37 @@
 #include <config.hpp>
 //
 #include <glm/gtc/type_ptr.hpp>
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/rotate_vector.hpp>
 //
 #include <rendering.hpp>
 #include <client.hpp>
 #include <viewport.hpp>
 #include <ui.hpp>
 #include "entity.hpp"
+
+DynArr<EntityHandle> entities;
+
+struct EntityComps {
+    typedef EntityVec Pos;
+    typedef DynArr<char> Name;
+    struct Visible {
+        U32   visible_id;
+        Vec2F quad_sz;
+    };
+    struct Orientation {
+        F32 angle; ///in radians
+    };
+    struct Text {
+        TextHandle id;
+    };
+
+    HashTable<EntityHandle, Pos>         pos;
+    HashTable<EntityHandle, Name>        name;
+    HashTable<EntityHandle, Visible>     visible;
+    HashTable<EntityHandle, Orientation> orientation;
+    HashTable<EntityHandle, Text>        text;
+} static comps;
 
 static GLuint program;
 
@@ -50,11 +75,8 @@ void entity_init() {
 #endif
 }
 
-static HashTable<TextHandle, EntityHandle> entity_names;
-
 void entity_render() {
     auto const& player_pos = last_player_pos;
-    auto const& comps = ss_tick.comps;
 
     glUseProgram(program);
     set_uniform("scale", program, glUniform2fv,
@@ -74,35 +96,41 @@ void entity_render() {
 
     static DynArr<Vert::Idx> idxs;
     static DynArr<Vert>     verts;
+    idxs.clear();
+    verts.clear();
 
-    idxs.resize(comps.pos.size() * 2 * 3);
-    verts.resize(comps.pos.size() * 4);
-    U32 off = 0;
-    for(auto const& entity : comps.pos) {
-        verts[off * 4 + 0] = {Vec2F(-1, -1) + Vec2F(entity.second)};
-        verts[off * 4 + 1] = {Vec2F( 1, -1) + Vec2F(entity.second)};
-        verts[off * 4 + 2] = {Vec2F(-1,  1) + Vec2F(entity.second)};
-        verts[off * 4 + 3] = {Vec2F( 1,  1) + Vec2F(entity.second)};
-        Vert::Idx constexpr idx_order[] = {0, 1, 2, 2, 3, 1};
-        for(Uns j = 0; j < 6; ++j) {
-            idxs[off * 6 + j] = idx_order[j] + off * 4;
-        }
-        ++off;
-    }
-    for(auto const& entity : comps.name) {
-        if(comps.pos.count(entity.first) > 0) {
-            EntityHandle id = entity.first;
-            if(entity_names.count(id) == 0) {
-                DynStr name(entity.second.cbegin(), entity.second.cend());
-                entity_names[id] =
-                    create_text({0, 0}, {0, 0}, name.c_str());
+    for(auto const& id : entities) {
+        if(comps.pos.count(id) > 0 &&
+           comps.visible.count(id) > 0) {
+            Vec2F const& pos = Vec2F(comps.pos.at(id));
+            Vec2F const& quad_sz = comps.visible.at(id).quad_sz;
+            F32 angle = 0;
+            if(comps.orientation.count(id) > 0) {
+                angle = comps.orientation.at(id).angle;
             }
-            TextField& text = get_text_field(entity_names[id]);
-            Vec2F world_pos = comps.pos.at(id);
-            text.pos   = transform_point(world_pos, world_viewport);
-            text.scale = world_viewport.scale * 0.5f;
-            text.pos.x -= ((F32)comps.name.at(id).size() / 2.f) * text.scale.x;
-            text.pos.y -= 3.f * text.scale.y;
+            for(Vert::Idx const& idx : {0, 1, 2, 2, 3, 1}) {
+                idxs.emplace_back(verts.size() + idx);
+            }
+            Vec2F constexpr quad[] =
+                {{-1.f, -1.f}, {1.f, -1.f}, {-1.f, 1.f}, {1.f, 1.f}};
+            for(auto const& vert : quad) {
+                verts.emplace_back(Vert{(quad_sz / 2.f) * rotate(vert, angle) +
+                                        pos});
+            }
+            if(comps.name.count(id) > 0) {
+                auto const& name = comps.name.at(id);
+                if(comps.text.count(id) == 0) {
+                    DynStr name_str(name.cbegin(), name.cend());
+                    name_str = "\\f2" + name_str;
+                    comps.text[id] = {
+                        create_text({0, 0}, {0, 0}, name_str.c_str())};
+                }
+                TextField& text = get_text_field(comps.text.at(id).id);
+                text.pos   = transform_point(pos, world_viewport);
+                text.scale = world_viewport.scale * 0.5f;
+                text.pos.x -= ((F32)name.size() / 2.f) * text.scale.x;
+                text.pos.y -= 3.f * text.scale.y;
+            }
         }
     }
 
@@ -117,4 +145,24 @@ void entity_render() {
 #if defined(LUX_GLES_2_0)
     glDisableVertexAttribArray(shader_attribs.pos);
 #endif
+}
+
+void set_net_entity_comps(NetSsTick::EntityComps const& net_comps) {
+    comps.pos.clear();
+    comps.name.clear();
+    comps.visible.clear();
+    comps.orientation.clear();
+    for(auto const& pos : net_comps.pos) {
+        comps.pos[pos.first] = pos.second;
+    }
+    for(auto const& name : net_comps.name) {
+        comps.name[name.first] = name.second;
+    }
+    for(auto const& visible : net_comps.visible) {
+        comps.visible[visible.first] =
+            {visible.second.visible_id, visible.second.quad_sz};
+    }
+    for(auto const& orientation : net_comps.orientation) {
+        comps.orientation[orientation.first] = {orientation.second.angle};
+    }
 }
