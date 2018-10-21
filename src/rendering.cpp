@@ -71,6 +71,24 @@ void rendering_init() {
         }
     }
     glViewport(0, 0, WINDOW_SIZE.x, WINDOW_SIZE.y);
+    Vec2<unsigned> cursor_size;
+    std::vector<U8> cursor_img_data;
+    const char* cursor_path = "cursor.png";
+    {   auto err = lodepng::decode(cursor_img_data,
+            cursor_size.x, cursor_size.y, cursor_path);
+        if(err) LUX_FATAL("couldn't load cursor: %s", cursor_path);
+    }
+    GLFWimage cursor_img;
+    cursor_img.width  = cursor_size.x;
+    cursor_img.height = cursor_size.y;
+    cursor_img.pixels = cursor_img_data.data();
+    ///in the future we will want to have the UI store it
+    GLFWcursor* cursor = glfwCreateCursor(&cursor_img,
+        (cursor_size.x - 1) / 2, (cursor_size.y - 1) / 2);
+    if(cursor == nullptr) {
+        LUX_FATAL("couldn't create cursor");
+    }
+    glfwSetCursor(glfw_window, cursor);
 }
 
 void rendering_deinit() {
