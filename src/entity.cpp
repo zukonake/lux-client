@@ -6,10 +6,10 @@
 //
 #include <rendering.hpp>
 #include <client.hpp>
-#include <viewport.hpp>
 #include <ui.hpp>
 #include "entity.hpp"
 
+UiHandle ui_entity;
 DynArr<EntityHandle> entities;
 
 struct EntityComps {
@@ -23,7 +23,7 @@ struct EntityComps {
         F32 angle; ///in radians
     };
     struct Text {
-        TextHandle id;
+        TextHandle text;
     };
 
     HashTable<EntityHandle, Pos>         pos;
@@ -53,6 +53,8 @@ struct {
     GLint pos;
 } static shader_attribs;
 
+static void entity_render(void *, Vec2F const&, Vec2F const&);
+
 void entity_init() {
     program = load_program("glsl/entity.vert", "glsl/entity.frag");
 
@@ -73,14 +75,16 @@ void entity_init() {
         (void*)offsetof(Vert, pos));
     glEnableVertexAttribArray(shader_attribs.pos);
 #endif
+    ui_entity = new_ui(ui_world);
+    ui_entity->render = &entity_render;
 }
 
-void entity_render() {
+static void entity_render(void *, Vec2F const& translation, Vec2F const& scale) {
     glUseProgram(program);
     set_uniform("scale", program, glUniform2fv,
-                1, glm::value_ptr(world_viewport.scale));
+                1, glm::value_ptr(scale));
     set_uniform("translation", program, glUniform2fv,
-                1, glm::value_ptr(world_viewport.pos));
+                1, glm::value_ptr(translation));
 
 #if defined(LUX_GLES_2_0)
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
@@ -115,20 +119,17 @@ void entity_render() {
                 verts.emplace_back(Vert{(quad_sz / 2.f) * rotate(vert, angle) +
                                         pos});
             }
+            //@TODO we need to remove when entity is removed
             if(comps.name.count(id) > 0) {
                 auto const& name = comps.name.at(id);
                 if(comps.text.count(id) == 0) {
                     DynStr name_str(name.cbegin(), name.cend());
                     name_str = "\\f2" + name_str;
                     comps.text[id] = {
-                        create_text({0, 0}, {0, 0}, name_str.c_str())};
+                        create_text({0, 0}, {1.f, 1.f}, name_str.c_str(), ui_entity)};
                 }
-                TextField& text = get_text_field(comps.text.at(id).id);
-                text.pos   = transform_point(pos, world_viewport);
-                text.scale = world_viewport.scale * 0.5f;
-                text.pos.x -= ((F32)name.size() / 2.f) * text.scale.x;
-                //@TODO we should calculate the offset here
-                text.pos.y -= 3.f * text.scale.y;
+                TextHandle text = comps.text.at(id).text;
+                text->ui->pos = (pos - Vec2F(name.size() / 2.f, 2.f)) * scale;
             }
         }
     }

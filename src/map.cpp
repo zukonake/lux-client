@@ -13,8 +13,11 @@
 #include <rendering.hpp>
 #include <db.hpp>
 #include <client.hpp>
-#include <viewport.hpp>
+#include <ui.hpp>
 #include "map.hpp"
+
+UiHandle ui_map;
+UiHandle ui_light;
 
 GLuint tile_program;
 GLuint tileset;
@@ -82,7 +85,7 @@ static void build_light_mesh(LightMesh& mesh, Chunk const& chunk);
 
 static void map_load_programs() {
     char const* tileset_path = "tileset.png";
-    Vec2U const tile_size = {16, 16};
+    Vec2U const tile_size = {8, 8};
     tile_program = load_program("glsl/tile.vert", "glsl/tile.frag");
     Vec2U tileset_size;
     tileset = load_texture(tileset_path, tileset_size);
@@ -100,6 +103,9 @@ static void map_load_programs() {
     light_shader_attribs.pos = glGetAttribLocation(light_program, "pos");
     light_shader_attribs.col = glGetAttribLocation(light_program, "col");
 }
+
+static void map_render(void *, Vec2F const& pos, Vec2F const& scale);
+static void light_render(void *, Vec2F const& pos, Vec2F const& scale);
 
 void map_init() {
     map_load_programs();
@@ -128,15 +134,19 @@ void map_init() {
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, geometry_mesh.ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GeometryMesh::Idx) *
         CHK_VOL * 2 * 3, idxs, GL_STATIC_DRAW);
+    ui_map   = new_ui(ui_world);
+    ui_map->render = &map_render;
+    ui_light = new_ui(ui_world);
+    ui_light->render = &light_render;
 }
 
-void map_render() {
-    auto const& player_pos = last_player_pos;
+static void map_render(void *, Vec2F const& pos, Vec2F const& scale) {
     U32 constexpr RENDER_DIST = 2;
 
     static DynArr<ChkPos> render_list;
     render_list.reserve(std::pow(2 * RENDER_DIST - 1, 2));
 
+    MapPos player_pos = -pos / scale;
     ChkPos center = to_chk_pos(player_pos);
     ChkPos iter;
     for(iter.y  = center.y - RENDER_DIST;
@@ -152,7 +162,7 @@ void map_render() {
 
     glUseProgram(tile_program);
     set_uniform("scale", tile_program, glUniform2fv,
-                1, glm::value_ptr(world_viewport.scale));
+                1, glm::value_ptr(scale));
     glBindTexture(GL_TEXTURE_2D, tileset);
 #if defined(LUX_GLES_2_0)
     glBindBuffer(GL_ARRAY_BUFFER, geometry_mesh.vbo);
@@ -164,8 +174,7 @@ void map_render() {
 #endif
 
     for(auto const& chk_pos : render_list) {
-        Vec2F translation = world_viewport.pos +
-            (Vec2F)(chk_pos * ChkPos(CHK_SIZE));
+        Vec2F translation = pos + (Vec2F)(chk_pos * ChkPos(CHK_SIZE)) * scale;
         set_uniform("translation", tile_program, glUniform2fv,
                     1, glm::value_ptr(translation));
 
@@ -192,7 +201,7 @@ void map_render() {
     render_list.clear();
 }
 
-void light_render() {
+static void light_render(void *, Vec2F const& pos, Vec2F const& scale) {
     auto const& player_pos = last_player_pos;
     U32 constexpr RENDER_DIST = 2;
 
@@ -215,10 +224,9 @@ void light_render() {
     glEnable(GL_BLEND);
     glBlendFunc(GL_ZERO, GL_SRC_COLOR);
     set_uniform("scale", light_program, glUniform2fv,
-                1, glm::value_ptr(world_viewport.scale));
+                1, glm::value_ptr(scale));
     for(auto const& chk_pos : render_list) {
-        Vec2F translation = world_viewport.pos +
-            (Vec2F)(chk_pos * ChkPos(CHK_SIZE));
+        Vec2F translation = pos + (Vec2F)(chk_pos * ChkPos(CHK_SIZE));
         set_uniform("translation", light_program, glUniform2fv,
                     1, glm::value_ptr(translation));
 
@@ -373,7 +381,7 @@ static void build_light_mesh(LightMesh& mesh, Chunk const& chunk) {
             LightMesh::Idx constexpr flipped_idx_order[6] =
                 {0, CHK_SIZE, CHK_SIZE + 1, CHK_SIZE + 1, 1, 0};
             if(glm::length((Vec3F)verts[i + 1].col) +
-               glm::length((Vec3F)verts[i + CHK_SIZE].col) >
+               glm::length((Vec3F)verts[i + CHK_SIZE].col) <
                glm::length((Vec3F)verts[i + 0].col) +
                glm::length((Vec3F)verts[i + CHK_SIZE + 1].col)) {
                 for(Uns j = 0; j < 6; ++j) {

@@ -16,7 +16,6 @@
 #include <client.hpp>
 #include <entity.hpp>
 #include <ui.hpp>
-#include <viewport.hpp>
 
 struct {
     Vec2U window_size = {800, 600};
@@ -45,6 +44,7 @@ int main(int argc, char** argv) {
         if(argc != 3) {
             LUX_FATAL("usage: %s SERVER_HOSTNAME SERVER_PORT", argv[0]);
         }
+        //TODO error handling (also in client)
         U64 raw_server_port = std::atol(argv[2]);
         if(raw_server_port >= 1 << 16) {
             LUX_FATAL("invalid port %zu given", raw_server_port);
@@ -60,8 +60,8 @@ int main(int argc, char** argv) {
     db_init();
     rendering_init();
     LUX_DEFER { rendering_deinit(); };
-    map_init();
     ui_init();
+    map_init();
     console_init();
     LUX_DEFER { console_deinit(); };
     entity_init();
@@ -71,7 +71,7 @@ int main(int argc, char** argv) {
     Vec2<int> win_size;
     glfwGetWindowSize(glfw_window, &win_size.x, &win_size.y);
     window_resize_cb(glfw_window, win_size.x, win_size.y);
-    TextHandle coord_txt_h = create_text({-1.f, 1.0f}, {0.f, 0.f}, "");
+    TextHandle coord_txt = create_text({-0.2f, 0.2f}, {5.f, 5.f}, "", ui_hud);
     { ///main loop
         auto tick_len = util::TickClock::Duration(1.0 / tick_rate);
         util::TickClock clock(tick_len);
@@ -86,15 +86,11 @@ int main(int argc, char** argv) {
             DynStr coord_str =
                  "x: " + std::to_string(last_player_pos.x) +
              "\\\ny: " + std::to_string(last_player_pos.y);
-            auto& coord_txt = get_text_field(coord_txt_h);
-            coord_txt.scale = ui_viewport.scale * 0.5f;
-            coord_txt.buff.resize(coord_str.size());
-            std::memcpy(coord_txt.buff.data(),
+            //coord_txt.scale = ui_viewport.scale * 0.5f;
+            coord_txt->buff.resize(coord_str.size());
+            std::memcpy(coord_txt->buff.data(),
                         coord_str.data(), coord_str.size());
-            world_viewport.pos = -Vec2F(last_player_pos);
-            map_render();
-            entity_render();
-            light_render();
+            ui_world->pos = -Vec2F(last_player_pos);
             console_render();
             ui_render();
             check_opengl_error();

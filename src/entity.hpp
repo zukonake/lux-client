@@ -8,5 +8,4 @@
 
 extern DynArr<EntityHandle> entities;
 void entity_init();
-void entity_render();
 void set_net_entity_comps(NetSsTick::EntityComps const& net_comps);

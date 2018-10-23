@@ -12,12 +12,9 @@ in vec4 f_bg_col;
 
 uniform sampler2D font;
 
-const float ALPHA_THRESHOLD = 0.1;
-
 void main()
 {
     float lvl = texture2D(font, f_font_pos).a;
     vec4 col = lvl * f_fg_col + (1.0 - lvl) * f_bg_col;
-    if(col.a < ALPHA_THRESHOLD) discard;
     gl_FragColor = col;
 }
