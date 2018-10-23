@@ -45,6 +45,7 @@ TextHandle create_text(Vec2F pos, Vec2F scale, const char* str, UiHandle parent)
     text->ui->pos    = pos;
     text->ui->scale  = scale;
     text->ui->ptr    = (void*)(std::uintptr_t)text.id;
+    text->ui->fixed_aspect = true;
     SizeT str_sz     = std::strlen(str);
     text->buff.resize(str_sz);
     std::memcpy(text->buff.data(), str, str_sz);
@@ -82,7 +83,7 @@ struct TextSystem {
 
 static void update_aspect(UiHandle ui, F32 w_to_h) {
     if(ui->fixed_aspect) {
-        ui->scale.y = (ui->scale.y < 0.f ? -1.f : 1.f) * ui->scale.x * w_to_h;
+        ui->scale.x = (ui->scale.y < 0 ? -1.f : 1.f) * ui->scale.y * w_to_h;
     } else {
         for(auto& child : ui->children) {
             update_aspect(child, w_to_h);
@@ -91,7 +92,7 @@ static void update_aspect(UiHandle ui, F32 w_to_h) {
 }
 
 void ui_window_sz_cb(Vec2U const& sz) {
-    update_aspect(ui_screen, (F32)sz.x / (F32)sz.y);
+    update_aspect(ui_screen, (F32)sz.y / (F32)sz.x);
 }
 
 void ui_init() {
@@ -142,11 +143,11 @@ void ui_init() {
     ui_screen = new_ui();
     ui_world  = new_ui(ui_screen);
     //@TODO calculate
-    ui_world->scale        = {0.06f, -0.06f};
+    ui_world->scale = {0.06f, -0.06f};
     ui_world->fixed_aspect = true;
+
     ui_hud = new_ui(ui_screen);
-    ui_hud->fixed_aspect = true;
-    ui_hud->scale        = {0.01f, -0.01f};
+    ui_hud->scale = {0.01f, -0.01f};
 }
 
 void ui_deinit() {
@@ -276,12 +277,12 @@ static void text_system_render() {
 }
 
 static void ui_render(UiHandle const& ui, Vec2F const& pos, Vec2F const& scale) {
-    Vec2F total_pos   = ui->pos * ui->scale + pos;
+    Vec2F total_scale = scale * ui->scale;
     if(ui->render != nullptr) {
-        (*ui->render)(ui->ptr, total_pos, ui->scale * scale);
+        (*ui->render)(ui->ptr, ui->pos + pos, total_scale);
     }
     for(auto child : ui->children) {
-        ui_render(child, total_pos, ui->scale * scale);
+        ui_render(child, ui->pos * total_scale + pos, total_scale);
     }
 }
 

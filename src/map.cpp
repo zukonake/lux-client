@@ -146,7 +146,7 @@ static void map_render(void *, Vec2F const& pos, Vec2F const& scale) {
     static DynArr<ChkPos> render_list;
     render_list.reserve(std::pow(2 * RENDER_DIST - 1, 2));
 
-    MapPos player_pos = -pos / scale;
+    MapPos player_pos = -ui_world->pos;
     ChkPos center = to_chk_pos(player_pos);
     ChkPos iter;
     for(iter.y  = center.y - RENDER_DIST;

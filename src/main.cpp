@@ -68,10 +68,11 @@ int main(int argc, char** argv) {
     check_opengl_error();
     glfwSetWindowSizeCallback(glfw_window, window_resize_cb);
     glfwSetKeyCallback(glfw_window, key_cb);
+    TextHandle coord_txt = create_text({-1.f, 1.f}, {8.f, 8.f}, "", ui_hud);
+
     Vec2<int> win_size;
     glfwGetWindowSize(glfw_window, &win_size.x, &win_size.y);
     window_resize_cb(glfw_window, win_size.x, win_size.y);
-    TextHandle coord_txt = create_text({-0.2f, 0.2f}, {5.f, 5.f}, "", ui_hud);
     { ///main loop
         auto tick_len = util::TickClock::Duration(1.0 / tick_rate);
         util::TickClock clock(tick_len);
