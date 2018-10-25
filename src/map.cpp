@@ -363,12 +363,13 @@ static void try_build_mat_mesh(ChkPos const& pos) {
 static void build_mat_mesh(MatMesh& mesh, Chunk const& chunk, ChkPos const& chk_pos) {
     Arr<MatMesh::Vert, CHK_VOL * 4> verts;
 
-    constexpr F32 tx = 0.9999f;
+    constexpr F32 tx_0 = 0.001f;
+    constexpr F32 tx_1 = 0.999f;
     constexpr Vec2F tex_quads[4][4] =
-        {{{0 ,  0}, {tx,  0}, {0 , tx}, {tx, tx}},
-         {{tx,  0}, {tx, tx}, {0 ,  0}, {0 , tx}},
-         {{tx, tx}, {0 , tx}, {tx,  0}, {0 ,  0}},
-         {{0 , tx}, {0 ,  0}, {tx, tx}, {tx,  0}}};
+        {{{tx_0, tx_0}, {tx_1, tx_0}, {tx_0, tx_1}, {tx_1, tx_1}},
+         {{tx_1, tx_0}, {tx_1, tx_1}, {tx_0, tx_0}, {tx_0, tx_1}},
+         {{tx_1, tx_1}, {tx_0, tx_1}, {tx_1, tx_0}, {tx_0, tx_0}},
+         {{tx_0, tx_1}, {tx_0, tx_0}, {tx_1, tx_1}, {tx_1, tx_0}}};
 
     for(ChkIdx i = 0; i < CHK_VOL; ++i) {
         VoxelType const& vox_type = db_voxel_type(chunk.voxels[i]);
