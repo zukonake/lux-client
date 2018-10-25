@@ -51,10 +51,10 @@ void entity_init() {
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
 
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glEnableVertexAttribArray(shader_attribs.pos);
     glVertexAttribPointer(shader_attribs.pos,
         2, GL_FLOAT, GL_FALSE, sizeof(Vert),
         (void*)offsetof(Vert, pos));
-    glEnableVertexAttribArray(shader_attribs.pos);
 #endif
     ui_entity = new_ui(ui_world, 50);
     ui_elems[ui_entity].render = &entity_render;
@@ -69,10 +69,10 @@ static void entity_render(void *, Vec2F const& translation, Vec2F const& scale) 
 
 #if defined(LUX_GLES_2_0)
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glEnableVertexAttribArray(shader_attribs.pos);
     glVertexAttribPointer(shader_attribs.pos,
         2, GL_FLOAT, GL_FALSE, sizeof(Vert),
         (void*)offsetof(Vert, pos));
-    glEnableVertexAttribArray(shader_attribs.pos);
 #elif defined(LUX_GL_3_3)
     glBindVertexArray(vao);
 #endif
