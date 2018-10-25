@@ -365,17 +365,15 @@ static void build_mat_mesh(MatMesh& mesh, Chunk const& chunk, ChkPos const& chk_
 
     constexpr F32 tx_0 = 0.001f;
     constexpr F32 tx_1 = 0.999f;
-    constexpr Vec2F tex_quads[4][4] =
-        {{{tx_0, tx_0}, {tx_1, tx_0}, {tx_0, tx_1}, {tx_1, tx_1}},
-         {{tx_1, tx_0}, {tx_1, tx_1}, {tx_0, tx_0}, {tx_0, tx_1}},
-         {{tx_1, tx_1}, {tx_0, tx_1}, {tx_1, tx_0}, {tx_0, tx_0}},
-         {{tx_0, tx_1}, {tx_0, tx_0}, {tx_1, tx_1}, {tx_1, tx_0}}};
+    constexpr Vec2F tex_quad[4] =
+        {{tx_0, tx_0}, {tx_1, tx_0}, {tx_0, tx_1}, {tx_1, tx_1}};
 
     for(ChkIdx i = 0; i < CHK_VOL; ++i) {
         VoxelType const& vox_type = db_voxel_type(chunk.voxels[i]);
         constexpr MapPos neighbor_offsets[4] =
             {{0, -1}, {1, 0}, {0, 1}, {-1, 0}};
         U8 neighbors = 0;
+        Vec2F offset = {0, 0};
         if(vox_type.connected_tex) {
             for(Uns n = 0; n < 4; ++n) {
                 MapPos map_pos = to_map_pos(chk_pos, i) + neighbor_offsets[n];
@@ -384,35 +382,28 @@ static void build_mat_mesh(MatMesh& mesh, Chunk const& chunk, ChkPos const& chk_
                     neighbors |= 1 << n;
                 }
             }
-            Vec2F offset;
-            Uns   quad_id;
             switch(neighbors) {
-                case 0b0000: offset = {0, 0}; quad_id = 0; break;
-                case 0b0001: offset = {1, 0}; quad_id = 0; break;
-                case 0b0010: offset = {1, 0}; quad_id = 3; break;
-                case 0b0100: offset = {1, 0}; quad_id = 2; break;
-                case 0b1000: offset = {1, 0}; quad_id = 1; break;
-                case 0b0101: offset = {2, 0}; quad_id = 0; break;
-                case 0b1010: offset = {2, 0}; quad_id = 3; break;
-                case 0b0011: offset = {3, 0}; quad_id = 0; break;
-                case 0b0110: offset = {3, 0}; quad_id = 3; break;
-                case 0b1100: offset = {3, 0}; quad_id = 2; break;
-                case 0b1001: offset = {3, 0}; quad_id = 1; break;
-                case 0b0111: offset = {4, 0}; quad_id = 0; break;
-                case 0b1110: offset = {4, 0}; quad_id = 3; break;
-                case 0b1101: offset = {4, 0}; quad_id = 2; break;
-                case 0b1011: offset = {4, 0}; quad_id = 1; break;
-                case 0b1111: offset = {5, 0}; quad_id = 0; break;
+                case 0b0000: offset = {0, 0}; break;
+                case 0b1111: offset = {1, 0}; break;
+                case 0b0101: offset = {2, 0}; break;
+                case 0b1010: offset = {3, 0}; break;
+                case 0b0111: offset = {0, 1}; break;
+                case 0b1110: offset = {1, 1}; break;
+                case 0b1101: offset = {2, 1}; break;
+                case 0b1011: offset = {3, 1}; break;
+                case 0b0011: offset = {0, 2}; break;
+                case 0b0110: offset = {1, 2}; break;
+                case 0b1100: offset = {2, 2}; break;
+                case 0b1001: offset = {3, 2}; break;
+                case 0b0001: offset = {0, 3}; break;
+                case 0b0010: offset = {1, 3}; break;
+                case 0b0100: offset = {2, 3}; break;
+                case 0b1000: offset = {3, 3}; break;
             }
-            for(Uns j = 0; j < 4; ++j) {
-                verts[i * 4 + j].tex_pos =
-                    (Vec2F)vox_type.tex_pos + offset + tex_quads[quad_id][j];
-            }
-        } else {
-            for(Uns j = 0; j < 4; ++j) {
-                verts[i * 4 + j].tex_pos = (Vec2F)vox_type.tex_pos +
-                                            tex_quads[0][j];
-            }
+        }
+        for(Uns j = 0; j < 4; ++j) {
+            verts[i * 4 + j].tex_pos =
+                (Vec2F)vox_type.tex_pos + offset + tex_quad[j];
         }
     }
 
