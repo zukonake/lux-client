@@ -50,7 +50,7 @@ struct MatMesh {
 struct LightMesh {
     typedef U32 Idx;
     static constexpr GLenum IDX_GL_TYPE = GL_UNSIGNED_INT;
-    static constexpr SizeT  IDX_NUM     = std::pow(CHK_SIZE - 1, 2) * 6;
+    static constexpr SizeT  IDX_NUM     = std::pow(CHK_SIZE, 2) * 6;
 #pragma pack(push, 1)
     struct Vert {
         Vec2<U16> pos;
@@ -74,15 +74,19 @@ struct {
     GLint col;
 } light_shader_attribs;
 
+struct ChunkMesh {
+    MatMesh   mat;
+    LightMesh light;
+};
+
 static GeometryMesh       geometry_mesh;
 VecMap<ChkPos, Chunk>     chunks;
-VecMap<ChkPos, MatMesh>   mat_meshes;
-VecMap<ChkPos, LightMesh> light_meshes;
+VecMap<ChkPos, ChunkMesh> meshes;
 VecSet<ChkPos>            chunk_requests;
 
-static void try_build_mat_mesh(ChkPos const& pos);
+static void try_build_mesh(ChkPos const& pos);
 static void build_mat_mesh(MatMesh& mesh, Chunk const& chunk, ChkPos const& chk_pos);
-static void build_light_mesh(LightMesh& mesh, Chunk const& chunk);
+static void build_light_mesh(LightMesh& mesh, Chunk const& chunk, ChkPos const& chk_pos);
 
 static void map_load_programs() {
     char const* tileset_path = "tileset.png";
@@ -155,8 +159,8 @@ static void map_render(void *, Vec2F const& pos, Vec2F const& scale) {
         for(iter.x  = center.x - RENDER_DIST;
             iter.x <= center.x + RENDER_DIST;
             iter.x++) {
-            if(mat_meshes.count(iter) > 0) render_list.emplace_back(iter);
-            else try_build_mat_mesh(iter);
+            if(meshes.count(iter) > 0) render_list.emplace_back(iter);
+            else try_build_mesh(iter);
         }
     }
 
@@ -178,7 +182,7 @@ static void map_render(void *, Vec2F const& pos, Vec2F const& scale) {
         set_uniform("translation", tile_program, glUniform2fv,
                     1, glm::value_ptr(translation));
 
-        MatMesh const& mesh = mat_meshes.at(chk_pos);
+        MatMesh const& mesh = meshes.at(chk_pos).mat;
 #if defined(LUX_GLES_2_0)
         glBindBuffer(GL_ARRAY_BUFFER, mesh.vbo);
         glVertexAttribPointer(tile_shader_attribs.tex_pos,
@@ -215,8 +219,8 @@ static void light_render(void *, Vec2F const& pos, Vec2F const& scale) {
         for(iter.x  = center.x - RENDER_DIST;
             iter.x <= center.x + RENDER_DIST;
             iter.x++) {
-            if(is_chunk_loaded(iter)) render_list.emplace_back(iter);
-            else                      chunk_requests.emplace(iter);
+            if(meshes.count(iter) > 0) render_list.emplace_back(iter);
+            else try_build_mesh(iter);
         }
     }
     glUseProgram(light_program);
@@ -225,11 +229,11 @@ static void light_render(void *, Vec2F const& pos, Vec2F const& scale) {
     set_uniform("scale", light_program, glUniform2fv,
                 1, glm::value_ptr(scale));
     for(auto const& chk_pos : render_list) {
-        Vec2F translation = pos + (Vec2F)(chk_pos * ChkPos(CHK_SIZE));
+        Vec2F translation = pos + (Vec2F)(chk_pos * ChkPos(CHK_SIZE)) * scale;
         set_uniform("translation", light_program, glUniform2fv,
                     1, glm::value_ptr(translation));
 
-        LightMesh const& mesh = light_meshes.at(chk_pos);
+        LightMesh const& mesh = meshes.at(chk_pos).light;
 #if defined(LUX_GLES_2_0)
         glBindBuffer(GL_ARRAY_BUFFER, mesh.vbo);
         glVertexAttribPointer(light_shader_attribs.pos,
@@ -283,27 +287,6 @@ void load_chunk(ChkPos const& pos, NetSsSgnl::MapLoad::Chunk const& net_chunk) {
                 CHK_VOL * sizeof(VoxelId));
     std::memcpy(chunk.light_lvls, net_chunk.light_lvls,
                 CHK_VOL * sizeof(LightLvl));
-
-    LightMesh& light_mesh = light_meshes[pos];
-    glGenBuffers(1, &light_mesh.vbo);
-    glGenBuffers(1, &light_mesh.ebo);
-    build_light_mesh(light_mesh, chunk);
-
-#if defined(LUX_GL_3_3)
-    glGenVertexArrays(1, &light_mesh.vao);
-    glBindVertexArray(light_mesh.vao);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, light_mesh.ebo);
-
-    glBindBuffer(GL_ARRAY_BUFFER, light_mesh.vbo);
-    glVertexAttribPointer(light_shader_attribs.pos,
-        2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof(LightMesh::Vert),
-        (void*)offsetof(LightMesh::Vert, pos));
-    glVertexAttribPointer(light_shader_attribs.col,
-        3, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(LightMesh::Vert),
-        (void*)offsetof(LightMesh::Vert, col));
-    glEnableVertexAttribArray(light_shader_attribs.pos);
-    glEnableVertexAttribArray(light_shader_attribs.col);
-#endif
 }
 
 void light_update(ChkPos const& pos,
@@ -315,7 +298,9 @@ void light_update(ChkPos const& pos,
     Chunk& chunk = chunks.at(pos);
     std::memcpy(chunk.light_lvls, net_chunk.light_lvls,
                 CHK_VOL * sizeof(LightLvl));
-    build_light_mesh(light_meshes.at(pos), chunk);
+    if(meshes.count(pos) > 0) {
+        build_light_mesh(meshes.at(pos).light, chunk, pos);
+    }
 }
 
 Chunk const& get_chunk(ChkPos const& pos) {
@@ -323,7 +308,7 @@ Chunk const& get_chunk(ChkPos const& pos) {
     return chunks.at(pos);
 }
 
-static void try_build_mat_mesh(ChkPos const& pos) {
+static void try_build_mesh(ChkPos const& pos) {
     constexpr ChkPos offsets[9] =
         {{-1, -1}, { 0, -1}, { 1, -1},
          {-1,  0}, { 0,  0}, { 1,  0},
@@ -337,7 +322,7 @@ static void try_build_mat_mesh(ChkPos const& pos) {
     }
     if(!can_build) return;
 
-    MatMesh& mat_mesh = mat_meshes[pos];
+    MatMesh& mat_mesh = meshes[pos].mat;
     glGenBuffers(1, &mat_mesh.vbo);
 #if defined(LUX_GL_3_3)
     glGenVertexArrays(1, &mat_mesh.vao);
@@ -358,6 +343,27 @@ static void try_build_mat_mesh(ChkPos const& pos) {
 #endif
 
     build_mat_mesh(mat_mesh, get_chunk(pos), pos);
+
+    LightMesh& light_mesh = meshes[pos].light;
+    glGenBuffers(1, &light_mesh.vbo);
+    glGenBuffers(1, &light_mesh.ebo);
+
+#if defined(LUX_GL_3_3)
+    glGenVertexArrays(1, &light_mesh.vao);
+    glBindVertexArray(light_mesh.vao);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, light_mesh.ebo);
+
+    glBindBuffer(GL_ARRAY_BUFFER, light_mesh.vbo);
+    glVertexAttribPointer(light_shader_attribs.pos,
+        2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof(LightMesh::Vert),
+        (void*)offsetof(LightMesh::Vert, pos));
+    glVertexAttribPointer(light_shader_attribs.col,
+        3, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(LightMesh::Vert),
+        (void*)offsetof(LightMesh::Vert, col));
+    glEnableVertexAttribArray(light_shader_attribs.pos);
+    glEnableVertexAttribArray(light_shader_attribs.col);
+#endif
+    build_light_mesh(light_mesh, get_chunk(pos), pos);
 }
 
 static void build_mat_mesh(MatMesh& mesh, Chunk const& chunk, ChkPos const& chk_pos) {
@@ -412,29 +418,39 @@ static void build_mat_mesh(MatMesh& mesh, Chunk const& chunk, ChkPos const& chk_
         CHK_VOL * 4, verts, GL_DYNAMIC_DRAW);
 }
 
-static void build_light_mesh(LightMesh& mesh, Chunk const& chunk) {
-    Arr<LightMesh::Vert, CHK_VOL>           verts;
+static void build_light_mesh(LightMesh& mesh, Chunk const& chunk, ChkPos const& pos) {
+    Arr<LightMesh::Vert, (SizeT)std::pow(CHK_SIZE + 1, 2)> verts;
     Arr<LightMesh::Idx,  LightMesh::IDX_NUM> idxs;
 
-    for(ChkIdx i = 0; i < CHK_VOL; ++i) {
-        verts[i].pos = (Vec2<U16>)to_idx_pos(i);
-        LightLvl light_lvl = chunk.light_lvls[i];
-        verts[i].col = Vec3<U8>((light_lvl >> 12) & 0xF,
-                                (light_lvl >>  8) & 0xF,
-                                (light_lvl >>  4) & 0xF) * (U8)17u;
+    for(ChkIdx i = 0; i < std::pow(CHK_SIZE + 1, 2); ++i) {
+        Vec2<U16> rel_pos = {i % (CHK_SIZE + 1), i / (CHK_SIZE + 1)};
+        verts[i].pos = rel_pos;
+        Vec2U overflow = glm::equal(rel_pos, Vec2<U16>(CHK_SIZE));
+        ChkPos chk_pos = pos + (ChkPos)overflow;
+        ChkIdx chk_idx = to_chk_idx(rel_pos & Vec2<U16>(CHK_SIZE - 1));
+        LightLvl light_lvl;
+        if(chk_pos != pos) {
+            light_lvl = get_chunk(chk_pos).light_lvls[chk_idx];
+        } else {
+            light_lvl = chunk.light_lvls[chk_idx];
+        }
+        verts[i].col = (Vec3<U8>)glm::round(
+            Vec3F((light_lvl >> 11) & 0x1F,
+                  (light_lvl >>  6) & 0x1F,
+                  (light_lvl >>  1) & 0x1F) * (255.f / 31.f));
     }
     Uns idx_off = 0;
-    for(ChkIdx i = 0; i < CHK_VOL; ++i) {
-        if(i % CHK_SIZE != CHK_SIZE - 1 &&
-           i / CHK_SIZE != CHK_SIZE - 1) {
+    for(ChkIdx i = 0; i < std::pow(CHK_SIZE + 1, 2); ++i) {
+        if(i % (CHK_SIZE + 1) != CHK_SIZE &&
+           i / (CHK_SIZE + 1) != CHK_SIZE) {
             LightMesh::Idx constexpr idx_order[6] =
-                {0, 1, CHK_SIZE, CHK_SIZE, CHK_SIZE + 1, 1};
+                {0, 1, CHK_SIZE + 1, CHK_SIZE + 1, CHK_SIZE + 2, 1};
             LightMesh::Idx constexpr flipped_idx_order[6] =
-                {0, CHK_SIZE, CHK_SIZE + 1, CHK_SIZE + 1, 1, 0};
+                {0, CHK_SIZE + 1, CHK_SIZE + 2, CHK_SIZE + 2, 1, 0};
             if(glm::length((Vec3F)verts[i + 1].col) +
-               glm::length((Vec3F)verts[i + CHK_SIZE].col) <
+               glm::length((Vec3F)verts[i + CHK_SIZE + 1].col) <
                glm::length((Vec3F)verts[i + 0].col) +
-               glm::length((Vec3F)verts[i + CHK_SIZE + 1].col)) {
+               glm::length((Vec3F)verts[i + CHK_SIZE + 2].col)) {
                 for(Uns j = 0; j < 6; ++j) {
                     idxs[idx_off * 6 + j] = i + idx_order[j];
                 }
@@ -448,7 +464,7 @@ static void build_light_mesh(LightMesh& mesh, Chunk const& chunk) {
     }
     glBindBuffer(GL_ARRAY_BUFFER, mesh.vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(LightMesh::Vert) *
-        CHK_VOL, verts, GL_DYNAMIC_DRAW);
+        std::pow(CHK_SIZE + 1, 2), verts, GL_DYNAMIC_DRAW);
 
 #if defined(LUX_GL_3_3)
     glBindVertexArray(mesh.vao);
