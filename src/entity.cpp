@@ -1,26 +1,28 @@
 #include <config.hpp>
 //
 #include <glm/gtc/type_ptr.hpp>
-#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/rotate_vector.hpp>
 //
+#include <db.hpp>
 #include <rendering.hpp>
 #include <client.hpp>
 #include <ui.hpp>
 #include "entity.hpp"
 
 UiId ui_entity;
-EntityComps comps;
+static EntityComps comps;
 EntityComps& entity_comps = comps;
 DynArr<EntityId> entities;
 
 static GLuint program;
+static GLuint tileset;
 
 #pragma pack(push, 1)
 struct Vert {
     typedef U32 Idx;
     static constexpr GLenum IDX_GL_TYPE = GL_UNSIGNED_INT;
-    Vec2F pos;
+    Vec2F    pos;
+    Vec2<U8> tex_pos;
 };
 #pragma pack(pop)
 
@@ -32,15 +34,24 @@ static GLuint vao;
 
 struct {
     GLint pos;
+    GLint tex_pos;
 } static shader_attribs;
 
 static void entity_render(void *, Vec2F const&, Vec2F const&);
 
 void entity_init() {
+    constexpr Vec2U tile_sz = {8, 8};
+    char const* tileset_path = "entity_tileset.png";
     program = load_program("glsl/entity.vert", "glsl/entity.frag");
 
     glUseProgram(program);
-    shader_attribs.pos = glGetAttribLocation(program, "pos");
+    shader_attribs.pos     = glGetAttribLocation(program, "pos");
+    shader_attribs.tex_pos = glGetAttribLocation(program, "tex_pos");
+    Vec2U tileset_sz;
+    tileset = load_texture(tileset_path, tileset_sz);
+    Vec2F tex_scale = (Vec2F)tile_sz / (Vec2F)tileset_sz;
+    set_uniform("tex_scale", program, glUniform2fv, 1,
+                glm::value_ptr(tex_scale));
 
     glGenBuffers(1, &vbo);
     glGenBuffers(1, &ebo);
@@ -52,9 +63,13 @@ void entity_init() {
 
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
     glEnableVertexAttribArray(shader_attribs.pos);
+    glEnableVertexAttribArray(shader_attribs.tex_pos);
     glVertexAttribPointer(shader_attribs.pos,
         2, GL_FLOAT, GL_FALSE, sizeof(Vert),
         (void*)offsetof(Vert, pos));
+    glVertexAttribPointer(shader_attribs.tex_pos,
+        2, GL_UNSIGNED_BYTE, GL_FALSE, sizeof(Vert),
+        (void*)offsetof(Vert, tex_pos));
 #endif
     ui_entity = new_ui(ui_world, 50);
     ui_elems[ui_entity].render = &entity_render;
@@ -70,9 +85,13 @@ static void entity_render(void *, Vec2F const& translation, Vec2F const& scale) 
 #if defined(LUX_GLES_2_0)
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
     glEnableVertexAttribArray(shader_attribs.pos);
+    glEnableVertexAttribArray(shader_attribs.tex_pos);
     glVertexAttribPointer(shader_attribs.pos,
         2, GL_FLOAT, GL_FALSE, sizeof(Vert),
         (void*)offsetof(Vert, pos));
+    glVertexAttribPointer(shader_attribs.tex_pos,
+        2, GL_UNSIGNED_BYTE, GL_FALSE, sizeof(Vert),
+        (void*)offsetof(Vert, tex_pos));
 #elif defined(LUX_GL_3_3)
     glBindVertexArray(vao);
 #endif
@@ -96,9 +115,13 @@ static void entity_render(void *, Vec2F const& translation, Vec2F const& scale) 
             }
             Vec2F constexpr quad[] =
                 {{-1.f, -1.f}, {1.f, -1.f}, {-1.f, 1.f}, {1.f, 1.f}};
-            for(auto const& vert : quad) {
-                verts.emplace_back(Vert{(quad_sz / 2.f) * rotate(vert, angle) +
-                                        pos});
+            Vec2<U8> constexpr tex_quad[] = {{0, 0}, {1, 0}, {0, 1}, {1, 1}};
+            EntitySprite const& sprite =
+                db_entity_sprite(comps.visible.at(id).visible_id);
+            for(Uns i = 0; i < 4; ++i) {
+                verts.emplace_back(Vert
+                    {(quad_sz / 2.f) * rotate(quad[i], angle) + pos,
+                     tex_quad[i] * sprite.sz + sprite.pos});
             }
             //@TODO we need to remove when entity is removed
             if(comps.name.count(id) > 0) {
@@ -131,6 +154,7 @@ static void entity_render(void *, Vec2F const& translation, Vec2F const& scale) 
     glBufferData(GL_ELEMENT_ARRAY_BUFFER,
                  sizeof(Vert::Idx) * idxs.size(), idxs.data(), GL_DYNAMIC_DRAW);
 
+    glBindTexture(GL_TEXTURE_2D, tileset);
     glDrawElements(GL_TRIANGLES, idxs.size(), Vert::IDX_GL_TYPE, 0);
 #if defined(LUX_GLES_2_0)
     glDisableVertexAttribArray(shader_attribs.pos);

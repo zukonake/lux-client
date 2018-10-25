@@ -4,7 +4,8 @@
 //
 #include "db.hpp"
 
-static DynArr<VoxelType> voxels;
+static DynArr<VoxelType>    voxels;
+static DynArr<EntitySprite> entities;
 static SortMap<DynStr, VoxelId> voxels_lookup;
 
 void add_voxel(VoxelType &&voxel_type) {
@@ -19,6 +20,12 @@ void db_init() {
     add_voxel({"raw_stone", "Raw Stone"    , {2, 0}, VoxelType::BLOCK, false});
     add_voxel({"dirt", "Dirt"              , {5, 1}, VoxelType::BLOCK, false});
     add_voxel({"gravel", "Gravel"          , {3, 1}, VoxelType::BLOCK, false});
+    entities.push_back({{0, 0}, {2, 2}});
+}
+
+EntitySprite const& db_entity_sprite(U32 id) {
+    LUX_ASSERT(id < entities.size());
+    return entities[id];
 }
 
 VoxelType const& db_voxel_type(VoxelId id) {
