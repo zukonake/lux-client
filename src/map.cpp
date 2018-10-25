@@ -132,6 +132,10 @@ void map_init() {
     glGenBuffers(1, &geometry_mesh.vbo);
     glGenBuffers(1, &geometry_mesh.ebo);
 
+#if defined(LUX_GL_3_3)
+    ///we don't want to overrite some VAO's settings
+    glBindVertexArray(0);
+#endif
     glBindBuffer(GL_ARRAY_BUFFER, geometry_mesh.vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(GeometryMesh::Vert) *
         CHK_VOL * 4, verts, GL_STATIC_DRAW);
@@ -141,7 +145,7 @@ void map_init() {
         CHK_VOL * 2 * 3, idxs, GL_STATIC_DRAW);
     ui_map   = new_ui(ui_world);
     ui_elems[ui_map].render = &map_render;
-    ui_light = new_ui(ui_world);
+    ui_light = new_ui(ui_world, 128);
     ui_elems[ui_light].render = &light_render;
 }
 
@@ -170,10 +174,10 @@ static void map_render(void *, Vec2F const& pos, Vec2F const& scale) {
     glBindTexture(GL_TEXTURE_2D, tileset);
 #if defined(LUX_GLES_2_0)
     glBindBuffer(GL_ARRAY_BUFFER, geometry_mesh.vbo);
+    glEnableVertexAttribArray(tile_shader_attribs.pos);
     glVertexAttribPointer(tile_shader_attribs.pos,
         2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof(GeometryMesh::Vert),
         (void*)offsetof(GeometryMesh::Vert, pos));
-    glEnableVertexAttribArray(tile_shader_attribs.pos);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, geometry_mesh.ebo);
 #endif
 
@@ -185,10 +189,10 @@ static void map_render(void *, Vec2F const& pos, Vec2F const& scale) {
         MatMesh const& mesh = meshes.at(chk_pos).mat;
 #if defined(LUX_GLES_2_0)
         glBindBuffer(GL_ARRAY_BUFFER, mesh.vbo);
+        glEnableVertexAttribArray(tile_shader_attribs.tex_pos);
         glVertexAttribPointer(tile_shader_attribs.tex_pos,
             2, GL_FLOAT, GL_FALSE, sizeof(MatMesh::Vert),
             (void*)offsetof(MatMesh::Vert, tex_pos));
-        glEnableVertexAttribArray(tile_shader_attribs.tex_pos);
 #elif defined(LUX_GL_3_3)
         glBindVertexArray(mesh.vao);
 #endif
@@ -236,19 +240,18 @@ static void light_render(void *, Vec2F const& pos, Vec2F const& scale) {
         LightMesh const& mesh = meshes.at(chk_pos).light;
 #if defined(LUX_GLES_2_0)
         glBindBuffer(GL_ARRAY_BUFFER, mesh.vbo);
+        glEnableVertexAttribArray(light_shader_attribs.pos);
+        glEnableVertexAttribArray(light_shader_attribs.col);
         glVertexAttribPointer(light_shader_attribs.pos,
             2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof(LightMesh::Vert),
             (void*)offsetof(LightMesh::Vert, pos));
         glVertexAttribPointer(light_shader_attribs.col,
             3, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(LightMesh::Vert),
             (void*)offsetof(LightMesh::Vert, col));
-        glEnableVertexAttribArray(light_shader_attribs.pos);
-        glEnableVertexAttribArray(light_shader_attribs.col);
-
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.ebo);
 #elif defined(LUX_GL_3_3)
         glBindVertexArray(mesh.vao);
 #endif
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.ebo);
         //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
         glDrawElements(GL_TRIANGLES, LightMesh::IDX_NUM,
             LightMesh::IDX_GL_TYPE, 0);
@@ -330,16 +333,16 @@ static void try_build_mesh(ChkPos const& pos) {
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, geometry_mesh.ebo);
 
     glBindBuffer(GL_ARRAY_BUFFER, geometry_mesh.vbo);
+    glEnableVertexAttribArray(tile_shader_attribs.pos);
     glVertexAttribPointer(tile_shader_attribs.pos,
         2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof(GeometryMesh::Vert),
         (void*)offsetof(GeometryMesh::Vert, pos));
-    glEnableVertexAttribArray(tile_shader_attribs.pos);
 
     glBindBuffer(GL_ARRAY_BUFFER, mat_mesh.vbo);
+    glEnableVertexAttribArray(tile_shader_attribs.tex_pos);
     glVertexAttribPointer(tile_shader_attribs.tex_pos,
         2, GL_FLOAT, GL_FALSE, sizeof(MatMesh::Vert),
         (void*)offsetof(MatMesh::Vert, tex_pos));
-    glEnableVertexAttribArray(tile_shader_attribs.tex_pos);
 #endif
 
     build_mat_mesh(mat_mesh, get_chunk(pos), pos);
@@ -354,14 +357,14 @@ static void try_build_mesh(ChkPos const& pos) {
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, light_mesh.ebo);
 
     glBindBuffer(GL_ARRAY_BUFFER, light_mesh.vbo);
+    glEnableVertexAttribArray(light_shader_attribs.pos);
+    glEnableVertexAttribArray(light_shader_attribs.col);
     glVertexAttribPointer(light_shader_attribs.pos,
         2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof(LightMesh::Vert),
         (void*)offsetof(LightMesh::Vert, pos));
     glVertexAttribPointer(light_shader_attribs.col,
         3, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(LightMesh::Vert),
         (void*)offsetof(LightMesh::Vert, col));
-    glEnableVertexAttribArray(light_shader_attribs.pos);
-    glEnableVertexAttribArray(light_shader_attribs.col);
 #endif
     build_light_mesh(light_mesh, get_chunk(pos), pos);
 }
@@ -413,6 +416,9 @@ static void build_mat_mesh(MatMesh& mesh, Chunk const& chunk, ChkPos const& chk_
         }
     }
 
+#if defined(LUX_GL_3_3)
+    glBindVertexArray(mesh.vao);
+#endif
     glBindBuffer(GL_ARRAY_BUFFER, mesh.vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(MatMesh::Vert) *
         CHK_VOL * 4, verts, GL_DYNAMIC_DRAW);
@@ -462,13 +468,13 @@ static void build_light_mesh(LightMesh& mesh, Chunk const& chunk, ChkPos const& 
             ++idx_off;
         }
     }
+#if defined(LUX_GL_3_3)
+    glBindVertexArray(mesh.vao);
+#endif
     glBindBuffer(GL_ARRAY_BUFFER, mesh.vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(LightMesh::Vert) *
         std::pow(CHK_SIZE + 1, 2), verts, GL_DYNAMIC_DRAW);
 
-#if defined(LUX_GL_3_3)
-    glBindVertexArray(mesh.vao);
-#endif
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(LightMesh::Idx) *
         LightMesh::IDX_NUM, idxs, GL_DYNAMIC_DRAW);

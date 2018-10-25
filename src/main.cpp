@@ -104,13 +104,11 @@ int main(int argc, char** argv) {
             DynStr coord_str =
                  "x: " + std::to_string(last_player_pos.x) +
              "\\\ny: " + std::to_string(last_player_pos.y);
-            //coord_txt.scale = ui_viewport.scale * 0.5f;
             ui_texts[coord_txt].buff.resize(coord_str.size());
             std::memcpy(ui_texts[coord_txt].buff.data(),
                         coord_str.data(), coord_str.size());
             ui_elems[ui_world].pos = -Vec2F(last_player_pos) *
                                      ui_elems[ui_world].scale;
-            console_render();
             ui_render();
             check_opengl_error();
             glfwSwapBuffers(glfw_window);

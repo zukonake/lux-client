@@ -22,7 +22,8 @@ struct UiElement {
     Vec2F pos   = {0.f, 0.f};
     Vec2F scale = {1.f, 1.f};
     void* ptr;
-    bool fixed_aspect = false;
+    bool  fixed_aspect = false;
+    U8    priority = 0;
 };
 
 ///those get initialized during ui_init
@@ -35,22 +36,35 @@ extern UiId ui_hud;
 struct UiText {
     UiId ui;
     DynArr<char> buff;
+
+    GLuint vbo;
+    GLuint ebo;
+#if defined(LUX_GL_3_3)
+    GLuint vao;
+#endif
 };
 
 struct UiPane {
     UiId ui;
     Vec2F size;
     Vec4F bg_col;
+
+    GLuint vbo;
+    GLuint ebo;
+#if defined(LUX_GL_3_3)
+    GLuint vao;
+#endif
 };
 
 UiId new_ui();
-UiId new_ui(UiId parent);
+UiId new_ui(UiId parent, U8 priority = 0);
 void erase_ui(UiId handle);
 
 TextId create_text(Vec2F pos, Vec2F scale, const char* str, UiId parent);
 PaneId create_pane(Vec2F pos, Vec2F scale, Vec2F size,
                        Vec4F const& bg_col, UiId parent);
 void erase_text(TextId handle);
+void erase_pane(PaneId pane);
 
 void ui_window_sz_cb(Vec2U const& window_sz);
 void ui_init();

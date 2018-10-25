@@ -25,10 +25,19 @@ UiId new_ui() {
     return id;
 }
 
-UiId new_ui(UiId parent) {
+UiId new_ui(UiId parent, U8 priority) {
     UiId id = ui_elems.emplace();
     LUX_ASSERT(ui_elems.contains(parent));
+    ui_elems[id].priority = priority;
     ui_elems[parent].children.emplace_back(id);
+    std::sort(ui_elems[parent].children.begin(),
+              ui_elems[parent].children.end(),
+              [](UiId const& a, UiId const& b) {
+                  if(ui_elems.contains(a) && ui_elems.contains(b)) {
+                      return ui_elems[a].priority < ui_elems[b].priority;
+                  }
+                  return false;
+              });
     return id;
 }
 
@@ -39,6 +48,27 @@ void erase_ui(UiId id) {
     }
     ui_elems.erase(id);
 }
+
+struct TextSystem {
+#pragma pack(push, 1)
+    struct Vert {
+        Vec2F    pos;
+        Vec2<U8> font_pos;
+        Vec4<U8> fg_col;
+        Vec4<U8> bg_col;
+    };
+#pragma pack(pop)
+
+    GLuint program;
+    GLuint font_texture;
+
+    struct {
+        GLint pos;
+        GLint font_pos;
+        GLint fg_col;
+        GLint bg_col;
+    } shader_attribs;
+} static text_system;
 
 TextId create_text(Vec2F pos, Vec2F scale, const char* str, UiId parent) {
     TextId id  = ui_texts.emplace();
@@ -53,14 +83,62 @@ TextId create_text(Vec2F pos, Vec2F scale, const char* str, UiId parent) {
     SizeT str_sz = std::strlen(str);
     text.buff.resize(str_sz);
     std::memcpy(text.buff.data(), str, str_sz);
+
+    glGenBuffers(1, &text.vbo);
+    glGenBuffers(1, &text.ebo);
+
+#if defined(LUX_GL_3_3)
+    glGenVertexArrays(1, &text.vao);
+    glBindVertexArray(text.vao);
+
+    glBindBuffer(GL_ARRAY_BUFFER, text.vbo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, text.ebo);
+    glEnableVertexAttribArray(text_system.shader_attribs.pos);
+    glEnableVertexAttribArray(text_system.shader_attribs.font_pos);
+    glEnableVertexAttribArray(text_system.shader_attribs.fg_col);
+    glEnableVertexAttribArray(text_system.shader_attribs.bg_col);
+    glVertexAttribPointer(text_system.shader_attribs.pos,
+        2, GL_FLOAT, GL_FALSE, sizeof(TextSystem::Vert),
+        (void*)offsetof(TextSystem::Vert, pos));
+    glVertexAttribPointer(text_system.shader_attribs.font_pos,
+        2, GL_UNSIGNED_BYTE, GL_FALSE, sizeof(TextSystem::Vert),
+        (void*)offsetof(TextSystem::Vert, font_pos));
+    glVertexAttribPointer(text_system.shader_attribs.fg_col,
+        4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(TextSystem::Vert),
+        (void*)offsetof(TextSystem::Vert, fg_col));
+    glVertexAttribPointer(text_system.shader_attribs.bg_col,
+        4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(TextSystem::Vert),
+        (void*)offsetof(TextSystem::Vert, bg_col));
+#endif
     return id;
 }
 
 void erase_text(TextId id) {
     LUX_ASSERT(ui_texts.contains(id));
+    auto& text = ui_texts[id];
+    glDeleteBuffers(1, &text.vbo);
+    glDeleteBuffers(1, &text.ebo);
+#if defined(LUX_GL_3_3)
+    glDeleteVertexArrays(1, &text.vao);
+#endif
     erase_ui(ui_texts[id].ui);
     ui_texts.erase(id);
 }
+
+struct PaneSystem {
+#pragma pack(push, 1)
+    struct Vert {
+        Vec2F pos;
+        Vec4F bg_col;
+    };
+#pragma pack(pop)
+
+    GLuint program;
+    struct {
+        GLint pos;
+        GLint bg_col;
+    } shader_attribs;
+} static pane_system;
 
 PaneId create_pane(Vec2F pos, Vec2F scale, Vec2F size,
                        Vec4F const& bg_col, UiId parent) {
@@ -75,60 +153,39 @@ PaneId create_pane(Vec2F pos, Vec2F scale, Vec2F size,
     ui.fixed_aspect = true;
     pane.size   = size;
     pane.bg_col = bg_col;
+
+    glGenBuffers(1, &pane.vbo);
+    glGenBuffers(1, &pane.ebo);
+
+#if defined(LUX_GL_3_3)
+    glGenVertexArrays(1, &pane.vao);
+    glBindVertexArray(pane.vao);
+
+    glBindBuffer(GL_ARRAY_BUFFER, pane.vbo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pane.ebo);
+    glEnableVertexAttribArray(pane_system.shader_attribs.pos);
+    glEnableVertexAttribArray(pane_system.shader_attribs.bg_col);
+    glVertexAttribPointer(pane_system.shader_attribs.pos,
+        2, GL_FLOAT, GL_FALSE, sizeof(PaneSystem::Vert),
+        (void*)offsetof(PaneSystem::Vert, pos));
+    glVertexAttribPointer(pane_system.shader_attribs.bg_col,
+        4, GL_FLOAT, GL_FALSE, sizeof(PaneSystem::Vert),
+        (void*)offsetof(PaneSystem::Vert, bg_col));
+#endif
     return id;
 }
 
-struct TextSystem {
-#pragma pack(push, 1)
-    struct Vert {
-        Vec2F    pos;
-        Vec2<U8> font_pos;
-        Vec4<U8> fg_col;
-        Vec4<U8> bg_col;
-    };
-#pragma pack(pop)
-
-    GLuint program;
-    GLuint vbo;
-    GLuint ebo;
+void erase_pane(PaneId id) {
+    LUX_ASSERT(ui_panes.contains(id));
+    auto& pane = ui_panes[id];
+    glDeleteBuffers(1, &pane.vbo);
+    glDeleteBuffers(1, &pane.ebo);
 #if defined(LUX_GL_3_3)
-    GLuint vao;
+    glDeleteVertexArrays(1, &pane.vao);
 #endif
-
-    GLuint font_texture;
-
-    DynArr<Vert> verts;
-    DynArr<U32>  idxs;
-    struct {
-        GLint pos;
-        GLint font_pos;
-        GLint fg_col;
-        GLint bg_col;
-    } shader_attribs;
-} static text_system;
-
-struct PaneSystem {
-#pragma pack(push, 1)
-    struct Vert {
-        Vec2F pos;
-        Vec4F bg_col;
-    };
-#pragma pack(pop)
-
-    GLuint program;
-    GLuint vbo;
-    GLuint ebo;
-#if defined(LUX_GL_3_3)
-    GLuint vao;
-#endif
-
-    DynArr<Vert> verts;
-    DynArr<U32>  idxs;
-    struct {
-        GLint pos;
-        GLint bg_col;
-    } shader_attribs;
-} static pane_system;
+    erase_ui(ui_panes[id].ui);
+    ui_panes.erase(id);
+}
 
 static void update_aspect(UiId id, F32 w_to_h) {
     auto& ui = ui_elems[id];
@@ -164,33 +221,6 @@ void ui_init() {
     text_system.shader_attribs.bg_col =
         glGetAttribLocation(text_system.program, "bg_col");
 
-    glGenBuffers(1, &text_system.vbo);
-    glGenBuffers(1, &text_system.ebo);
-
-#if defined(LUX_GL_3_3)
-    glGenVertexArrays(1, &text_system.vao);
-    glBindVertexArray(text_system.vao);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, text_system.ebo);
-
-    glBindBuffer(GL_ARRAY_BUFFER, text_system.vbo);
-    glVertexAttribPointer(text_system.shader_attribs.pos,
-        2, GL_FLOAT, GL_FALSE, sizeof(TextSystem::Vert),
-        (void*)offsetof(TextSystem::Vert, pos));
-    glVertexAttribPointer(text_system.shader_attribs.font_pos,
-        2, GL_UNSIGNED_BYTE, GL_FALSE, sizeof(TextSystem::Vert),
-        (void*)offsetof(TextSystem::Vert, font_pos));
-    glVertexAttribPointer(text_system.shader_attribs.fg_col,
-        4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(TextSystem::Vert),
-        (void*)offsetof(TextSystem::Vert, fg_col));
-    glVertexAttribPointer(text_system.shader_attribs.bg_col,
-        4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(TextSystem::Vert),
-        (void*)offsetof(TextSystem::Vert, bg_col));
-    glEnableVertexAttribArray(text_system.shader_attribs.pos);
-    glEnableVertexAttribArray(text_system.shader_attribs.font_pos);
-    glEnableVertexAttribArray(text_system.shader_attribs.fg_col);
-    glEnableVertexAttribArray(text_system.shader_attribs.bg_col);
-#endif
-
     pane_system.program = load_program("glsl/pane.vert", "glsl/pane.frag");
     glUseProgram(pane_system.program);
 
@@ -199,24 +229,6 @@ void ui_init() {
     pane_system.shader_attribs.bg_col =
         glGetAttribLocation(pane_system.program, "bg_col");
 
-    glGenBuffers(1, &pane_system.vbo);
-    glGenBuffers(1, &pane_system.ebo);
-
-#if defined(LUX_GL_3_3)
-    glGenVertexArrays(1, &pane_system.vao);
-    glBindVertexArray(pane_system.vao);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pane_system.ebo);
-
-    glBindBuffer(GL_ARRAY_BUFFER, pane_system.vbo);
-    glVertexAttribPointer(pane_system.shader_attribs.pos,
-        2, GL_FLOAT, GL_FALSE, sizeof(PaneSystem::Vert),
-        (void*)offsetof(PaneSystem::Vert, pos));
-    glVertexAttribPointer(pane_system.shader_attribs.bg_col,
-        4, GL_FLOAT, GL_FALSE, sizeof(PaneSystem::Vert),
-        (void*)offsetof(PaneSystem::Vert, bg_col));
-    glEnableVertexAttribArray(pane_system.shader_attribs.pos);
-    glEnableVertexAttribArray(pane_system.shader_attribs.bg_col);
-#endif
     ui_screen = new_ui();
     ui_elems[ui_screen].scale = {1.f, -1.f};
     ui_world  = new_ui(ui_screen);
@@ -235,12 +247,17 @@ void ui_deinit() {
 static void render_text(void* ptr, Vec2F const& pos, Vec2F const& scale) {
     TextId text_id = (TextId)(std::uintptr_t)ptr;
     auto& text = ui_texts[text_id];
+    static DynArr<TextSystem::Vert> verts;
+    static DynArr<U32>               idxs;
+    idxs.resize(text.buff.size() * 6);
+    verts.resize(text.buff.size() * 4);
     Vec4<U8> fg_col = {0xFF, 0xFF, 0xFF, 0xFF};
     Vec4<U8> bg_col = {0x00, 0x00, 0x00, 0x00};
     bool fg = false;
     bool bg = false;
     Vec2F off = {0, 0};
     bool special = false;
+    U32 quad_len = 0;
     for(auto character : text.buff) {
         if(character == '\\') {
             special = true;
@@ -292,51 +309,28 @@ static void render_text(void* ptr, Vec2F const& pos, Vec2F const& scale) {
         }
         for(Uns i = 0; i < 4; ++i) {
             constexpr Vec2I quad[4] = {{0, 0}, {0, 1}, {1, 0}, {1, 1}};
-            text_system.verts.push_back({
+            verts[quad_len * 4 + i] = {
                 pos + ((Vec2F)quad[i] + off) * scale,
                 Vec2<U8>(character % 16, character / 16) + (Vec2<U8>)quad[i],
-                fg_col, bg_col});
+                fg_col, bg_col};
         }
         for(Uns i = 0; i < 6; ++i) {
-            constexpr U32 idxs[6] = {0, 1, 2, 2, 3, 1};
-            text_system.idxs.emplace_back(text_system.verts.size() - 4 + idxs[i]);
+            constexpr U32 order[6] = {0, 1, 2, 2, 3, 1};
+            idxs[quad_len * 6 + i] = quad_len * 4 + order[i];
         }
+        ++quad_len;
         off.x += 1.f;
     }
-}
-
-static void render_pane(void* ptr, Vec2F const& pos, Vec2F const& scale) {
-    PaneId pane_id = (PaneId)(std::uintptr_t)ptr;
-    auto& pane = ui_panes[pane_id];
-    for(Uns i = 0; i < 4; ++i) {
-        constexpr Vec2F quad[4] = {{0, 0}, {0, 1}, {1, 0}, {1, 1}};
-        pane_system.verts.push_back({
-            pos + quad[i] * scale * pane.size, pane.bg_col});
-    }
-    for(Uns i = 0; i < 6; ++i) {
-        constexpr U32 idxs[6] = {0, 1, 2, 2, 3, 1};
-        pane_system.idxs.emplace_back(pane_system.verts.size() - 4 + idxs[i]);
-    }
-}
-
-static void text_system_render() {
-    if(text_system.verts.size() == 0) return;
-    glBindBuffer(GL_ARRAY_BUFFER, text_system.vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(TextSystem::Vert) *
-        text_system.verts.size(), text_system.verts.data(), GL_DYNAMIC_DRAW);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, text_system.ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(U32) *
-        text_system.idxs.size(), text_system.idxs.data(), GL_DYNAMIC_DRAW);
-
-    glUseProgram(text_system.program);
-    glBindTexture(GL_TEXTURE_2D, text_system.font_texture);
 #if defined(LUX_GLES_2_0)
-    glBindBuffer(GL_ARRAY_BUFFER, text_system.vbo);
+    glEnableVertexAttribArray(text_system.shader_attribs.pos);
+    glEnableVertexAttribArray(text_system.shader_attribs.font_pos);
+    glEnableVertexAttribArray(text_system.shader_attribs.fg_col);
+    glEnableVertexAttribArray(text_system.shader_attribs.bg_col);
     glVertexAttribPointer(text_system.shader_attribs.pos,
         2, GL_FLOAT, GL_FALSE, sizeof(TextSystem::Vert),
         (void*)offsetof(TextSystem::Vert, pos));
     glVertexAttribPointer(text_system.shader_attribs.font_pos,
-        2, GL_FLOAT, GL_FALSE, sizeof(TextSystem::Vert),
+        2, GL_UNSIGNED_BYTE, GL_FALSE, sizeof(TextSystem::Vert),
         (void*)offsetof(TextSystem::Vert, font_pos));
     glVertexAttribPointer(text_system.shader_attribs.fg_col,
         4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(TextSystem::Vert),
@@ -344,16 +338,21 @@ static void text_system_render() {
     glVertexAttribPointer(text_system.shader_attribs.bg_col,
         4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(TextSystem::Vert),
         (void*)offsetof(TextSystem::Vert, bg_col));
-    glEnableVertexAttribArray(text_system.shader_attribs.pos);
-    glEnableVertexAttribArray(text_system.shader_attribs.font_pos);
-    glEnableVertexAttribArray(text_system.shader_attribs.fg_col);
-    glEnableVertexAttribArray(text_system.shader_attribs.bg_col);
 #elif defined(LUX_GL_3_3)
-    glBindVertexArray(text_system.vao);
+    glBindVertexArray(text.vao);
 #endif
+    glBindBuffer(GL_ARRAY_BUFFER, text.vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(TextSystem::Vert) * quad_len * 4,
+        verts.data(), GL_DYNAMIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, text.ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(U32) * quad_len * 6,
+        idxs.data(), GL_DYNAMIC_DRAW);
+
+    glUseProgram(text_system.program);
+    glBindTexture(GL_TEXTURE_2D, text_system.font_texture);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glDrawElements(GL_TRIANGLES, text_system.idxs.size(), GL_UNSIGNED_INT, 0);
+    glDrawElements(GL_TRIANGLES, quad_len * 6, GL_UNSIGNED_INT, 0);
     glDisable(GL_BLEND);
 #if defined(LUX_GLES_2_0)
     glDisableVertexAttribArray(text_system.shader_attribs.pos);
@@ -361,43 +360,48 @@ static void text_system_render() {
     glDisableVertexAttribArray(text_system.shader_attribs.fg_col);
     glDisableVertexAttribArray(text_system.shader_attribs.bg_col);
 #endif
-    text_system.verts.clear();
-    text_system.idxs.clear();
 }
 
-static void pane_system_render() {
-    if(pane_system.verts.size() == 0) return;
-    glBindBuffer(GL_ARRAY_BUFFER, pane_system.vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(PaneSystem::Vert) *
-        pane_system.verts.size(), pane_system.verts.data(), GL_DYNAMIC_DRAW);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pane_system.ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(U32) *
-        pane_system.idxs.size(), pane_system.idxs.data(), GL_DYNAMIC_DRAW);
-
-    glUseProgram(pane_system.program);
+static void render_pane(void* ptr, Vec2F const& pos, Vec2F const& scale) {
+    Arr<PaneSystem::Vert, 4> verts;
+    Arr<U32             , 6> idxs;
+    PaneId pane_id = (PaneId)(std::uintptr_t)ptr;
+    auto& pane = ui_panes[pane_id];
+    for(Uns i = 0; i < 4; ++i) {
+        constexpr Vec2F quad[4] = {{0, 0}, {0, 1}, {1, 0}, {1, 1}};
+        verts[i] ={pos + quad[i] * scale * pane.size, pane.bg_col};
+    }
+    for(Uns i = 0; i < 6; ++i) {
+        constexpr U32 order[6] = {0, 1, 2, 2, 3, 1};
+        idxs[i] = order[i];
+    }
 #if defined(LUX_GLES_2_0)
-    glBindBuffer(GL_ARRAY_BUFFER, pane_system.vbo);
-    glVertexAttribPointer(pane_system.shader_attribs.pos,
-        2, GL_FLOAT, GL_FALSE, sizeof(TextSystem::Vert),
-        (void*)offsetof(TextSystem::Vert, pos));
-    glVertexAttribPointer(pane_system.shader_attribs.bg_col,
-        4, GL_FLOAT, GL_TRUE, sizeof(TextSystem::Vert),
-        (void*)offsetof(TextSystem::Vert, bg_col));
     glEnableVertexAttribArray(pane_system.shader_attribs.pos);
     glEnableVertexAttribArray(pane_system.shader_attribs.bg_col);
+    glVertexAttribPointer(pane_system.shader_attribs.pos,
+        2, GL_FLOAT, GL_FALSE, sizeof(PaneSystem::Vert),
+        (void*)offsetof(PaneSystem::Vert, pos));
+    glVertexAttribPointer(pane_system.shader_attribs.bg_col,
+        4, GL_FLOAT, GL_FALSE, sizeof(PaneSystem::Vert),
+        (void*)offsetof(PaneSystem::Vert, bg_col));
 #elif defined(LUX_GL_3_3)
-    glBindVertexArray(pane_system.vao);
+    glBindVertexArray(pane.vao);
 #endif
+    glBindBuffer(GL_ARRAY_BUFFER, pane.vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(PaneSystem::Vert) * 4,
+        verts, GL_DYNAMIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pane.ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(U32) * 6,
+        idxs, GL_DYNAMIC_DRAW);
+    glUseProgram(pane_system.program);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glDrawElements(GL_TRIANGLES, pane_system.idxs.size(), GL_UNSIGNED_INT, 0);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
     glDisable(GL_BLEND);
 #if defined(LUX_GLES_2_0)
     glDisableVertexAttribArray(pane_system.shader_attribs.pos);
     glDisableVertexAttribArray(pane_system.shader_attribs.bg_col);
 #endif
-    pane_system.verts.clear();
-    pane_system.idxs.clear();
 }
 
 static void ui_render(UiId id, Vec2F const& pos, Vec2F const& scale) {
@@ -422,8 +426,6 @@ static void ui_render(UiId id, Vec2F const& pos, Vec2F const& scale) {
 
 void ui_render() {
     ui_render(ui_screen, {0.f, 0.f}, {1.f, 1.f});
-    pane_system_render();
-    text_system_render();
     ui_elems.free_slots();
     ui_texts.free_slots();
     ui_panes.free_slots();

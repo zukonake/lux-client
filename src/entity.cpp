@@ -56,7 +56,7 @@ void entity_init() {
         (void*)offsetof(Vert, pos));
     glEnableVertexAttribArray(shader_attribs.pos);
 #endif
-    ui_entity = new_ui(ui_world);
+    ui_entity = new_ui(ui_world, 50);
     ui_elems[ui_entity].render = &entity_render;
 }
 
