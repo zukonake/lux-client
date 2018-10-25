@@ -15,6 +15,7 @@ struct VoxelType {
         BLOCK,
         HALF_BLOCK,
     } shape;
+    bool connected_tex;
 };
 
 //@CONSIDER voxel -> vox

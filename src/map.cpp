@@ -38,7 +38,7 @@ struct GeometryMesh {
 struct MatMesh {
 #pragma pack(push, 1)
     struct Vert {
-        Vec2<U16> tex_pos;
+        Vec2F tex_pos;
     };
 #pragma pack(pop)
     GLuint vbo;
@@ -80,7 +80,8 @@ VecMap<ChkPos, MatMesh>   mat_meshes;
 VecMap<ChkPos, LightMesh> light_meshes;
 VecSet<ChkPos>            chunk_requests;
 
-static void build_mat_mesh(MatMesh& mesh, Chunk const& chunk);
+static void try_build_mat_mesh(ChkPos const& pos);
+static void build_mat_mesh(MatMesh& mesh, Chunk const& chunk, ChkPos const& chk_pos);
 static void build_light_mesh(LightMesh& mesh, Chunk const& chunk);
 
 static void map_load_programs() {
@@ -154,8 +155,8 @@ static void map_render(void *, Vec2F const& pos, Vec2F const& scale) {
         for(iter.x  = center.x - RENDER_DIST;
             iter.x <= center.x + RENDER_DIST;
             iter.x++) {
-            if(is_chunk_loaded(iter)) render_list.emplace_back(iter);
-            else                      chunk_requests.emplace(iter);
+            if(mat_meshes.count(iter) > 0) render_list.emplace_back(iter);
+            else try_build_mat_mesh(iter);
         }
     }
 
@@ -181,7 +182,7 @@ static void map_render(void *, Vec2F const& pos, Vec2F const& scale) {
 #if defined(LUX_GLES_2_0)
         glBindBuffer(GL_ARRAY_BUFFER, mesh.vbo);
         glVertexAttribPointer(tile_shader_attribs.tex_pos,
-            2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof(MatMesh::Vert),
+            2, GL_FLOAT, GL_FALSE, sizeof(MatMesh::Vert),
             (void*)offsetof(MatMesh::Vert, tex_pos));
         glEnableVertexAttribArray(tile_shader_attribs.tex_pos);
 #elif defined(LUX_GL_3_3)
@@ -283,31 +284,12 @@ void load_chunk(ChkPos const& pos, NetSsSgnl::MapLoad::Chunk const& net_chunk) {
     std::memcpy(chunk.light_lvls, net_chunk.light_lvls,
                 CHK_VOL * sizeof(LightLvl));
 
-    MatMesh& mat_mesh = mat_meshes[pos];
-    glGenBuffers(1, &mat_mesh.vbo);
-    build_mat_mesh(mat_mesh, chunk);
-
     LightMesh& light_mesh = light_meshes[pos];
     glGenBuffers(1, &light_mesh.vbo);
     glGenBuffers(1, &light_mesh.ebo);
     build_light_mesh(light_mesh, chunk);
+
 #if defined(LUX_GL_3_3)
-    glGenVertexArrays(1, &mat_mesh.vao);
-    glBindVertexArray(mat_mesh.vao);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, geometry_mesh.ebo);
-
-    glBindBuffer(GL_ARRAY_BUFFER, geometry_mesh.vbo);
-    glVertexAttribPointer(tile_shader_attribs.pos,
-        2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof(GeometryMesh::Vert),
-        (void*)offsetof(GeometryMesh::Vert, pos));
-    glEnableVertexAttribArray(tile_shader_attribs.pos);
-
-    glBindBuffer(GL_ARRAY_BUFFER, mat_mesh.vbo);
-    glVertexAttribPointer(tile_shader_attribs.tex_pos,
-        2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof(MatMesh::Vert),
-        (void*)offsetof(MatMesh::Vert, tex_pos));
-    glEnableVertexAttribArray(tile_shader_attribs.tex_pos);
-
     glGenVertexArrays(1, &light_mesh.vao);
     glBindVertexArray(light_mesh.vao);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, light_mesh.ebo);
@@ -341,16 +323,95 @@ Chunk const& get_chunk(ChkPos const& pos) {
     return chunks.at(pos);
 }
 
-static void build_mat_mesh(MatMesh& mesh, Chunk const& chunk) {
+static void try_build_mat_mesh(ChkPos const& pos) {
+    constexpr ChkPos offsets[9] =
+        {{-1, -1}, { 0, -1}, { 1, -1},
+         {-1,  0}, { 0,  0}, { 1,  0},
+         {-1,  1}, { 0,  1}, { 1,  1}};
+    bool can_build = true;
+    for(auto const& offset : offsets) {
+        if(!is_chunk_loaded(pos + offset)) {
+            chunk_requests.emplace(pos + offset);
+            can_build = false;
+        }
+    }
+    if(!can_build) return;
+
+    MatMesh& mat_mesh = mat_meshes[pos];
+    glGenBuffers(1, &mat_mesh.vbo);
+#if defined(LUX_GL_3_3)
+    glGenVertexArrays(1, &mat_mesh.vao);
+    glBindVertexArray(mat_mesh.vao);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, geometry_mesh.ebo);
+
+    glBindBuffer(GL_ARRAY_BUFFER, geometry_mesh.vbo);
+    glVertexAttribPointer(tile_shader_attribs.pos,
+        2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof(GeometryMesh::Vert),
+        (void*)offsetof(GeometryMesh::Vert, pos));
+    glEnableVertexAttribArray(tile_shader_attribs.pos);
+
+    glBindBuffer(GL_ARRAY_BUFFER, mat_mesh.vbo);
+    glVertexAttribPointer(tile_shader_attribs.tex_pos,
+        2, GL_FLOAT, GL_FALSE, sizeof(MatMesh::Vert),
+        (void*)offsetof(MatMesh::Vert, tex_pos));
+    glEnableVertexAttribArray(tile_shader_attribs.tex_pos);
+#endif
+
+    build_mat_mesh(mat_mesh, get_chunk(pos), pos);
+}
+
+static void build_mat_mesh(MatMesh& mesh, Chunk const& chunk, ChkPos const& chk_pos) {
     Arr<MatMesh::Vert, CHK_VOL * 4> verts;
 
-    constexpr Vec2<U16> tex_quad[4] =
-        {{0, 0}, {1, 0}, {0, 1}, {1, 1}};
+    constexpr F32 tx = 0.9999f;
+    constexpr Vec2F tex_quads[4][4] =
+        {{{0 ,  0}, {tx,  0}, {0 , tx}, {tx, tx}},
+         {{tx,  0}, {tx, tx}, {0 ,  0}, {0 , tx}},
+         {{tx, tx}, {0 , tx}, {tx,  0}, {0 ,  0}},
+         {{0 , tx}, {0 ,  0}, {tx, tx}, {tx,  0}}};
 
     for(ChkIdx i = 0; i < CHK_VOL; ++i) {
         VoxelType const& vox_type = db_voxel_type(chunk.voxels[i]);
-        for(U32 j = 0; j < 4; ++j) {
-            verts[i * 4 + j].tex_pos = (Vec2<U16>)vox_type.tex_pos + tex_quad[j];
+        constexpr MapPos neighbor_offsets[4] =
+            {{0, -1}, {1, 0}, {0, 1}, {-1, 0}};
+        U8 neighbors = 0;
+        if(vox_type.connected_tex) {
+            for(Uns n = 0; n < 4; ++n) {
+                MapPos map_pos = to_map_pos(chk_pos, i) + neighbor_offsets[n];
+                if(get_chunk(to_chk_pos(map_pos)).voxels[to_chk_idx(map_pos)] ==
+                   chunk.voxels[i]) {
+                    neighbors |= 1 << n;
+                }
+            }
+            Vec2F offset;
+            Uns   quad_id;
+            switch(neighbors) {
+                case 0b0000: offset = {0, 0}; quad_id = 0; break;
+                case 0b0001: offset = {1, 0}; quad_id = 0; break;
+                case 0b0010: offset = {1, 0}; quad_id = 3; break;
+                case 0b0100: offset = {1, 0}; quad_id = 2; break;
+                case 0b1000: offset = {1, 0}; quad_id = 1; break;
+                case 0b0101: offset = {2, 0}; quad_id = 0; break;
+                case 0b1010: offset = {2, 0}; quad_id = 3; break;
+                case 0b0011: offset = {3, 0}; quad_id = 0; break;
+                case 0b0110: offset = {3, 0}; quad_id = 3; break;
+                case 0b1100: offset = {3, 0}; quad_id = 2; break;
+                case 0b1001: offset = {3, 0}; quad_id = 1; break;
+                case 0b0111: offset = {4, 0}; quad_id = 0; break;
+                case 0b1110: offset = {4, 0}; quad_id = 3; break;
+                case 0b1101: offset = {4, 0}; quad_id = 2; break;
+                case 0b1011: offset = {4, 0}; quad_id = 1; break;
+                case 0b1111: offset = {5, 0}; quad_id = 0; break;
+            }
+            for(Uns j = 0; j < 4; ++j) {
+                verts[i * 4 + j].tex_pos =
+                    (Vec2F)vox_type.tex_pos + offset + tex_quads[quad_id][j];
+            }
+        } else {
+            for(Uns j = 0; j < 4; ++j) {
+                verts[i * 4 + j].tex_pos = (Vec2F)vox_type.tex_pos +
+                                            tex_quads[0][j];
+            }
         }
     }
 
