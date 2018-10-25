@@ -16,8 +16,8 @@
 #include <ui.hpp>
 #include "map.hpp"
 
-UiHandle ui_map;
-UiHandle ui_light;
+UiId ui_map;
+UiId ui_light;
 
 GLuint tile_program;
 GLuint tileset;
@@ -135,9 +135,9 @@ void map_init() {
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GeometryMesh::Idx) *
         CHK_VOL * 2 * 3, idxs, GL_STATIC_DRAW);
     ui_map   = new_ui(ui_world);
-    ui_map->render = &map_render;
+    ui_elems[ui_map].render = &map_render;
     ui_light = new_ui(ui_world);
-    ui_light->render = &light_render;
+    ui_elems[ui_light].render = &light_render;
 }
 
 static void map_render(void *, Vec2F const& pos, Vec2F const& scale) {

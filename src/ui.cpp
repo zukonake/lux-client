@@ -9,9 +9,9 @@
 #include <rendering.hpp>
 #include <ui.hpp>
 
-UiHandle ui_screen;
-UiHandle ui_world;
-UiHandle ui_hud;
+UiId ui_screen;
+UiId ui_world;
+UiId ui_hud;
 
 SparseDynArr<UiElement, U16> ui_elems;
 SparseDynArr<UiText   , U16> ui_texts;
@@ -20,57 +20,62 @@ SparseDynArr<UiPane   , U16> ui_panes;
 static void render_text(void*, Vec2F const&, Vec2F const&);
 static void render_pane(void*, Vec2F const&, Vec2F const&);
 
-UiHandle new_ui() {
-    UiHandle handle = ui_elems.emplace();
-    return handle;
+UiId new_ui() {
+    UiId id = ui_elems.emplace();
+    return id;
 }
 
-UiHandle new_ui(UiHandle parent) {
-    UiHandle handle = ui_elems.emplace();
-    LUX_ASSERT(parent.is_valid());
-    parent->children.emplace_back(handle);
-    return handle;
+UiId new_ui(UiId parent) {
+    UiId id = ui_elems.emplace();
+    LUX_ASSERT(ui_elems.contains(parent));
+    ui_elems[parent].children.emplace_back(id);
+    return id;
 }
 
-void erase_ui(UiHandle handle) {
-    LUX_ASSERT(handle.is_valid());
-    for(UiHandle child : handle->children) {
+void erase_ui(UiId id) {
+    LUX_ASSERT(ui_elems.contains(id));
+    for(UiId child : ui_elems[id].children) {
         erase_ui(child);
     }
-    handle.erase();
+    ui_elems.erase(id);
 }
 
-TextHandle create_text(Vec2F pos, Vec2F scale, const char* str, UiHandle parent) {
-    TextHandle text  = ui_texts.emplace();
-    text->ui         = new_ui(parent);
-    text->ui->render = &render_text;
-    text->ui->pos    = pos;
-    text->ui->scale  = scale;
-    text->ui->ptr    = (void*)(std::uintptr_t)text.id;
-    text->ui->fixed_aspect = true;
-    SizeT str_sz     = std::strlen(str);
-    text->buff.resize(str_sz);
-    std::memcpy(text->buff.data(), str, str_sz);
-    return text;
+TextId create_text(Vec2F pos, Vec2F scale, const char* str, UiId parent) {
+    TextId id  = ui_texts.emplace();
+    auto& text = ui_texts[id];
+    text.ui    = new_ui(parent);
+    auto& ui   = ui_elems[text.ui];
+    ui.render  = &render_text;
+    ui.pos     = pos;
+    ui.scale   = scale;
+    ui.ptr     = (void*)(std::uintptr_t)id;
+    ui.fixed_aspect = true;
+    SizeT str_sz = std::strlen(str);
+    text.buff.resize(str_sz);
+    std::memcpy(text.buff.data(), str, str_sz);
+    return id;
 }
 
-void erase_text(TextHandle handle) {
-    handle->ui.erase();
-    handle.erase();
+void erase_text(TextId id) {
+    LUX_ASSERT(ui_texts.contains(id));
+    erase_ui(ui_texts[id].ui);
+    ui_texts.erase(id);
 }
 
-PaneHandle create_pane(Vec2F pos, Vec2F scale, Vec2F size,
-                       Vec4F const& bg_col, UiHandle parent) {
-    PaneHandle pane  = ui_panes.emplace();
-    pane->ui         = new_ui(parent);
-    pane->ui->render = &render_pane;
-    pane->ui->pos    = pos;
-    pane->ui->scale  = scale;
-    pane->ui->ptr    = (void*)(std::uintptr_t)pane.id;
-    pane->ui->fixed_aspect = true;
-    pane->size   = size;
-    pane->bg_col = bg_col;
-    return pane;
+PaneId create_pane(Vec2F pos, Vec2F scale, Vec2F size,
+                       Vec4F const& bg_col, UiId parent) {
+    PaneId id  = ui_panes.emplace();
+    auto& pane = ui_panes[id];
+    pane.ui    = new_ui(parent);
+    auto& ui   = ui_elems[pane.ui];
+    ui.render  = &render_pane;
+    ui.pos     = pos;
+    ui.scale   = scale;
+    ui.ptr     = (void*)(std::uintptr_t)id;
+    ui.fixed_aspect = true;
+    pane.size   = size;
+    pane.bg_col = bg_col;
+    return id;
 }
 
 struct TextSystem {
@@ -125,11 +130,12 @@ struct PaneSystem {
     } shader_attribs;
 } static pane_system;
 
-static void update_aspect(UiHandle ui, F32 w_to_h) {
-    if(ui->fixed_aspect) {
-        ui->scale.x = ui->scale.y * w_to_h;
+static void update_aspect(UiId id, F32 w_to_h) {
+    auto& ui = ui_elems[id];
+    if(ui.fixed_aspect) {
+        ui.scale.x = ui.scale.y * w_to_h;
     } else {
-        for(auto& child : ui->children) {
+        for(auto& child : ui.children) {
             update_aspect(child, w_to_h);
         }
     }
@@ -212,14 +218,14 @@ void ui_init() {
     glEnableVertexAttribArray(pane_system.shader_attribs.bg_col);
 #endif
     ui_screen = new_ui();
-    ui_screen->scale = {1.f, -1.f};
+    ui_elems[ui_screen].scale = {1.f, -1.f};
     ui_world  = new_ui(ui_screen);
     //@TODO calculate
-    ui_world->scale = {1.f / 15.f, 1.f / 15.f};
-    ui_world->fixed_aspect = true;
+    ui_elems[ui_world].scale = {1.f / 15.f, 1.f / 15.f};
+    ui_elems[ui_world].fixed_aspect = true;
 
     ui_hud = new_ui(ui_screen);
-    ui_hud->scale = {0.01f, 0.01f};
+    ui_elems[ui_hud].scale = {0.01f, 0.01f};
 }
 
 void ui_deinit() {
@@ -227,14 +233,15 @@ void ui_deinit() {
 }
 
 static void render_text(void* ptr, Vec2F const& pos, Vec2F const& scale) {
-    TextHandle text = {&ui_texts, (decltype(ui_texts)::Id)(std::uintptr_t)ptr};
+    TextId text_id = (TextId)(std::uintptr_t)ptr;
+    auto& text = ui_texts[text_id];
     Vec4<U8> fg_col = {0xFF, 0xFF, 0xFF, 0xFF};
     Vec4<U8> bg_col = {0x00, 0x00, 0x00, 0x00};
     bool fg = false;
     bool bg = false;
     Vec2F off = {0, 0};
     bool special = false;
-    for(auto character : text->buff) {
+    for(auto character : text.buff) {
         if(character == '\\') {
             special = true;
             continue;
@@ -251,14 +258,10 @@ static void render_text(void* ptr, Vec2F const& pos, Vec2F const& scale) {
                     fg = false;
                     bg = false;
                 }
-                if(character == 0x7) col = {0xc0, 0xc0, 0xc0, 0xFF};
-                else if(character == 0x8) col = {0x80, 0x80, 0x80, 0xFF};
-                else {
-                    col = Vec4F( character & 0b0001,
-                                (character & 0b0010) >> 1,
-                                (character & 0b0100) >> 2,
-                                (character & 0b1000) >> 3 ? 1.f : 0.25f) * 255.f;
-                }
+                col = Vec4F( character & 0b0001,
+                            (character & 0b0010) >> 1,
+                            (character & 0b0100) >> 2,
+                            (character & 0b1000) >> 3 ? 1.f : 0.25f) * 255.f;
                 if(fg) {
                     fg_col = col;
                     fg = false;
@@ -303,11 +306,12 @@ static void render_text(void* ptr, Vec2F const& pos, Vec2F const& scale) {
 }
 
 static void render_pane(void* ptr, Vec2F const& pos, Vec2F const& scale) {
-    PaneHandle pane = {&ui_panes, (decltype(ui_panes)::Id)(std::uintptr_t)ptr};
+    PaneId pane_id = (PaneId)(std::uintptr_t)ptr;
+    auto& pane = ui_panes[pane_id];
     for(Uns i = 0; i < 4; ++i) {
         constexpr Vec2F quad[4] = {{0, 0}, {0, 1}, {1, 0}, {1, 1}};
         pane_system.verts.push_back({
-            pos + quad[i] * scale * pane->size, pane->bg_col});
+            pos + quad[i] * scale * pane.size, pane.bg_col});
     }
     for(Uns i = 0; i < 6; ++i) {
         constexpr U32 idxs[6] = {0, 1, 2, 2, 3, 1};
@@ -396,13 +400,23 @@ static void pane_system_render() {
     pane_system.idxs.clear();
 }
 
-static void ui_render(UiHandle const& ui, Vec2F const& pos, Vec2F const& scale) {
+static void ui_render(UiId id, Vec2F const& pos, Vec2F const& scale) {
+    UiElement* ui = ui_elems.at(id);
     Vec2F total_scale = scale * ui->scale;
     if(ui->render != nullptr) {
         (*ui->render)(ui->ptr, ui->pos * scale + pos, total_scale);
+        ui = ui_elems.at(id);
+        if(ui == nullptr) return;
     }
-    for(auto child : ui->children) {
-        ui_render(child, ui->pos * scale + pos, total_scale);
+    for(auto it = ui->children.begin(); it != ui->children.end();) {
+        if(!ui_elems.contains(*it)) {
+            it = ui->children.erase(it);
+        } else {
+            ui_render(*it, ui->pos * scale + pos, total_scale);
+            ui = ui_elems.at(id);
+            if(ui == nullptr) return;
+            ++it;
+        }
     }
 }
 
@@ -410,4 +424,7 @@ void ui_render() {
     ui_render(ui_screen, {0.f, 0.f}, {1.f, 1.f});
     pane_system_render();
     text_system_render();
+    ui_elems.free_slots();
+    ui_texts.free_slots();
+    ui_panes.free_slots();
 }

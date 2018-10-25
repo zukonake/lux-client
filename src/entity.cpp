@@ -9,10 +9,10 @@
 #include <ui.hpp>
 #include "entity.hpp"
 
-UiHandle ui_entity;
+UiId ui_entity;
 EntityComps comps;
 EntityComps& entity_comps = comps;
-DynArr<EntityHandle> entities;
+DynArr<EntityId> entities;
 
 static GLuint program;
 
@@ -57,7 +57,7 @@ void entity_init() {
     glEnableVertexAttribArray(shader_attribs.pos);
 #endif
     ui_entity = new_ui(ui_world);
-    ui_entity->render = &entity_render;
+    ui_elems[ui_entity].render = &entity_render;
 }
 
 static void entity_render(void *, Vec2F const& translation, Vec2F const& scale) {
@@ -105,12 +105,21 @@ static void entity_render(void *, Vec2F const& translation, Vec2F const& scale) 
                 auto const& name = comps.name.at(id);
                 if(comps.text.count(id) == 0) {
                     DynStr name_str(name.cbegin(), name.cend());
-                    name_str = "\\f2" + name_str;
+                    if(id == ss_tick.player_id) {
+                        name_str = "\\f2" + name_str;
+                    } else {
+                        name_str = "\\f7" + name_str;
+                    }
                     comps.text[id] = {
                         create_text({0, 0}, {1.f, 1.f}, name_str.c_str(), ui_entity)};
                 }
-                TextHandle text = comps.text.at(id).text;
-                text->ui->pos = pos - Vec2F(name.size() / 2.f, 2.f);
+                UiText* text = ui_texts.at(comps.text.at(id).text);
+                if(text == nullptr) {
+                    comps.text.erase(id);
+                } else {
+                    //@TODO what if UI was deleted as well?
+                    ui_elems[text->ui].pos = pos - Vec2F(name.size() / 2.f, 2.f);
+                }
             }
         }
     }
@@ -150,7 +159,12 @@ void set_net_entity_comps(NetSsTick::EntityComps const& net_comps) {
         comps.orientation[orientation.first] = {orientation.second.angle};
     }
     for(auto it = comps.text.begin(); it != comps.text.end();) {
-        erase_text(it->second.text);
-        it = comps.text.erase(it);
+        auto const& id = it->first;
+        if(comps.name.count(id) == 0 ||
+           comps.pos.count(id) == 0 ||
+           comps.visible.count(id) == 0) {
+            erase_text(it->second.text);
+            it = comps.text.erase(it);
+        } else ++it;
     }
 }
