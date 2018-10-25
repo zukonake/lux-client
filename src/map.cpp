@@ -454,7 +454,7 @@ static void build_light_mesh(LightMesh& mesh, Chunk const& chunk, ChkPos const& 
             LightMesh::Idx constexpr flipped_idx_order[6] =
                 {0, CHK_SIZE + 1, CHK_SIZE + 2, CHK_SIZE + 2, 1, 0};
             if(glm::length((Vec3F)verts[i + 1].col) +
-               glm::length((Vec3F)verts[i + CHK_SIZE + 1].col) <
+               glm::length((Vec3F)verts[i + CHK_SIZE + 1].col) >
                glm::length((Vec3F)verts[i + 0].col) +
                glm::length((Vec3F)verts[i + CHK_SIZE + 2].col)) {
                 for(Uns j = 0; j < 6; ++j) {
