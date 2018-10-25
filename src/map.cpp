@@ -146,8 +146,7 @@ static void map_render(void *, Vec2F const& pos, Vec2F const& scale) {
     static DynArr<ChkPos> render_list;
     render_list.reserve(std::pow(2 * RENDER_DIST - 1, 2));
 
-    MapPos player_pos = -ui_world->pos;
-    ChkPos center = to_chk_pos(player_pos);
+    ChkPos center = to_chk_pos(last_player_pos);
     ChkPos iter;
     for(iter.y  = center.y - RENDER_DIST;
         iter.y <= center.y + RENDER_DIST;
@@ -202,13 +201,12 @@ static void map_render(void *, Vec2F const& pos, Vec2F const& scale) {
 }
 
 static void light_render(void *, Vec2F const& pos, Vec2F const& scale) {
-    auto const& player_pos = last_player_pos;
     U32 constexpr RENDER_DIST = 2;
 
     static DynArr<ChkPos> render_list;
     render_list.reserve(std::pow(2 * RENDER_DIST - 1, 2));
 
-    ChkPos center = to_chk_pos(player_pos);
+    ChkPos center = to_chk_pos(last_player_pos);
     ChkPos iter;
     for(iter.y  = center.y - RENDER_DIST;
         iter.y <= center.y + RENDER_DIST;

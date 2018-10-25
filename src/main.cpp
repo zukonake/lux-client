@@ -68,7 +68,11 @@ int main(int argc, char** argv) {
     check_opengl_error();
     glfwSetWindowSizeCallback(glfw_window, window_resize_cb);
     glfwSetKeyCallback(glfw_window, key_cb);
-    TextHandle coord_txt = create_text({-1.f, 1.f}, {8.f, 8.f}, "", ui_hud);
+    PaneHandle dbg_pane =
+        create_pane({-100.f, -100.f}, {5.f, 5.f}, {15.f, 2.f}, {1.f, 1.f, 1.f, 0.5f}, ui_hud);
+    TextHandle coord_txt = create_text({0.f, 0.f}, {1.f, 1.f}, "", dbg_pane->ui);
+    PaneHandle eq_pane =
+        create_pane({-100.f, -0.f}, {5.f, 5.f}, {20.f, 20.f}, {0.5f, 0.5f, 0.5f, 0.5f}, ui_hud);
 
     Vec2<int> win_size;
     glfwGetWindowSize(glfw_window, &win_size.x, &win_size.y);
@@ -84,6 +88,18 @@ int main(int argc, char** argv) {
             if(client_tick(glfw_window) != LUX_OK) {
                 LUX_FATAL("game state corrupted");
             }
+            if(entity_comps.container.count(ss_tick.player_id) > 0) {
+                F32 off = 0.f;
+                for(auto const& item : entity_comps.container.at(ss_tick.player_id).items) {
+                    if(entity_comps.name.count(item) > 0 &&
+                       entity_comps.text.count(item) == 0) {
+                        auto const& name = entity_comps.name.at(item);
+                        DynStr name_str(name.cbegin(), name.cend());
+                        entity_comps.text[item].text = create_text({0.f, off}, {1.f, 1.f}, name_str.c_str(), eq_pane->ui);
+                        off += 1.f;
+                    }
+                }
+            }
             DynStr coord_str =
                  "x: " + std::to_string(last_player_pos.x) +
              "\\\ny: " + std::to_string(last_player_pos.y);
@@ -91,7 +107,7 @@ int main(int argc, char** argv) {
             coord_txt->buff.resize(coord_str.size());
             std::memcpy(coord_txt->buff.data(),
                         coord_str.data(), coord_str.size());
-            ui_world->pos = -Vec2F(last_player_pos);
+            ui_world->pos = -Vec2F(last_player_pos) * ui_world->scale;
             console_render();
             ui_render();
             check_opengl_error();

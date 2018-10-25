@@ -10,28 +10,9 @@
 #include "entity.hpp"
 
 UiHandle ui_entity;
+EntityComps comps;
+EntityComps& entity_comps = comps;
 DynArr<EntityHandle> entities;
-
-struct EntityComps {
-    typedef EntityVec Pos;
-    typedef DynArr<char> Name;
-    struct Visible {
-        U32   visible_id;
-        Vec2F quad_sz;
-    };
-    struct Orientation {
-        F32 angle; ///in radians
-    };
-    struct Text {
-        TextHandle text;
-    };
-
-    HashTable<EntityHandle, Pos>         pos;
-    HashTable<EntityHandle, Name>        name;
-    HashTable<EntityHandle, Visible>     visible;
-    HashTable<EntityHandle, Orientation> orientation;
-    HashTable<EntityHandle, Text>        text;
-} static comps;
 
 static GLuint program;
 
@@ -129,7 +110,7 @@ static void entity_render(void *, Vec2F const& translation, Vec2F const& scale) 
                         create_text({0, 0}, {1.f, 1.f}, name_str.c_str(), ui_entity)};
                 }
                 TextHandle text = comps.text.at(id).text;
-                text->ui->pos = (pos - Vec2F(name.size() / 2.f, 2.f)) * scale;
+                text->ui->pos = pos - Vec2F(name.size() / 2.f, 2.f);
             }
         }
     }
@@ -162,7 +143,14 @@ void set_net_entity_comps(NetSsTick::EntityComps const& net_comps) {
         comps.visible[visible.first] =
             {visible.second.visible_id, visible.second.quad_sz};
     }
+    for(auto const& container : net_comps.container) {
+        comps.container[container.first].items = container.second.items;
+    }
     for(auto const& orientation : net_comps.orientation) {
         comps.orientation[orientation.first] = {orientation.second.angle};
+    }
+    for(auto it = comps.text.begin(); it != comps.text.end();) {
+        erase_text(it->second.text);
+        it = comps.text.erase(it);
     }
 }

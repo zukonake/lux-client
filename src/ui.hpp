@@ -12,6 +12,10 @@ struct UiText;
 extern SparseDynArr<UiText, U16> ui_texts;
 typedef decltype(ui_texts)::Iter TextHandle;
 
+struct UiPane;
+extern SparseDynArr<UiPane, U16> ui_panes;
+typedef decltype(ui_panes)::Iter PaneHandle;
+
 struct UiElement {
     DynArr<UiHandle> children;
     void (*render)(void* ptr, Vec2F const&, Vec2F const&) = nullptr;
@@ -33,11 +37,20 @@ struct UiText {
     DynArr<char> buff;
 };
 
+struct UiPane {
+    UiHandle ui;
+    Vec2F size;
+    Vec4F bg_col;
+};
+
 UiHandle new_ui();
 UiHandle new_ui(UiHandle parent);
 void erase_ui(UiHandle handle);
 
 TextHandle create_text(Vec2F pos, Vec2F scale, const char* str, UiHandle parent);
+PaneHandle create_pane(Vec2F pos, Vec2F scale, Vec2F size,
+                       Vec4F const& bg_col, UiHandle parent);
+void erase_text(TextHandle handle);
 
 void ui_window_sz_cb(Vec2U const& window_sz);
 void ui_init();
