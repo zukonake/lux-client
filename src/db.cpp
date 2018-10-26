@@ -20,7 +20,9 @@ void db_init() {
     add_voxel({"raw_stone", "Raw Stone"    , {2, 0}, VoxelType::BLOCK, false});
     add_voxel({"dirt", "Dirt"              , {5, 1}, VoxelType::BLOCK, false});
     add_voxel({"gravel", "Gravel"          , {3, 1}, VoxelType::BLOCK, false});
-    entities.push_back({{0, 0}, {2, 2}});
+    entities.push_back({{0, 0}, {2, 1}});
+    entities.push_back({{0, 2}, {1, 1}});
+    entities.push_back({{2, 0}, {2, 2}});
 }
 
 EntitySprite const& db_entity_sprite(U32 id) {

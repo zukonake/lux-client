@@ -114,13 +114,13 @@ static void entity_render(void *, Vec2F const& translation, Vec2F const& scale) 
                 idxs.emplace_back(verts.size() + idx);
             }
             Vec2F constexpr quad[] =
-                {{-1.f, -1.f}, {1.f, -1.f}, {-1.f, 1.f}, {1.f, 1.f}};
+                {{-0.5f, -0.5f}, {0.5f, -0.5f}, {-0.5f, 0.5f}, {0.5f, 0.5f}};
             Vec2<U8> constexpr tex_quad[] = {{0, 0}, {1, 0}, {0, 1}, {1, 1}};
             EntitySprite const& sprite =
                 db_entity_sprite(comps.visible.at(id).visible_id);
             for(Uns i = 0; i < 4; ++i) {
                 verts.emplace_back(Vert
-                    {(quad_sz / 2.f) * rotate(quad[i], angle) + pos,
+                    {glm::rotate(quad_sz * quad[i], angle) + pos,
                      tex_quad[i] * sprite.sz + sprite.pos});
             }
             //@TODO we need to remove when entity is removed
