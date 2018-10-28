@@ -37,20 +37,25 @@ void key_cb(GLFWwindow* window, int key, int scancode, int action, int mods)
 }
 
 int main(int argc, char** argv) {
-    char const* server_hostname;
-    U16 server_port;
+    char const* server_hostname = "localhost";
+    U16 server_port = 31337;
 
     { ///read commandline args
-        if(argc != 3) {
-            LUX_FATAL("usage: %s SERVER_HOSTNAME SERVER_PORT", argv[0]);
+        if(argc == 1) {
+            LUX_LOG("no commandline arguments given");
+            LUX_LOG("assuming server %s:%u", server_hostname, server_port);
+        } else {
+            if(argc != 3) {
+                LUX_FATAL("usage: %s SERVER_HOSTNAME SERVER_PORT", argv[0]);
+            }
+            //TODO error handling (also in client)
+            U64 raw_server_port = std::atol(argv[2]);
+            if(raw_server_port >= 1 << 16) {
+                LUX_FATAL("invalid port %zu given", raw_server_port);
+            }
+            server_hostname = argv[1];
+            server_port = raw_server_port;
         }
-        //TODO error handling (also in client)
-        U64 raw_server_port = std::atol(argv[2]);
-        if(raw_server_port >= 1 << 16) {
-            LUX_FATAL("invalid port %zu given", raw_server_port);
-        }
-        server_hostname = argv[1];
-        server_port = raw_server_port;
     }
 
     if(client_init(server_hostname, server_port) != LUX_OK) {
