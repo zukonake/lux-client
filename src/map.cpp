@@ -50,7 +50,7 @@ struct MatMesh {
 struct LightMesh {
     typedef U32 Idx;
     static constexpr GLenum IDX_GL_TYPE = GL_UNSIGNED_INT;
-    static constexpr SizeT  IDX_NUM     = std::pow(CHK_SIZE, 2) * 6;
+    static constexpr SizeT  IDX_NUM     = CHK_VOL * 6;
 #pragma pack(push, 1)
     struct Vert {
         Vec2<U16> pos;
@@ -425,7 +425,7 @@ static void build_mat_mesh(MatMesh& mesh, Chunk const& chunk, ChkPos const& chk_
 }
 
 static void build_light_mesh(LightMesh& mesh, Chunk const& chunk, ChkPos const& pos) {
-    Arr<LightMesh::Vert, (SizeT)std::pow(CHK_SIZE + 1, 2)> verts;
+    Arr<LightMesh::Vert, (CHK_SIZE + 1) * (CHK_SIZE + 1)> verts;
     Arr<LightMesh::Idx,  LightMesh::IDX_NUM> idxs;
 
     for(ChkIdx i = 0; i < std::pow(CHK_SIZE + 1, 2); ++i) {
