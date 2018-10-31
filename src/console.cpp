@@ -26,7 +26,7 @@ struct Console {
     Uns cursor_pos = 0;
     Uns cursor_scroll = 0;
     lua_State* lua_L;
-    HashTable<char, DynStr> key_bindings;
+    IdMap<char, DynStr> key_bindings;
 } static console;
 
 static void console_move_cursor(bool forward);

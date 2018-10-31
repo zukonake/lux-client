@@ -25,3 +25,4 @@ resource.h
 *.user
 Shared.rc
 Shared.aps
+xxhsum

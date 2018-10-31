@@ -233,7 +233,7 @@ void ui_init() {
     ui_elems[ui_screen].scale = {1.f, -1.f};
     ui_world  = new_ui(ui_screen);
     //@TODO calculate
-    ui_elems[ui_world].scale = {1.f / 10.f, 1.f / 10.f};
+    ui_elems[ui_world].scale = {1.f / 20.f, 1.f / 20.f};
     ui_elems[ui_world].fixed_aspect = true;
 
     ui_hud = new_ui(ui_screen);

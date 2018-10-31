@@ -5,6 +5,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/gtx/component_wise.hpp>
 //
 #include <lux_shared/common.hpp>
 #include <lux_shared/map.hpp>
@@ -150,7 +151,8 @@ void map_init() {
 }
 
 static void map_render(void *, Vec2F const& pos, Vec2F const& scale) {
-    U32 constexpr RENDER_DIST = 2;
+    U32 RENDER_DIST =
+        glm::ceil(glm::compMax((1.f / ui_elems[ui_world].scale) / (F32)CHK_SIZE));
 
     static DynArr<ChkPos> render_list;
     render_list.reserve(std::pow(2 * RENDER_DIST - 1, 2));
@@ -210,7 +212,10 @@ static void map_render(void *, Vec2F const& pos, Vec2F const& scale) {
 }
 
 static void light_render(void *, Vec2F const& pos, Vec2F const& scale) {
-    U32 constexpr RENDER_DIST = 2;
+    //@TODO merge with tile render
+    //@TODO no caps
+    U32 RENDER_DIST =
+        glm::ceil(glm::compMax((1.f / ui_elems[ui_world].scale) / (F32)CHK_SIZE));
 
     static DynArr<ChkPos> render_list;
     render_list.reserve(std::pow(2 * RENDER_DIST - 1, 2));
@@ -278,28 +283,31 @@ bool is_chunk_loaded(ChkPos const& pos) {
     return chunks.count(pos) > 0;
 }
 
-void load_chunk(ChkPos const& pos, NetSsSgnl::MapLoad::Chunk const& net_chunk) {
-    LUX_LOG("loading chunk");
-    LUX_LOG("    pos: {%zd, %zd}", pos.x, pos.y);
-    if(is_chunk_loaded(pos)) {
-        LUX_LOG("chunk already loaded, ignoring it");
-        return;
+static void guarantee_chunk(ChkPos const& pos) {
+    if(!is_chunk_loaded(pos)) {
+        LUX_LOG("loading chunk");
+        LUX_LOG("    pos: {%zd, %zd}", pos.x, pos.y);
+        chunks[pos];
     }
-    Chunk& chunk = chunks[pos];
-    std::memcpy(chunk.voxels    , net_chunk.voxels,
-                CHK_VOL * sizeof(VoxelId));
-    std::memcpy(chunk.light_lvls, net_chunk.light_lvls,
-                CHK_VOL * sizeof(LightLvl));
+}
+
+void tiles_update(ChkPos const& pos, NetSsSgnl::Tiles::Chunk const& net_chunk) {
+    guarantee_chunk(pos);
+    Chunk& chunk = chunks.at(pos);
+    std::memcpy(chunk.id, net_chunk.id, sizeof(net_chunk.id));
+    std::memcpy(chunk.wall.raw_data, net_chunk.wall.raw_data,
+                sizeof(net_chunk.wall));
+    std::memset(chunk.light_lvl, 0, sizeof(chunk.light_lvl));
 }
 
 void light_update(ChkPos const& pos,
-                  NetSsSgnl::LightUpdate::Chunk const& net_chunk) {
+                  NetSsSgnl::Light::Chunk const& net_chunk) {
     if(!is_chunk_loaded(pos)) {
         LUX_LOG("chunk is not loaded");
         return;
     }
     Chunk& chunk = chunks.at(pos);
-    std::memcpy(chunk.light_lvls, net_chunk.light_lvls,
+    std::memcpy(chunk.light_lvl, net_chunk.light_lvl,
                 CHK_VOL * sizeof(LightLvl));
     if(meshes.count(pos) > 0) {
         build_light_mesh(meshes.at(pos).light, chunk, pos);
@@ -378,16 +386,16 @@ static void build_mat_mesh(MatMesh& mesh, Chunk const& chunk, ChkPos const& chk_
         {{tx_0, tx_0}, {tx_1, tx_0}, {tx_0, tx_1}, {tx_1, tx_1}};
 
     for(ChkIdx i = 0; i < CHK_VOL; ++i) {
-        VoxelType const& vox_type = db_voxel_type(chunk.voxels[i]);
+        TileBp const& tile_bp = db_tile_bp(chunk.id[i]);
         constexpr MapPos neighbor_offsets[4] =
             {{0, -1}, {1, 0}, {0, 1}, {-1, 0}};
         U8 neighbors = 0;
         Vec2F offset = {0, 0};
-        if(vox_type.connected_tex) {
+        if(tile_bp.connected_tex) {
             for(Uns n = 0; n < 4; ++n) {
                 MapPos map_pos = to_map_pos(chk_pos, i) + neighbor_offsets[n];
-                if(get_chunk(to_chk_pos(map_pos)).voxels[to_chk_idx(map_pos)] ==
-                   chunk.voxels[i]) {
+                if(get_chunk(to_chk_pos(map_pos)).id[to_chk_idx(map_pos)] ==
+                   chunk.id[i]) {
                     neighbors |= 1 << n;
                 }
             }
@@ -412,7 +420,7 @@ static void build_mat_mesh(MatMesh& mesh, Chunk const& chunk, ChkPos const& chk_
         }
         for(Uns j = 0; j < 4; ++j) {
             verts[i * 4 + j].tex_pos =
-                (Vec2F)vox_type.tex_pos + offset + tex_quad[j];
+                (Vec2F)tile_bp.tex_pos + offset + tex_quad[j];
         }
     }
 
@@ -436,9 +444,9 @@ static void build_light_mesh(LightMesh& mesh, Chunk const& chunk, ChkPos const& 
         ChkIdx chk_idx = to_chk_idx(rel_pos & Vec2<U16>(CHK_SIZE - 1));
         LightLvl light_lvl;
         if(chk_pos != pos) {
-            light_lvl = get_chunk(chk_pos).light_lvls[chk_idx];
+            light_lvl = get_chunk(chk_pos).light_lvl[chk_idx];
         } else {
-            light_lvl = chunk.light_lvls[chk_idx];
+            light_lvl = chunk.light_lvl[chk_idx];
         }
         verts[i].col = (Vec3<U8>)glm::round(
             Vec3F((light_lvl >> 11) & 0x1F,

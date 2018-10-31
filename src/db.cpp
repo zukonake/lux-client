@@ -4,22 +4,22 @@
 //
 #include "db.hpp"
 
-static DynArr<VoxelType>    voxels;
+static DynArr<TileBp>    tiles;
 static DynArr<EntitySprite> entities;
-static SortMap<DynStr, VoxelId> voxels_lookup;
+static SortMap<DynStr, TileId> tiles_lookup;
 
-void add_voxel(VoxelType &&voxel_type) {
-    auto &voxel = voxels.emplace_back(voxel_type);
-    voxels_lookup[voxel.str_id] = voxels.size() - 1;
+void add_tile(TileBp &&tile_bp) {
+    auto &tile = tiles.emplace_back(tile_bp);
+    tiles_lookup[tile.str_id] = tiles.size() - 1;
 }
 
 void db_init() {
-    add_voxel({"void", "Void"              , {0, 0}, VoxelType::EMPTY, false});
-    add_voxel({"stone_floor", "Stone Floor", {1, 0}, VoxelType::FLOOR, false});
-    add_voxel({"stone_wall", "Stone Wall"  , {0, 1}, VoxelType::BLOCK, true});
-    add_voxel({"raw_stone", "Raw Stone"    , {2, 0}, VoxelType::BLOCK, false});
-    add_voxel({"dirt", "Dirt"              , {5, 1}, VoxelType::BLOCK, false});
-    add_voxel({"gravel", "Gravel"          , {3, 1}, VoxelType::BLOCK, false});
+    add_tile({"void", "Void"              , {0, 0}, false});
+    add_tile({"stone_floor", "Stone Floor", {1, 0}, false});
+    add_tile({"stone_wall", "Stone Wall"  , {0, 1}, true});
+    add_tile({"raw_stone", "Raw Stone"    , {2, 0}, false});
+    add_tile({"dirt", "Dirt"              , {5, 1}, false});
+    add_tile({"gravel", "Gravel"          , {3, 1}, false});
     entities.push_back({{0, 0}, {2, 1}});
     entities.push_back({{0, 2}, {1, 1}});
     entities.push_back({{2, 0}, {1, 1}});
@@ -30,16 +30,16 @@ EntitySprite const& db_entity_sprite(U32 id) {
     return entities[id];
 }
 
-VoxelType const& db_voxel_type(VoxelId id) {
-    LUX_ASSERT(id < voxels.size());
-    return voxels[id];
+TileBp const& db_tile_bp(TileId id) {
+    LUX_ASSERT(id < tiles.size());
+    return tiles[id];
 }
 
-VoxelType const& db_voxel_type(SttStr const& str_id) {
-    return db_voxel_type(db_voxel_id(str_id));
+TileBp const& db_tile_bp(SttStr const& str_id) {
+    return db_tile_bp(db_tile_id(str_id));
 }
 
-VoxelId const& db_voxel_id(SttStr const& str_id) {
-    LUX_ASSERT(voxels_lookup.count(str_id) > 0);
-    return voxels_lookup.at(str_id);
+TileId const& db_tile_id(SttStr const& str_id) {
+    LUX_ASSERT(tiles_lookup.count(str_id) > 0);
+    return tiles_lookup.at(str_id);
 }

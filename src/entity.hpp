@@ -25,12 +25,12 @@ struct EntityComps {
         TextId text;
     };
 
-    HashTable<EntityId, Pos>         pos;
-    HashTable<EntityId, Name>        name;
-    HashTable<EntityId, Visible>     visible;
-    HashTable<EntityId, Container>   container;
-    HashTable<EntityId, Orientation> orientation;
-    HashTable<EntityId, Text>        text;
+    IdMap<EntityId, Pos>         pos;
+    IdMap<EntityId, Name>        name;
+    IdMap<EntityId, Visible>     visible;
+    IdMap<EntityId, Container>   container;
+    IdMap<EntityId, Orientation> orientation;
+    IdMap<EntityId, Text>        text;
 };
 
 extern EntityComps& entity_comps;
