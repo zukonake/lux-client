@@ -11,6 +11,7 @@ Required libraries
     * ES 2.0
   * GLFW
   * GLM
+  * LuaJIT
 ```
 mkdir build
 cd build
