@@ -8,9 +8,11 @@
 //
 #include <rendering.hpp>
 #include <ui.hpp>
+#include <client.hpp>
 
 UiId ui_screen;
 UiId ui_world;
+UiId ui_dbg_shapes;
 UiId ui_hud;
 
 SparseDynArr<UiElement, U16> ui_elems;
@@ -19,6 +21,7 @@ SparseDynArr<UiPane   , U16> ui_panes;
 
 static void render_text(void*, Vec2F const&, Vec2F const&);
 static void render_pane(void*, Vec2F const&, Vec2F const&);
+static void render_dbg_shapes(void* ptr, Vec2F const& pos, Vec2F const& scale);
 
 UiId new_ui() {
     UiId id = ui_elems.emplace();
@@ -48,6 +51,29 @@ void erase_ui(UiId id) {
     }
     ui_elems.erase(id);
 }
+
+struct DbgShapesSystem {
+#pragma pack(push, 1)
+    struct Vert {
+        Vec2F    pos;
+        Vec4<U8> col;
+    };
+#pragma pack(pop)
+
+    GLuint program;
+    GLuint vbo;
+    GLuint ebo;
+#if defined(LUX_GL_3_3)
+    GLuint vao;
+#endif
+
+    DynArr<Vert> verts;
+    DynArr<U32>  idxs;
+    struct {
+        GLint pos;
+        GLint col;
+    } shader_attribs;
+} static dbg_shapes_system;
 
 struct TextSystem {
 #pragma pack(push, 1)
@@ -229,11 +255,39 @@ void ui_init() {
     pane_system.shader_attribs.bg_col =
         glGetAttribLocation(pane_system.program, "bg_col");
 
+    dbg_shapes_system.program = load_program("glsl/dbg_shapes.vert",
+                                             "glsl/dbg_shapes.frag");
+    glUseProgram(dbg_shapes_system.program);
+    dbg_shapes_system.shader_attribs.pos =
+        glGetAttribLocation(dbg_shapes_system.program, "pos");
+    dbg_shapes_system.shader_attribs.col =
+        glGetAttribLocation(dbg_shapes_system.program, "col");
+    glGenBuffers(1, &dbg_shapes_system.vbo);
+    glGenBuffers(1, &dbg_shapes_system.ebo);
+
+#if defined(LUX_GL_3_3)
+    glGenVertexArrays(1, &dbg_shapes_system.vao);
+    glBindVertexArray(dbg_shapes_system.vao);
+
+    glBindBuffer(GL_ARRAY_BUFFER, dbg_shapes_system.vbo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, dbg_shapes_system.ebo);
+    glEnableVertexAttribArray(dbg_shapes_system.shader_attribs.pos);
+    glEnableVertexAttribArray(dbg_shapes_system.shader_attribs.col);
+    glVertexAttribPointer(dbg_shapes_system.shader_attribs.pos,
+        2, GL_FLOAT, GL_FALSE, sizeof(DbgShapesSystem::Vert),
+        (void*)offsetof(DbgShapesSystem::Vert, pos));
+    glVertexAttribPointer(dbg_shapes_system.shader_attribs.col,
+        4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(DbgShapesSystem::Vert),
+        (void*)offsetof(DbgShapesSystem::Vert, col));
+#endif
+
     ui_screen = new_ui();
     ui_elems[ui_screen].scale = {1.f, -1.f};
     ui_world  = new_ui(ui_screen);
+    ui_dbg_shapes = new_ui(ui_world, -1);
+    ui_elems[ui_dbg_shapes].render = &render_dbg_shapes;
     //@TODO calculate
-    ui_elems[ui_world].scale = {1.f / 20.f, 1.f / 20.f};
+    ui_elems[ui_world].scale = {1.f / 10.f, 1.f / 10.f};
     ui_elems[ui_world].fixed_aspect = true;
 
     ui_hud = new_ui(ui_screen);
@@ -359,6 +413,92 @@ static void render_text(void* ptr, Vec2F const& pos, Vec2F const& scale) {
     glDisableVertexAttribArray(text_system.shader_attribs.font_pos);
     glDisableVertexAttribArray(text_system.shader_attribs.fg_col);
     glDisableVertexAttribArray(text_system.shader_attribs.bg_col);
+#endif
+}
+
+static void render_dbg_shapes(void*, Vec2F const& pos, Vec2F const& scale) {
+    auto& verts = dbg_shapes_system.verts;
+    auto& idxs  = dbg_shapes_system.idxs;
+    verts.clear();
+    idxs.clear();
+    for(auto const& shape : ss_tick.dbg_inf.shapes) {
+        Vec4<U8> col(0x80, 0x40, 0x80, 0x80);
+        typedef DbgShapesSystem::Vert Vert;
+        switch(shape.tag) {
+            case NetSsTick::DbgInf::Shape::LINE: {
+                constexpr U32 order[] = {0, 1, 0};
+                for(auto const& idx : order) {
+                    idxs.emplace_back(idx + verts.size());
+                }
+                verts.emplace_back(Vert{pos + shape.line.beg * scale, col});
+                verts.emplace_back(Vert{pos + shape.line.end * scale, col});
+                break;
+            }
+            case NetSsTick::DbgInf::Shape::SPHERE: {
+                constexpr U32 order[] = {0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 5,
+                                         0, 5, 6, 0, 6, 7, 0, 7, 8, 0, 8, 1};
+                for(auto const& idx : order) {
+                    idxs.emplace_back(idx + verts.size());
+                }
+                constexpr F32 diag = std::sqrt(2.f) / 2.f;
+                constexpr Vec2F octagon[] = {{0.f, 0.f},
+                    {0.f, -1.f}, {diag, -diag}, { 1.f, 0.f}, { diag,  diag},
+                    {0.f,  1.f}, {-diag, diag}, {-1.f, 0.f}, {-diag, -diag}};
+                for(auto const& vert : octagon) {
+                    verts.emplace_back(Vert{pos + (shape.sphere.pos +
+                        vert * shape.sphere.rad) * scale, col});
+                }
+                break;
+            }
+            case NetSsTick::DbgInf::Shape::RECT: {
+                constexpr U32 order[] = {0, 1, 2, 2, 3, 0};
+                for(auto const& idx : order) {
+                    idxs.emplace_back(idx + verts.size());
+                }
+                constexpr Vec2F quad[4] =
+                    {{-1.f, -1.f}, {1.f, -1.f}, {1.f, 1.f}, {-1.f, 1.f}};
+                for(auto const& vert : quad) {
+                    verts.emplace_back(Vert{pos + (shape.rect.pos +
+                        vert * shape.rect.sz) * scale, col});
+                }
+                break;
+            }
+            default: LUX_UNREACHABLE();
+        }
+    }
+#if defined(LUX_GLES_2_0)
+    glBindBuffer(GL_ARRAY_BUFFER, dbg_shapes_system.vbo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, dbg_shapes_system.ebo);
+    glEnableVertexAttribArray(dbg_shapes_system.shader_attribs.pos);
+    glEnableVertexAttribArray(dbg_shapes_system.shader_attribs.col);
+    glVertexAttribPointer(dbg_shapes_system.shader_attribs.pos,
+        2, GL_FLOAT, GL_FALSE, sizeof(DbgShapesSystem::Vert),
+        (void*)offsetof(DbgShapesSystem::Vert, pos));
+    glVertexAttribPointer(dbg_shapes_system.shader_attribs.col,
+        4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(DbgShapesSystem::Vert),
+        (void*)offsetof(DbgShapesSystem::Vert, col));
+#elif defined(LUX_GL_3_3)
+    glBindVertexArray(dbg_shapes_system.vao);
+#endif
+    glBindBuffer(GL_ARRAY_BUFFER, dbg_shapes_system.vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(DbgShapesSystem::Vert) * verts.size(),
+        verts.data(), GL_DYNAMIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, dbg_shapes_system.ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(U32) * idxs.size(),
+        idxs.data(), GL_DYNAMIC_DRAW);
+    glUseProgram(dbg_shapes_system.program);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDrawElements(GL_TRIANGLES, idxs.size(), GL_UNSIGNED_INT, 0);
+    glDisable(GL_BLEND);
+#if defined(LUX_GL_3_3)
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    glDrawElements(GL_TRIANGLES, idxs.size(), GL_UNSIGNED_INT, 0);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+#endif
+#if defined(LUX_GLES_2_0)
+    glDisableVertexAttribArray(dbg_shapes_system.shader_attribs.pos);
+    glDisableVertexAttribArray(dbg_shapes_system.shader_attribs.col);
 #endif
 }
 
