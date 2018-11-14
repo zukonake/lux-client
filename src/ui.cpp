@@ -1,14 +1,20 @@
+#include <config.hpp>
 #include <cstdint>
 #include <cstring>
 //
 #include <include_opengl.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/gtx/rotate_vector.hpp>
 //
 #include <lux_shared/common.hpp>
 //
 #include <rendering.hpp>
 #include <ui.hpp>
 #include <client.hpp>
+
+F32 constexpr DBG_POINT_SIZE = 2.f;
+F32 constexpr DBG_LINE_WIDTH = 2.f;
+F32 constexpr DBG_ARROW_HEAD_LEN = 0.2f;
 
 UiId ui_screen;
 UiId ui_world;
@@ -55,8 +61,8 @@ void erase_ui(UiId id) {
 struct DbgShapesSystem {
 #pragma pack(push, 1)
     struct Vert {
-        Vec2F    pos;
-        Vec4<U8> col;
+        Vec2F pos;
+        Vec4F col;
     };
 #pragma pack(pop)
 
@@ -277,7 +283,7 @@ void ui_init() {
         2, GL_FLOAT, GL_FALSE, sizeof(DbgShapesSystem::Vert),
         (void*)offsetof(DbgShapesSystem::Vert, pos));
     glVertexAttribPointer(dbg_shapes_system.shader_attribs.col,
-        4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(DbgShapesSystem::Vert),
+        4, GL_FLOAT, GL_FALSE, sizeof(DbgShapesSystem::Vert),
         (void*)offsetof(DbgShapesSystem::Vert, col));
 #endif
 
@@ -424,23 +430,119 @@ static void render_text(void* ptr, Vec2F const& pos, Vec2F const& scale) {
 }
 
 static void render_dbg_shapes(void*, Vec2F const& pos, Vec2F const& scale) {
+    //@IMPROVE we could optimize by sharing verts between borders and fills
     auto& verts = dbg_shapes_system.verts;
     auto& idxs  = dbg_shapes_system.idxs;
     verts.clear();
     idxs.clear();
+    Uns lines_start;
+    Uns triangles_start;
     for(auto const& shape : ss_tick.dbg_inf.shapes) {
-        Vec4<U8> col(0x80, 0x40, 0x80, 0x80);
-        typedef DbgShapesSystem::Vert Vert;
+        auto add_vert = [&](Vec2F off) {
+            verts.push_back({pos + off * scale, shape.col});
+        };
+        switch(shape.tag) {
+            case NetSsTick::DbgInf::Shape::POINT: {
+                idxs.emplace_back(verts.size());
+                add_vert(shape.point.pos);
+                break;
+            }
+            default: break;
+        }
+    }
+    lines_start = idxs.size();
+    for(auto const& shape : ss_tick.dbg_inf.shapes) {
+        auto add_vert = [&](Vec2F off) {
+            verts.push_back({pos + off * scale, shape.col});
+        };
         switch(shape.tag) {
             case NetSsTick::DbgInf::Shape::LINE: {
-                constexpr U32 order[] = {0, 1, 0};
+                constexpr U32 order[] = {0, 1};
                 for(auto const& idx : order) {
                     idxs.emplace_back(idx + verts.size());
                 }
-                verts.emplace_back(Vert{pos + shape.line.beg * scale, col});
-                verts.emplace_back(Vert{pos + shape.line.end * scale, col});
+                add_vert(shape.line.beg);
+                add_vert(shape.line.end);
                 break;
             }
+            case NetSsTick::DbgInf::Shape::ARROW: {
+                if(shape.arrow.beg == shape.arrow.end) break;
+                constexpr U32 order[] = {0, 1, 1, 2, 1, 3};
+                for(auto const& idx : order) {
+                    idxs.emplace_back(idx + verts.size());
+                }
+                add_vert(shape.arrow.beg);
+                add_vert(shape.arrow.end);
+                Vec2F d = glm::normalize(shape.arrow.beg - shape.arrow.end);
+                add_vert(shape.arrow.end +
+                    glm::rotate(d, tau / -8.f) * DBG_ARROW_HEAD_LEN);
+                add_vert(shape.arrow.end +
+                    glm::rotate(d, tau /  8.f) * DBG_ARROW_HEAD_LEN);
+                break;
+            }
+            case NetSsTick::DbgInf::Shape::CROSS: {
+                constexpr U32 order[] = {0, 1, 2, 3};
+                for(auto const& idx : order) {
+                    idxs.emplace_back(idx + verts.size());
+                }
+                constexpr Vec2F cross[4] =
+                    {{-1.f, -1.f}, {1.f, 1.f}, {1.f, -1.f}, {-1.f, 1.f}};
+                for(auto const& vert : cross) {
+                    add_vert(shape.cross.pos + vert * shape.cross.sz);
+                }
+                break;
+            }
+            case NetSsTick::DbgInf::Shape::SPHERE: {
+                if(!shape.border) break;
+                constexpr U32 order[] = {0, 1, 1, 2, 2, 3, 3, 4,
+                                         4, 5, 5, 6, 6, 7, 7, 0};
+                for(auto const& idx : order) {
+                    idxs.emplace_back(idx + verts.size());
+                }
+                constexpr F32 diag = std::sqrt(2.f) / 2.f;
+                constexpr Vec2F octagon[] =
+                   {{0.f, -1.f}, {diag, -diag}, { 1.f, 0.f}, { diag,  diag},
+                    {0.f,  1.f}, {-diag, diag}, {-1.f, 0.f}, {-diag, -diag}};
+                for(auto const& vert : octagon) {
+                    add_vert(shape.sphere.pos + vert * shape.sphere.rad);
+                }
+                break;
+            }
+            case NetSsTick::DbgInf::Shape::TRIANGLE: {
+                if(!shape.border) break;
+                constexpr U32 order[] = {0, 1, 1, 2, 2, 0};
+                for(auto const& idx : order) {
+                    idxs.emplace_back(idx + verts.size());
+                }
+                for(Uns i = 0; i < 3; ++i) {
+                    add_vert(shape.triangle.verts[i]);
+                }
+                break;
+            }
+            case NetSsTick::DbgInf::Shape::RECT: {
+                if(!shape.border) break;
+                constexpr U32 order[] = {0, 1, 1, 2, 2, 3, 3, 0};
+                for(auto const& idx : order) {
+                    idxs.emplace_back(idx + verts.size());
+                }
+                //@TODO rect_points from server
+                constexpr Vec2F quad[4] =
+                    {{-1.f, -1.f}, {1.f, -1.f}, {1.f, 1.f}, {-1.f, 1.f}};
+                for(auto const& vert : quad) {
+                    add_vert(shape.rect.pos +
+                        glm::rotate(vert, shape.rect.angle) * shape.rect.sz);
+                }
+                break;
+            }
+            default: break;
+        }
+    }
+    triangles_start = idxs.size();
+    for(auto const& shape : ss_tick.dbg_inf.shapes) {
+        auto add_vert = [&](Vec2F off) {
+            verts.push_back({pos + off * scale, shape.col});
+        };
+        switch(shape.tag) {
             case NetSsTick::DbgInf::Shape::SPHERE: {
                 constexpr U32 order[] = {0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 5,
                                          0, 5, 6, 0, 6, 7, 0, 7, 8, 0, 8, 1};
@@ -452,8 +554,18 @@ static void render_dbg_shapes(void*, Vec2F const& pos, Vec2F const& scale) {
                     {0.f, -1.f}, {diag, -diag}, { 1.f, 0.f}, { diag,  diag},
                     {0.f,  1.f}, {-diag, diag}, {-1.f, 0.f}, {-diag, -diag}};
                 for(auto const& vert : octagon) {
-                    verts.emplace_back(Vert{pos + (shape.sphere.pos +
-                        vert * shape.sphere.rad) * scale, col});
+                    add_vert(shape.sphere.pos + vert * shape.sphere.rad);
+                }
+                break;
+            }
+            case NetSsTick::DbgInf::Shape::TRIANGLE: {
+                if(!shape.border) break;
+                constexpr U32 order[] = {0, 1, 2};
+                for(auto const& idx : order) {
+                    idxs.emplace_back(idx + verts.size());
+                }
+                for(Uns i = 0; i < 3; ++i) {
+                    add_vert(shape.triangle.verts[i]);
                 }
                 break;
             }
@@ -465,12 +577,12 @@ static void render_dbg_shapes(void*, Vec2F const& pos, Vec2F const& scale) {
                 constexpr Vec2F quad[4] =
                     {{-1.f, -1.f}, {1.f, -1.f}, {1.f, 1.f}, {-1.f, 1.f}};
                 for(auto const& vert : quad) {
-                    verts.emplace_back(Vert{pos + (shape.rect.pos +
-                        vert * shape.rect.sz) * scale, col});
+                    add_vert(shape.rect.pos +
+                        glm::rotate(vert, shape.rect.angle) * shape.rect.sz);
                 }
                 break;
             }
-            default: LUX_UNREACHABLE();
+            default: break;
         }
     }
 #if defined(LUX_GLES_2_0)
@@ -482,7 +594,7 @@ static void render_dbg_shapes(void*, Vec2F const& pos, Vec2F const& scale) {
         2, GL_FLOAT, GL_FALSE, sizeof(DbgShapesSystem::Vert),
         (void*)offsetof(DbgShapesSystem::Vert, pos));
     glVertexAttribPointer(dbg_shapes_system.shader_attribs.col,
-        4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(DbgShapesSystem::Vert),
+        4, GL_FLOAT, GL_FALSE, sizeof(DbgShapesSystem::Vert),
         (void*)offsetof(DbgShapesSystem::Vert, col));
 #elif defined(LUX_GL_3_3)
     glBindVertexArray(dbg_shapes_system.vao);
@@ -495,14 +607,29 @@ static void render_dbg_shapes(void*, Vec2F const& pos, Vec2F const& scale) {
         idxs.data(), GL_DYNAMIC_DRAW);
     glUseProgram(dbg_shapes_system.program);
     glEnable(GL_BLEND);
+    glPointSize(DBG_POINT_SIZE);
+    glLineWidth(DBG_LINE_WIDTH);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glDrawElements(GL_TRIANGLES, idxs.size(), GL_UNSIGNED_INT, 0);
+    SizeT triangles_sz = idxs.size() - triangles_start;
+    LUX_LOG("%zu", triangles_sz);
+    if(triangles_sz != 0) {
+        glDrawElements(GL_TRIANGLES, triangles_sz, GL_UNSIGNED_INT,
+                       (void*)(sizeof(U32) * triangles_start));
+    }
+    SizeT lines_sz = triangles_start;
+    LUX_LOG("%zu", lines_sz);
+    if(lines_sz != 0) {
+        glDrawElements(GL_LINES, lines_sz, GL_UNSIGNED_INT,
+                       (void*)(sizeof(U32) * lines_start));
+    }
+    SizeT points_sz = lines_start;
+    LUX_LOG("%zu", points_sz);
+    if(points_sz != 0) {
+        glDrawElements(GL_POINTS, points_sz, GL_UNSIGNED_INT, 0);
+    }
     glDisable(GL_BLEND);
-#if defined(LUX_GL_3_3)
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-    glDrawElements(GL_TRIANGLES, idxs.size(), GL_UNSIGNED_INT, 0);
-    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-#endif
+    glLineWidth(1.f);
+    glPointSize(1.f);
 #if defined(LUX_GLES_2_0)
     glDisableVertexAttribArray(dbg_shapes_system.shader_attribs.pos);
     glDisableVertexAttribArray(dbg_shapes_system.shader_attribs.col);
