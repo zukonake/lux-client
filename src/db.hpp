@@ -17,7 +17,6 @@ struct EntitySprite {
     Vec2<U8> sz;
 };
 
-//@CONSIDER voxel -> vox
 void db_init();
 EntitySprite const& db_entity_sprite(U32 id);
 TileBp const& db_tile_bp(TileId id);
