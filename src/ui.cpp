@@ -97,7 +97,7 @@ TextId create_text(Vec2F pos, Vec2F scale, const char* str, UiId parent) {
     text.ui    = new_ui(parent);
     text.v_buff.init();
     text.i_buff.init();
-    text.context.init(text.v_buff, text_system.vert_fmt);
+    text.context.init({text.v_buff}, text_system.vert_fmt);
     auto& ui   = ui_elems[text.ui];
     ui.render  = &render_text;
     ui.pos     = pos;
@@ -139,7 +139,7 @@ PaneId create_pane(Vec2F pos, Vec2F scale, Vec2F size,
     pane.ui    = new_ui(parent);
     pane.v_buff.init();
     pane.i_buff.init();
-    pane.context.init(pane.v_buff, pane_system.vert_fmt);
+    pane.context.init({pane.v_buff}, pane_system.vert_fmt);
     auto& ui   = ui_elems[pane.ui];
     ui.render  = &render_pane;
     ui.pos     = pos;
@@ -187,28 +187,28 @@ void ui_init() {
                 glUniform2fv, 1, glm::value_ptr(font_pos_scale));
 
     text_system.vert_fmt.init(text_system.program, {
-        {"pos"     , 2, GL_FLOAT        , false},
-        {"font_pos", 2, GL_UNSIGNED_BYTE, false},
-        {"fg_col"  , 4, GL_UNSIGNED_BYTE, true},
-        {"bg_col"  , 4, GL_UNSIGNED_BYTE, true}});
+        {"pos"     , 2, GL_FLOAT        , false, false},
+        {"font_pos", 2, GL_UNSIGNED_BYTE, false, false},
+        {"fg_col"  , 4, GL_UNSIGNED_BYTE, true , false},
+        {"bg_col"  , 4, GL_UNSIGNED_BYTE, true , false}});
 
     pane_system.program = load_program("glsl/pane.vert", "glsl/pane.frag");
     glUseProgram(pane_system.program);
 
     pane_system.vert_fmt.init(pane_system.program, {
-        {"pos"     , 2, GL_FLOAT, false},
-        {"bg_col"  , 4, GL_FLOAT, true}});
+        {"pos"     , 2, GL_FLOAT, false, false},
+        {"bg_col"  , 4, GL_FLOAT, true , false}});
 
     dbg_shapes_system.program = load_program("glsl/dbg_shapes.vert",
                                              "glsl/dbg_shapes.frag");
     glUseProgram(dbg_shapes_system.program);
-    gl::VertFmt dbg_vert_fmt;
-    dbg_vert_fmt.init(dbg_shapes_system.program, {
-        {"pos"     , 2, GL_FLOAT, false},
-        {"col"  , 4, GL_FLOAT, true}});
+    dbg_shapes_system.vert_fmt.init(dbg_shapes_system.program, {
+        {"pos", 2, GL_FLOAT, false, false},
+        {"col", 4, GL_FLOAT, true , false}});
     dbg_shapes_system.v_buff.init();
     dbg_shapes_system.i_buff.init();
-    dbg_shapes_system.context.init(dbg_shapes_system.v_buff, dbg_vert_fmt);
+    dbg_shapes_system.context.init({dbg_shapes_system.v_buff},
+                                   dbg_shapes_system.vert_fmt);
 
     ui_screen = new_ui();
     ui_elems[ui_screen].scale = {1.f, -1.f};

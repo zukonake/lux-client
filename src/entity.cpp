@@ -24,10 +24,10 @@ struct Vert {
 };
 #pragma pack(pop)
 
-static gl::VertBuff v_buff;
-static gl::IdxBuff  i_buff;
-static gl::Context  context;
-static gl::VertFmt  vert_fmt;
+static gl::VertBuff    v_buff;
+static gl::IdxBuff     i_buff;
+static gl::VertContext context;
+static gl::VertFmt     vert_fmt;
 
 static void entity_render(void *, Vec2F const&, Vec2F const&);
 
@@ -38,8 +38,8 @@ void entity_init() {
 
     glUseProgram(program);
     vert_fmt.init(program,
-        {{"pos"    , 2, GL_FLOAT        , false},
-         {"tex_pos", 2, GL_UNSIGNED_BYTE, false}});
+        {{"pos"    , 2, GL_FLOAT        , false, false},
+         {"tex_pos", 2, GL_UNSIGNED_BYTE, false, false}});
     Vec2U tileset_sz;
     tileset = load_texture(tileset_path, tileset_sz);
     Vec2F tex_scale = (Vec2F)tile_sz / (Vec2F)tileset_sz;
@@ -48,6 +48,7 @@ void entity_init() {
 
     v_buff.init();
     i_buff.init();
+    context.init({v_buff}, vert_fmt);
     ui_entity = new_ui(ui_world, 50);
     ui_elems[ui_entity].render = &entity_render;
 }
@@ -59,8 +60,8 @@ static void entity_render(void *, Vec2F const& translation, Vec2F const& scale) 
     set_uniform("translation", program, glUniform2fv,
                 1, glm::value_ptr(translation));
 
-    static DynArr<Vert::Idx> idxs;
-    static DynArr<Vert>     verts;
+    static DynArr<U32>  idxs;
+    static DynArr<Vert> verts;
     idxs.clear();
     verts.clear();
 
@@ -73,7 +74,7 @@ static void entity_render(void *, Vec2F const& translation, Vec2F const& scale) 
             if(comps.orientation.count(id) > 0) {
                 angle = comps.orientation.at(id).angle;
             }
-            for(Vert::Idx const& idx : {0, 1, 2, 2, 3, 1}) {
+            for(auto const& idx : {0, 1, 2, 2, 3, 1}) {
                 idxs.emplace_back(verts.size() + idx);
             }
             Vec2F constexpr quad[] =
@@ -117,7 +118,7 @@ static void entity_render(void *, Vec2F const& translation, Vec2F const& scale) 
     i_buff.write(idxs.size(), idxs.data(), GL_DYNAMIC_DRAW);
 
     glBindTexture(GL_TEXTURE_2D, tileset);
-    glDrawElements(GL_TRIANGLES, idxs.size(), Vert::IDX_GL_TYPE, 0);
+    glDrawElements(GL_TRIANGLES, idxs.size(), GL_UNSIGNED_INT, 0);
     context.unbind();
 }
 

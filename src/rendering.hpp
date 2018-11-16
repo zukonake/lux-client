@@ -50,20 +50,24 @@ struct IdxBuff : Buff {
     void write(SizeT len, T const* data, GLenum usage);
 };
 
+struct AttribDef {
+    char const* ident;
+    Uns    num;
+    GLenum type;
+    bool   normalize;
+    bool   next_vbo;
+};
+
+struct Attrib {
+    GLint  pos;
+    Uns    num;
+    GLenum type;
+    GLenum normalize;
+    void*  off;
+    bool   next_vbo;
+};
+
 struct VertFmt {
-    struct AttribDef {
-        char const* ident;
-        Uns    num;
-        GLenum type;
-        bool   normalize;
-    };
-    struct Attrib {
-        GLint  pos;
-        Uns    num;
-        GLenum type;
-        GLenum normalize;
-        void*  off;
-    };
     template<SizeT defs_len>
     void init(GLuint program_id, Arr<AttribDef, defs_len> const& attrib_defs);
     DynArr<Attrib> attribs;
@@ -71,14 +75,17 @@ struct VertFmt {
 };
 
 //@CONSIDER constructors instead of init
+//@CONSIDER saving the vert_buffs length as a template value so we can prevent
+//UB
 struct VertContext {
-    void init(VertBuff const& _vert_buff, VertFmt const& _vert_fmt);
+    template<SizeT len>
+    void init(Arr<VertBuff, len> const& _vert_buffs, VertFmt const& _vert_fmt);
     void deinit();
     void bind();
     void unbind();
     void bind_attribs();
     GLuint vao_id;
-    VertBuff const* vert_buff;
+    VertBuff const* vert_buffs;
     VertFmt  const* vert_fmt;
 };
 
@@ -98,8 +105,8 @@ void IdxBuff::write(SizeT len, T const* data, GLenum usage) {
 }
 
 template<SizeT defs_len>
-void VertFmt::init(GLuint program_id, Arr<typename VertFmt::AttribDef,
-                                          defs_len> const& attrib_defs) {
+void VertFmt::init(GLuint program_id,
+                   Arr<AttribDef, defs_len> const& attrib_defs) {
     vert_sz = 0;
     attribs.resize(defs_len);
     for(Uns i = 0; i < defs_len; i++) {
@@ -110,6 +117,7 @@ void VertFmt::init(GLuint program_id, Arr<typename VertFmt::AttribDef,
         attrib.type = def.type;
         attrib.normalize = def.normalize ? GL_TRUE : GL_FALSE;
         attrib.off  = (void*)vert_sz;
+        attrib.next_vbo = def.next_vbo;
         //@TODO compile-time ?
         //@CONSIDER make_attrib that infers the gl stuff from type
         //e.g. Vec2F etc.
@@ -127,6 +135,18 @@ void VertFmt::init(GLuint program_id, Arr<typename VertFmt::AttribDef,
         }
         vert_sz += attrib_sz * attrib.num;
     }
+}
+
+template<SizeT len>
+void VertContext::init(Arr<VertBuff, len> const& _vert_buffs,
+                       VertFmt const& _vert_fmt) {
+    vert_buffs = _vert_buffs;
+    vert_fmt   = &_vert_fmt;
+#if defined(LUX_GL_VAO)
+    glGenVertexArrays(1, &vao_id);
+    bind();
+    bind_attribs();
+#endif
 }
 
 } //namespace gl

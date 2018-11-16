@@ -229,16 +229,6 @@ void IdxBuff::bind() const {
     Buff::bind(GL_ELEMENT_ARRAY_BUFFER);
 }
 
-void VertContext::init(VertBuff const& _vert_buff, VertFmt const& _vert_fmt) {
-    vert_buff = &_vert_buff;
-    vert_fmt  = &_vert_fmt;
-#if defined(LUX_GL_VAO)
-    glGenVertexArrays(1, &vao_id);
-    bind();
-    bind_attribs();
-#endif
-}
-
 void VertContext::deinit() {
 #if defined(LUX_GL_VAO)
     glDeleteVertexArrays(1, &vao_id);
@@ -262,8 +252,13 @@ void VertContext::unbind() {
 }
 
 void VertContext::bind_attribs() {
-    vert_buff->bind();
+    Uns vbo_it = 0;
+    vert_buffs[vbo_it].bind();
     for(auto const& attrib : vert_fmt->attribs) {
+        if(attrib.next_vbo) {
+            vbo_it++;
+            vert_buffs[vbo_it].bind();
+        }
         glEnableVertexAttribArray(attrib.pos);
         glVertexAttribPointer(attrib.pos, attrib.num,
             attrib.type, attrib.normalize, vert_fmt->vert_sz, attrib.off);
