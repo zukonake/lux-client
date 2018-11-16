@@ -298,6 +298,13 @@ void ui_deinit() {
     erase_ui(ui_screen);
 }
 
+namespace gl {
+template<typename T>
+struct Buff {
+    
+};
+}
+
 static void render_text(void* ptr, Vec2F const& pos, Vec2F const& scale) {
     TextId text_id = (TextId)(std::uintptr_t)ptr;
     auto& text = ui_texts[text_id];
@@ -569,4 +576,133 @@ void ui_render() {
     ui_elems.free_slots();
     ui_texts.free_slots();
     ui_panes.free_slots();
+}
+namespace gl {
+//@CONSIDER m4 macros for generating VertFmt and Vert struct
+template<typename T>
+struct Buff {
+	Buff() {
+		glGenBuffers(1, &id);
+	}
+	
+	~Buff() {
+		glDeleteBuffers(1, &id);
+	}
+	
+	void bind(GLenum target) const {
+		glBindBuffer(target, id);
+	}
+	
+	void write(GLenum target, SizeT len, T const* data, GLenum usage) {
+		bind();
+		glBufferData(target, sizeof(T) * len, data, usage);
+	}
+    GLuint id;
+};
+
+template<typename T>
+struct VertBuff : Buff<T> {
+	void bind() const {
+		Buff<T>::bind(GL_ARRAY_BUFFER);
+	}
+	
+	void write(SizeT len, T const* data, GLenum usage) {
+		Buff<T>::write(GL_ARRAY_BUFFER, len, data, usage);
+	}
+};
+
+struct Program {
+	
+};
+
+template<SizeT attribs_len>
+struct VertFmt {
+	struct AttribDef {
+		char const* ident;
+		Uns    num;
+		GLenum type;
+		bool   normalize;
+	};
+	struct Attrib {
+		GLint  pos;
+		Uns    num;
+		GLenum type;
+		GLenum normalize;
+		void*  off;
+	};
+	VertFmt(Program const& program,
+			Arr<AttribDef, attribs_len> const& attrib_defs) {
+		vert_sz = 0;
+		for(Uns i = 0; i < attribs_len; i++) {
+			auto&    attrib = attribs[i];
+			auto const& def = attrib_defs[i];
+			attrib.pos  = glGetAttribLocation(program, def.ident);
+			attrib.num  = def.num;
+			attrib.type = def.type
+			attrib.normalize = def.normalize ? GL_TRUE : GL_FALSE;
+			attrib.off  = (void*)vert_sz;
+			//@TODO compile-time ?
+			//@CONSIDER make_attrib that infers the gl stuff from type
+			//e.g. Vec2F etc.
+			switch(attrib.type) {
+				case GL_FLOAT:			vert_sz += sizeof(F32); break;
+				case GL_DOUBLE:  		vert_sz += sizeof(F64); break;
+				case GL_BYTE:		    vert_sz += sizeof(I8);  break;
+				case GL_UNSIGNED_BYTE:  vert_sz += sizeof(U8);  break;
+				case GL_SHORT: 			vert_sz += sizeof(I16); break;
+				case GL_UNSIGNED_SHORT: vert_sz += sizeof(U16); break;
+				case GL_INT: 			vert_sz += sizeof(I32); break;
+				case GL_UNSIGNED_INT:   vert_sz += sizeof(U32); break;
+				default: LUX_UNREACHABLE();
+			}
+		}
+	}
+	Arr<Attrib, attribs_defs> attribs;
+	SizeT vert_sz;
+}
+
+template<SizeT attribs_len>
+struct VertContext {
+	VertContext(VertBuff<T> const& _vert_buff,
+				VertFmt<attribs_len> const& fmt) :
+		vert_buff(_vert_buff),
+		vert_fmt(_vert_fmt) {
+#if defined(LUX_GL_VAO)
+		glGenVertexArrays(1, &vao_id);
+		bind();
+		bind_attribs();
+#endif
+	}
+#if defined(LUX_GL_VAO)
+	~VertContext() {
+		glDeleteVertexArrays(1, &vao_id);
+	}
+#endif
+	void bind() {
+#if defined(LUX_GL_VAO)
+		glBindVerrtexArray(vao_id);
+#else
+		bind_attribs();
+#endif
+	}
+	void unbind() {
+#if !defined(LUX_GL_VAO)
+		for(auto const& attrib : vert_fmt.attribs) {
+			glDisableVertexAttribArray(attrib.pos);
+		}
+#endif
+	}
+	void bind_attribs() {
+		vert_buff.bind();
+		for(auto const& attrib : vert_fmt.attribs) {
+			glEnableVertexAttribArray(attrib.pos);
+			glVertexAttribPointer(attrib.pos, attrib.num,
+				attrib.type, attrib.normalize, vert_fmt.vert_sz, attrib.off);
+		}
+	}
+	GLuint vao_id;
+	VertBuff<T>          const& vert_buff;
+	VertFmt<attribs_len> const& vert_fmt;
+};
+
 }
