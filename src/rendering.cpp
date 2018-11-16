@@ -235,7 +235,7 @@ void VertContext::deinit() {
 #endif
 }
 
-void VertContext::bind() {
+void VertContext::bind() const {
 #if defined(LUX_GL_VAO)
     glBindVertexArray(vao_id);
 #else
@@ -243,7 +243,7 @@ void VertContext::bind() {
 #endif
 }
 
-void VertContext::unbind() {
+void VertContext::unbind() const {
 #if !defined(LUX_GL_VAO)
     for(auto const& attrib : vert_fmt->attribs) {
         glDisableVertexAttribArray(attrib.pos);
@@ -251,7 +251,7 @@ void VertContext::unbind() {
 #endif
 }
 
-void VertContext::bind_attribs() {
+void VertContext::bind_attribs() const {
     Uns vbo_it = 0;
     vert_buffs[vbo_it].bind();
     for(auto const& attrib : vert_fmt->attribs) {
@@ -261,8 +261,14 @@ void VertContext::bind_attribs() {
         }
         glEnableVertexAttribArray(attrib.pos);
         glVertexAttribPointer(attrib.pos, attrib.num,
-            attrib.type, attrib.normalize, vert_fmt->vert_sz, attrib.off);
+            attrib.type, attrib.normalize, attrib.stride, attrib.off);
     }
+}
+
+void VertContext::unbind_all() {
+#if defined(LUX_GL_3_3)
+    glBindVertexArray(0);
+#endif
 }
 
 }

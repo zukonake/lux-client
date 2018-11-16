@@ -25,15 +25,13 @@ GLuint tileset;
 GLuint light_program;
 
 struct GeometryMesh {
-    typedef U32 Idx;
-    static constexpr GLenum IDX_GL_TYPE = GL_UNSIGNED_INT;
 #pragma pack(push, 1)
     struct Vert {
         Vec2<U16> pos;
     };
 #pragma pack(pop)
-    GLuint vbo;
-    GLuint ebo;
+    gl::VertBuff v_buff;
+    gl::IdxBuff  i_buff;
 };
 
 struct MatMesh {
@@ -42,38 +40,25 @@ struct MatMesh {
         Vec2F tex_pos;
     };
 #pragma pack(pop)
-    GLuint vbo;
-#if defined(LUX_GL_3_3)
-    GLuint vao;
-#endif
+    gl::VertBuff    v_buff;
+    gl::VertContext context;
 };
 
 struct LightMesh {
-    typedef U32 Idx;
-    static constexpr GLenum IDX_GL_TYPE = GL_UNSIGNED_INT;
-    static constexpr SizeT  IDX_NUM     = CHK_VOL * 6;
 #pragma pack(push, 1)
     struct Vert {
+        //@TODO separate vbo?
         Vec2<U16> pos;
         Vec3<U8>  col;
     };
 #pragma pack(pop)
-    GLuint vbo;
-    GLuint ebo;
-#if defined(LUX_GL_3_3)
-    GLuint vao;
-#endif
+    gl::VertBuff    v_buff;
+    gl::IdxBuff     i_buff;
+    gl::VertContext context;
 };
 
-struct {
-    GLint pos;
-    GLint tex_pos;
-} tile_shader_attribs;
-
-struct {
-    GLint pos;
-    GLint col;
-} light_shader_attribs;
+gl::VertFmt tile_vert_fmt;
+gl::VertFmt light_vert_fmt;
 
 struct ChunkMesh {
     MatMesh   mat;
@@ -98,16 +83,18 @@ static void map_load_programs() {
     Vec2F tex_scale = (Vec2F)tile_size / (Vec2F)tileset_size;
 
     glUseProgram(tile_program);
-    tile_shader_attribs.pos     = glGetAttribLocation(tile_program, "pos");
-    tile_shader_attribs.tex_pos = glGetAttribLocation(tile_program, "tex_pos");
+    tile_vert_fmt.init(tile_program,
+        {{"pos"    , 2, GL_UNSIGNED_SHORT, false, false},
+         {"tex_pos", 2, GL_FLOAT         , false, true}});
 
     set_uniform("tex_scale", tile_program, glUniform2fv,
                 1, glm::value_ptr(tex_scale));
 
     light_program = load_program("glsl/light.vert", "glsl/light.frag");
     glUseProgram(light_program);
-    light_shader_attribs.pos = glGetAttribLocation(light_program, "pos");
-    light_shader_attribs.col = glGetAttribLocation(light_program, "col");
+    light_vert_fmt.init(light_program,
+        {{"pos", 2, GL_UNSIGNED_SHORT, false, false},
+         {"col", 3, GL_UNSIGNED_BYTE , true , false}});
 }
 
 static void map_render(void *, Vec2F const& pos, Vec2F const& scale);
@@ -116,8 +103,8 @@ static void light_render(void *, Vec2F const& pos, Vec2F const& scale);
 void map_init() {
     map_load_programs();
 
-    Arr<GeometryMesh::Vert, CHK_VOL * 4>     verts;
-    Arr<GeometryMesh::Idx,  CHK_VOL * 2 * 3> idxs;
+    Arr<GeometryMesh::Vert, CHK_VOL * 4> verts;
+    Arr<U32               , CHK_VOL * 6> idxs;
 
     for(ChkIdx i = 0; i < CHK_VOL; ++i) {
         IdxPos idx_pos = to_idx_pos(i);
@@ -125,25 +112,20 @@ void map_init() {
             constexpr Vec2<U16> quad[4] = {{0, 0}, {1, 0}, {0, 1}, {1, 1}};
             verts[i * 4 + j].pos = (Vec2<U16>)idx_pos + quad[j];
         }
-        GeometryMesh::Idx constexpr idx_order[6] = {0, 1, 2, 2, 3, 1};
+        U32 constexpr idx_order[6] = {0, 1, 2, 2, 3, 1};
         for(Uns j = 0; j < 6; ++j) {
             idxs[i * 6 + j] = i * 4 + idx_order[j];
         }
     }
-    glGenBuffers(1, &geometry_mesh.vbo);
-    glGenBuffers(1, &geometry_mesh.ebo);
+    gl::VertContext::unbind_all();
+    geometry_mesh.v_buff.init();
+    geometry_mesh.v_buff.bind();
+    geometry_mesh.v_buff.write(CHK_VOL * 4, verts, GL_STATIC_DRAW);
 
-#if defined(LUX_GL_3_3)
-    ///we don't want to overrite some VAO's settings
-    glBindVertexArray(0);
-#endif
-    glBindBuffer(GL_ARRAY_BUFFER, geometry_mesh.vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(GeometryMesh::Vert) *
-        CHK_VOL * 4, verts, GL_STATIC_DRAW);
+    geometry_mesh.i_buff.init();
+    geometry_mesh.i_buff.bind();
+    geometry_mesh.i_buff.write(CHK_VOL * 6, idxs, GL_STATIC_DRAW);
 
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, geometry_mesh.ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GeometryMesh::Idx) *
-        CHK_VOL * 2 * 3, idxs, GL_STATIC_DRAW);
     ui_map   = new_ui(ui_world);
     ui_elems[ui_map].render = &map_render;
     ui_light = new_ui(ui_world, 128);
@@ -174,14 +156,6 @@ static void map_render(void *, Vec2F const& pos, Vec2F const& scale) {
     set_uniform("scale", tile_program, glUniform2fv,
                 1, glm::value_ptr(scale));
     glBindTexture(GL_TEXTURE_2D, tileset);
-#if defined(LUX_GLES_2_0)
-    glBindBuffer(GL_ARRAY_BUFFER, geometry_mesh.vbo);
-    glEnableVertexAttribArray(tile_shader_attribs.pos);
-    glVertexAttribPointer(tile_shader_attribs.pos,
-        2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof(GeometryMesh::Vert),
-        (void*)offsetof(GeometryMesh::Vert, pos));
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, geometry_mesh.ebo);
-#endif
 
     for(auto const& chk_pos : render_list) {
         Vec2F translation = pos + (Vec2F)(chk_pos * ChkPos(CHK_SIZE)) * scale;
@@ -189,25 +163,12 @@ static void map_render(void *, Vec2F const& pos, Vec2F const& scale) {
                     1, glm::value_ptr(translation));
 
         MatMesh const& mesh = meshes.at(chk_pos).mat;
-#if defined(LUX_GLES_2_0)
-        glBindBuffer(GL_ARRAY_BUFFER, mesh.vbo);
-        glEnableVertexAttribArray(tile_shader_attribs.tex_pos);
-        glVertexAttribPointer(tile_shader_attribs.tex_pos,
-            2, GL_FLOAT, GL_FALSE, sizeof(MatMesh::Vert),
-            (void*)offsetof(MatMesh::Vert, tex_pos));
-#elif defined(LUX_GL_3_3)
-        glBindVertexArray(mesh.vao);
-#endif
-        glDrawElements(GL_TRIANGLES, CHK_VOL * 2 * 3,
-            GeometryMesh::IDX_GL_TYPE, 0);
-#if defined(LUX_GLES_2_0)
-        glDisableVertexAttribArray(tile_shader_attribs.tex_pos);
-#endif
+        mesh.context.bind();
+        geometry_mesh.i_buff.bind();
+        glDrawElements(GL_TRIANGLES, CHK_VOL * 6, GL_UNSIGNED_INT, 0);
+        mesh.context.unbind();
     }
 
-#if defined(LUX_GLES_2_0)
-    glDisableVertexAttribArray(tile_shader_attribs.pos);
-#endif
     render_list.clear();
 }
 
@@ -243,28 +204,10 @@ static void light_render(void *, Vec2F const& pos, Vec2F const& scale) {
                     1, glm::value_ptr(translation));
 
         LightMesh const& mesh = meshes.at(chk_pos).light;
-#if defined(LUX_GLES_2_0)
-        glBindBuffer(GL_ARRAY_BUFFER, mesh.vbo);
-        glEnableVertexAttribArray(light_shader_attribs.pos);
-        glEnableVertexAttribArray(light_shader_attribs.col);
-        glVertexAttribPointer(light_shader_attribs.pos,
-            2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof(LightMesh::Vert),
-            (void*)offsetof(LightMesh::Vert, pos));
-        glVertexAttribPointer(light_shader_attribs.col,
-            3, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(LightMesh::Vert),
-            (void*)offsetof(LightMesh::Vert, col));
-#elif defined(LUX_GL_3_3)
-        glBindVertexArray(mesh.vao);
-#endif
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.ebo);
-        //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-        glDrawElements(GL_TRIANGLES, LightMesh::IDX_NUM,
-            LightMesh::IDX_GL_TYPE, 0);
-        //glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-#if defined(LUX_GLES_2_0)
-        glDisableVertexAttribArray(light_shader_attribs.pos);
-        glDisableVertexAttribArray(light_shader_attribs.col);
-#endif
+        mesh.context.bind();
+        mesh.i_buff.bind();
+        glDrawElements(GL_TRIANGLES, CHK_VOL * 6, GL_UNSIGNED_INT, 0);
+        mesh.context.unbind();
     }
     glDisable(GL_BLEND);
 
@@ -334,46 +277,17 @@ static void try_build_mesh(ChkPos const& pos) {
     if(!can_build) return;
 
     MatMesh& mat_mesh = meshes[pos].mat;
-    glGenBuffers(1, &mat_mesh.vbo);
-#if defined(LUX_GL_3_3)
-    glGenVertexArrays(1, &mat_mesh.vao);
-    glBindVertexArray(mat_mesh.vao);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, geometry_mesh.ebo);
-
-    glBindBuffer(GL_ARRAY_BUFFER, geometry_mesh.vbo);
-    glEnableVertexAttribArray(tile_shader_attribs.pos);
-    glVertexAttribPointer(tile_shader_attribs.pos,
-        2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof(GeometryMesh::Vert),
-        (void*)offsetof(GeometryMesh::Vert, pos));
-
-    glBindBuffer(GL_ARRAY_BUFFER, mat_mesh.vbo);
-    glEnableVertexAttribArray(tile_shader_attribs.tex_pos);
-    glVertexAttribPointer(tile_shader_attribs.tex_pos,
-        2, GL_FLOAT, GL_FALSE, sizeof(MatMesh::Vert),
-        (void*)offsetof(MatMesh::Vert, tex_pos));
-#endif
+    mat_mesh.v_buff.init();
+    mat_mesh.context.init({geometry_mesh.v_buff, mat_mesh.v_buff},
+                          tile_vert_fmt);
 
     build_mat_mesh(mat_mesh, get_chunk(pos), pos);
 
     LightMesh& light_mesh = meshes[pos].light;
-    glGenBuffers(1, &light_mesh.vbo);
-    glGenBuffers(1, &light_mesh.ebo);
+    light_mesh.v_buff.init();
+    light_mesh.i_buff.init();
 
-#if defined(LUX_GL_3_3)
-    glGenVertexArrays(1, &light_mesh.vao);
-    glBindVertexArray(light_mesh.vao);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, light_mesh.ebo);
-
-    glBindBuffer(GL_ARRAY_BUFFER, light_mesh.vbo);
-    glEnableVertexAttribArray(light_shader_attribs.pos);
-    glEnableVertexAttribArray(light_shader_attribs.col);
-    glVertexAttribPointer(light_shader_attribs.pos,
-        2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof(LightMesh::Vert),
-        (void*)offsetof(LightMesh::Vert, pos));
-    glVertexAttribPointer(light_shader_attribs.col,
-        3, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(LightMesh::Vert),
-        (void*)offsetof(LightMesh::Vert, col));
-#endif
+    light_mesh.context.init({light_mesh.v_buff}, light_vert_fmt);
     build_light_mesh(light_mesh, get_chunk(pos), pos);
 }
 
@@ -424,17 +338,14 @@ static void build_mat_mesh(MatMesh& mesh, Chunk const& chunk, ChkPos const& chk_
         }
     }
 
-#if defined(LUX_GL_3_3)
-    glBindVertexArray(mesh.vao);
-#endif
-    glBindBuffer(GL_ARRAY_BUFFER, mesh.vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(MatMesh::Vert) *
-        CHK_VOL * 4, verts, GL_DYNAMIC_DRAW);
+    gl::VertContext::unbind_all();
+    mesh.v_buff.bind();
+    mesh.v_buff.write(CHK_VOL * 4, verts, GL_DYNAMIC_DRAW);
 }
 
 static void build_light_mesh(LightMesh& mesh, Chunk const& chunk, ChkPos const& pos) {
     Arr<LightMesh::Vert, (CHK_SIZE + 1) * (CHK_SIZE + 1)> verts;
-    Arr<LightMesh::Idx,  LightMesh::IDX_NUM> idxs;
+    Arr<U32,  CHK_VOL * 6> idxs;
 
     for(ChkIdx i = 0; i < std::pow(CHK_SIZE + 1, 2); ++i) {
         Vec2<U16> rel_pos = {i % (CHK_SIZE + 1), i / (CHK_SIZE + 1)};
@@ -457,9 +368,9 @@ static void build_light_mesh(LightMesh& mesh, Chunk const& chunk, ChkPos const& 
     for(ChkIdx i = 0; i < std::pow(CHK_SIZE + 1, 2); ++i) {
         if(i % (CHK_SIZE + 1) != CHK_SIZE &&
            i / (CHK_SIZE + 1) != CHK_SIZE) {
-            LightMesh::Idx constexpr idx_order[6] =
+            U32 constexpr idx_order[6] =
                 {0, 1, CHK_SIZE + 1, CHK_SIZE + 1, CHK_SIZE + 2, 1};
-            LightMesh::Idx constexpr flipped_idx_order[6] =
+            U32 constexpr flipped_idx_order[6] =
                 {0, CHK_SIZE + 1, CHK_SIZE + 2, CHK_SIZE + 2, 1, 0};
             if(glm::length((Vec3F)verts[i + 1].col) +
                glm::length((Vec3F)verts[i + CHK_SIZE + 1].col) >
@@ -476,14 +387,10 @@ static void build_light_mesh(LightMesh& mesh, Chunk const& chunk, ChkPos const& 
             ++idx_off;
         }
     }
-#if defined(LUX_GL_3_3)
-    glBindVertexArray(mesh.vao);
-#endif
-    glBindBuffer(GL_ARRAY_BUFFER, mesh.vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(LightMesh::Vert) *
-        std::pow(CHK_SIZE + 1, 2), verts, GL_DYNAMIC_DRAW);
+    gl::VertContext::unbind_all();
+    mesh.v_buff.bind();
+    mesh.v_buff.write(std::pow(CHK_SIZE + 1, 2), verts, GL_DYNAMIC_DRAW);
 
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(LightMesh::Idx) *
-        LightMesh::IDX_NUM, idxs, GL_DYNAMIC_DRAW);
+    mesh.i_buff.bind();
+    mesh.i_buff.write(CHK_VOL * 6, idxs, GL_DYNAMIC_DRAW);
 }

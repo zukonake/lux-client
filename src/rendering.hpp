@@ -65,6 +65,7 @@ struct Attrib {
     GLenum normalize;
     void*  off;
     bool   next_vbo;
+    Uns    stride;
 };
 
 struct VertFmt {
@@ -81,9 +82,10 @@ struct VertContext {
     template<SizeT len>
     void init(Arr<VertBuff, len> const& _vert_buffs, VertFmt const& _vert_fmt);
     void deinit();
-    void bind();
-    void unbind();
-    void bind_attribs();
+    void bind() const;
+    void unbind() const;
+    void bind_attribs() const;
+    static void unbind_all();
     GLuint vao_id;
     VertBuff const* vert_buffs;
     VertFmt  const* vert_fmt;
@@ -107,7 +109,7 @@ void IdxBuff::write(SizeT len, T const* data, GLenum usage) {
 template<SizeT defs_len>
 void VertFmt::init(GLuint program_id,
                    Arr<AttribDef, defs_len> const& attrib_defs) {
-    vert_sz = 0;
+    Uns off = 0;
     attribs.resize(defs_len);
     for(Uns i = 0; i < defs_len; i++) {
         auto&    attrib = attribs[i];
@@ -116,7 +118,10 @@ void VertFmt::init(GLuint program_id,
         attrib.num  = def.num;
         attrib.type = def.type;
         attrib.normalize = def.normalize ? GL_TRUE : GL_FALSE;
-        attrib.off  = (void*)vert_sz;
+        if(def.next_vbo) {
+            off = 0;
+        }
+        attrib.off  = (void*)off;
         attrib.next_vbo = def.next_vbo;
         //@TODO compile-time ?
         //@CONSIDER make_attrib that infers the gl stuff from type
@@ -133,7 +138,14 @@ void VertFmt::init(GLuint program_id,
             case GL_UNSIGNED_INT:   attrib_sz = sizeof(U32); break;
             default: LUX_UNREACHABLE();
         }
-        vert_sz += attrib_sz * attrib.num;
+        off += attrib_sz * attrib.num;
+    }
+    Uns stride = off;
+    for(Int i = defs_len - 1; i >= 0; i--) {
+        attribs[i].stride = stride;
+        if(attribs[i].next_vbo) {
+            stride = (Uns)attribs[i].off;
+        }
     }
 }
 
