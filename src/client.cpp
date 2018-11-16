@@ -300,30 +300,31 @@ LUX_MAY_FAIL client_tick(GLFWwindow* glfw_window) {
         }
     }
 
-    ///send tick
-    {   cs_tick.player_dir = {0.f, 0.f};
-        if(!console_is_active()) {
-            auto& dir = cs_tick.player_dir;
-            if(glfwGetKey(glfw_window, GLFW_KEY_W) == GLFW_PRESS) {
-                dir.y = -1.f;
-            } else if(glfwGetKey(glfw_window, GLFW_KEY_S) == GLFW_PRESS) {
-                dir.y = 1.f;
-            }
-            if(glfwGetKey(glfw_window, GLFW_KEY_A) == GLFW_PRESS) {
-                dir.x = -1.f;
-            } else if(glfwGetKey(glfw_window, GLFW_KEY_D) == GLFW_PRESS) {
-                dir.x = 1.f;
-            }
-            F32 angle = get_aim_rotation();
-            cs_tick.player_aim_angle = angle;
-            if(dir.x != 0.f || dir.y != 0.f) {
-                dir = glm::normalize(dir);
-                dir = glm::rotate(dir, angle);
-            }
+    if(!console_is_active()) {
+        Vec2F dir(0.f);
+        if(glfwGetKey(glfw_window, GLFW_KEY_W) == GLFW_PRESS) {
+            dir.y = -1.f;
+        } else if(glfwGetKey(glfw_window, GLFW_KEY_S) == GLFW_PRESS) {
+            dir.y = 1.f;
         }
-        if(send_net_data(client.peer, &cs_tick, TICK_CHANNEL) != LUX_OK) { 
-            LUX_LOG("failed to send tick");
+        if(glfwGetKey(glfw_window, GLFW_KEY_A) == GLFW_PRESS) {
+            dir.x = -1.f;
+        } else if(glfwGetKey(glfw_window, GLFW_KEY_D) == GLFW_PRESS) {
+            dir.x = 1.f;
         }
+        F32 angle = get_aim_rotation();
+        //@TODO cs_tick.player_aim_angle = angle;
+        if(dir.x != 0.f || dir.y != 0.f) {
+            dir = glm::normalize(dir);
+            dir = glm::rotate(dir, angle);
+            auto& action = cs_tick.actions.emplace_back();
+            action.tag = NetCsTick::Action::MOVE;
+            action.target.tag = NetCsTick::Action::Target::DIR;
+            action.target.dir = dir;
+        }
+    }
+    if(send_net_data(client.peer, &cs_tick, TICK_CHANNEL) != LUX_OK) {
+        LUX_LOG("failed to send tick");
     }
     return LUX_OK;
 }
