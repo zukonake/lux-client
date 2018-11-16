@@ -12,7 +12,7 @@
 #include <ui.hpp>
 #include <client.hpp>
 
-F32 constexpr DBG_POINT_SIZE = 2.f;
+F32 constexpr DBG_POINT_SIZE = 5.f;
 F32 constexpr DBG_LINE_WIDTH = 2.f;
 F32 constexpr DBG_ARROW_HEAD_LEN = 0.2f;
 
@@ -293,7 +293,7 @@ void ui_init() {
     ui_dbg_shapes = new_ui(ui_world, -1);
     ui_elems[ui_dbg_shapes].render = &render_dbg_shapes;
     //@TODO calculate
-    ui_elems[ui_world].scale = {1.f / 10.f, 1.f / 10.f};
+    ui_elems[ui_world].scale = {1.f / 5.f, 1.f / 5.f};
     ui_elems[ui_world].fixed_aspect = true;
 
     ui_hud = new_ui(ui_screen);
@@ -611,19 +611,17 @@ static void render_dbg_shapes(void*, Vec2F const& pos, Vec2F const& scale) {
     glLineWidth(DBG_LINE_WIDTH);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     SizeT triangles_sz = idxs.size() - triangles_start;
-    LUX_LOG("%zu", triangles_sz);
     if(triangles_sz != 0) {
         glDrawElements(GL_TRIANGLES, triangles_sz, GL_UNSIGNED_INT,
                        (void*)(sizeof(U32) * triangles_start));
     }
+    //@TODO this number might be too high, check it
     SizeT lines_sz = triangles_start;
-    LUX_LOG("%zu", lines_sz);
     if(lines_sz != 0) {
         glDrawElements(GL_LINES, lines_sz, GL_UNSIGNED_INT,
                        (void*)(sizeof(U32) * lines_start));
     }
     SizeT points_sz = lines_start;
-    LUX_LOG("%zu", points_sz);
     if(points_sz != 0) {
         glDrawElements(GL_POINTS, points_sz, GL_UNSIGNED_INT, 0);
     }
