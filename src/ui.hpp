@@ -37,8 +37,8 @@ struct UiText {
     UiId ui;
     DynArr<char> buff;
 
-    gl::VertBuff    verts;
-    gl::IdxBuff     idxs;
+    gl::VertBuff    v_buff;
+    gl::IdxBuff     i_buff;
     gl::VertContext context;
 };
 
@@ -47,11 +47,9 @@ struct UiPane {
     Vec2F size;
     Vec4F bg_col;
 
-    GLuint vbo;
-    GLuint ebo;
-#if defined(LUX_GL_3_3)
-    GLuint vao;
-#endif
+    gl::VertBuff    v_buff;
+    gl::IdxBuff     i_buff;
+    gl::VertContext context;
 };
 
 UiId new_ui();

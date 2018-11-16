@@ -67,18 +67,13 @@ struct DbgShapesSystem {
 #pragma pack(pop)
 
     GLuint program;
-    GLuint vbo;
-    GLuint ebo;
-#if defined(LUX_GL_3_3)
-    GLuint vao;
-#endif
+    gl::VertBuff    v_buff;
+    gl::IdxBuff     i_buff;
+    gl::VertContext context;
+    gl::VertFmt     vert_fmt;
 
     DynArr<Vert> verts;
     DynArr<U32>  idxs;
-    struct {
-        GLint pos;
-        GLint col;
-    } shader_attribs;
 } static dbg_shapes_system;
 
 struct TextSystem {
@@ -100,9 +95,9 @@ TextId create_text(Vec2F pos, Vec2F scale, const char* str, UiId parent) {
     TextId id  = ui_texts.emplace();
     auto& text = ui_texts[id];
     text.ui    = new_ui(parent);
-    text.verts.init();
-    text.idxs.init();
-    text.context.init(text.verts, text_system.vert_fmt);
+    text.v_buff.init();
+    text.i_buff.init();
+    text.context.init(text.v_buff, text_system.vert_fmt);
     auto& ui   = ui_elems[text.ui];
     ui.render  = &render_text;
     ui.pos     = pos;
@@ -118,8 +113,8 @@ TextId create_text(Vec2F pos, Vec2F scale, const char* str, UiId parent) {
 void erase_text(TextId id) {
     LUX_ASSERT(ui_texts.contains(id));
     auto& text = ui_texts[id];
-    text.verts.deinit();
-    text.idxs.deinit();
+    text.v_buff.deinit();
+    text.i_buff.deinit();
     text.context.deinit();
     erase_ui(ui_texts[id].ui);
     ui_texts.erase(id);
@@ -134,10 +129,7 @@ struct PaneSystem {
 #pragma pack(pop)
 
     GLuint program;
-    struct {
-        GLint pos;
-        GLint bg_col;
-    } shader_attribs;
+    gl::VertFmt vert_fmt;
 } static pane_system;
 
 PaneId create_pane(Vec2F pos, Vec2F scale, Vec2F size,
@@ -145,6 +137,9 @@ PaneId create_pane(Vec2F pos, Vec2F scale, Vec2F size,
     PaneId id  = ui_panes.emplace();
     auto& pane = ui_panes[id];
     pane.ui    = new_ui(parent);
+    pane.v_buff.init();
+    pane.i_buff.init();
+    pane.context.init(pane.v_buff, pane_system.vert_fmt);
     auto& ui   = ui_elems[pane.ui];
     ui.render  = &render_pane;
     ui.pos     = pos;
@@ -153,36 +148,15 @@ PaneId create_pane(Vec2F pos, Vec2F scale, Vec2F size,
     ui.fixed_aspect = true;
     pane.size   = size;
     pane.bg_col = bg_col;
-
-    glGenBuffers(1, &pane.vbo);
-    glGenBuffers(1, &pane.ebo);
-
-#if defined(LUX_GL_3_3)
-    glGenVertexArrays(1, &pane.vao);
-    glBindVertexArray(pane.vao);
-
-    glBindBuffer(GL_ARRAY_BUFFER, pane.vbo);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pane.ebo);
-    glEnableVertexAttribArray(pane_system.shader_attribs.pos);
-    glEnableVertexAttribArray(pane_system.shader_attribs.bg_col);
-    glVertexAttribPointer(pane_system.shader_attribs.pos,
-        2, GL_FLOAT, GL_FALSE, sizeof(PaneSystem::Vert),
-        (void*)offsetof(PaneSystem::Vert, pos));
-    glVertexAttribPointer(pane_system.shader_attribs.bg_col,
-        4, GL_FLOAT, GL_FALSE, sizeof(PaneSystem::Vert),
-        (void*)offsetof(PaneSystem::Vert, bg_col));
-#endif
     return id;
 }
 
 void erase_pane(PaneId id) {
     LUX_ASSERT(ui_panes.contains(id));
     auto& pane = ui_panes[id];
-    glDeleteBuffers(1, &pane.vbo);
-    glDeleteBuffers(1, &pane.ebo);
-#if defined(LUX_GL_3_3)
-    glDeleteVertexArrays(1, &pane.vao);
-#endif
+    pane.v_buff.deinit();
+    pane.i_buff.deinit();
+    pane.context.deinit();
     erase_ui(ui_panes[id].ui);
     ui_panes.erase(id);
 }
@@ -221,36 +195,20 @@ void ui_init() {
     pane_system.program = load_program("glsl/pane.vert", "glsl/pane.frag");
     glUseProgram(pane_system.program);
 
-    pane_system.shader_attribs.pos =
-        glGetAttribLocation(pane_system.program, "pos");
-    pane_system.shader_attribs.bg_col =
-        glGetAttribLocation(pane_system.program, "bg_col");
+    pane_system.vert_fmt.init(pane_system.program, {
+        {"pos"     , 2, GL_FLOAT, false},
+        {"bg_col"  , 4, GL_FLOAT, true}});
 
     dbg_shapes_system.program = load_program("glsl/dbg_shapes.vert",
                                              "glsl/dbg_shapes.frag");
     glUseProgram(dbg_shapes_system.program);
-    dbg_shapes_system.shader_attribs.pos =
-        glGetAttribLocation(dbg_shapes_system.program, "pos");
-    dbg_shapes_system.shader_attribs.col =
-        glGetAttribLocation(dbg_shapes_system.program, "col");
-    glGenBuffers(1, &dbg_shapes_system.vbo);
-    glGenBuffers(1, &dbg_shapes_system.ebo);
-
-#if defined(LUX_GL_3_3)
-    glGenVertexArrays(1, &dbg_shapes_system.vao);
-    glBindVertexArray(dbg_shapes_system.vao);
-
-    glBindBuffer(GL_ARRAY_BUFFER, dbg_shapes_system.vbo);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, dbg_shapes_system.ebo);
-    glEnableVertexAttribArray(dbg_shapes_system.shader_attribs.pos);
-    glEnableVertexAttribArray(dbg_shapes_system.shader_attribs.col);
-    glVertexAttribPointer(dbg_shapes_system.shader_attribs.pos,
-        2, GL_FLOAT, GL_FALSE, sizeof(DbgShapesSystem::Vert),
-        (void*)offsetof(DbgShapesSystem::Vert, pos));
-    glVertexAttribPointer(dbg_shapes_system.shader_attribs.col,
-        4, GL_FLOAT, GL_FALSE, sizeof(DbgShapesSystem::Vert),
-        (void*)offsetof(DbgShapesSystem::Vert, col));
-#endif
+    gl::VertFmt dbg_vert_fmt;
+    dbg_vert_fmt.init(dbg_shapes_system.program, {
+        {"pos"     , 2, GL_FLOAT, false},
+        {"col"  , 4, GL_FLOAT, true}});
+    dbg_shapes_system.v_buff.init();
+    dbg_shapes_system.i_buff.init();
+    dbg_shapes_system.context.init(dbg_shapes_system.v_buff, dbg_vert_fmt);
 
     ui_screen = new_ui();
     ui_elems[ui_screen].scale = {1.f, -1.f};
@@ -347,10 +305,10 @@ static void render_text(void* ptr, Vec2F const& pos, Vec2F const& scale) {
         off.x += 1.f;
     }
     text.context.bind();
-    text.verts.bind();
-    text.verts.write(quad_len * 4, verts.data(), GL_DYNAMIC_DRAW);
-    text.idxs.bind();
-    text.idxs.write(quad_len * 6, idxs.data(), GL_DYNAMIC_DRAW);
+    text.v_buff.bind();
+    text.v_buff.write(quad_len * 4, verts.data(), GL_DYNAMIC_DRAW);
+    text.i_buff.bind();
+    text.i_buff.write(quad_len * 6, idxs.data(), GL_DYNAMIC_DRAW);
 
     glUseProgram(text_system.program);
     glBindTexture(GL_TEXTURE_2D, text_system.font_texture);
@@ -517,26 +475,12 @@ static void render_dbg_shapes(void*, Vec2F const& pos, Vec2F const& scale) {
             default: break;
         }
     }
-#if defined(LUX_GLES_2_0)
-    glBindBuffer(GL_ARRAY_BUFFER, dbg_shapes_system.vbo);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, dbg_shapes_system.ebo);
-    glEnableVertexAttribArray(dbg_shapes_system.shader_attribs.pos);
-    glEnableVertexAttribArray(dbg_shapes_system.shader_attribs.col);
-    glVertexAttribPointer(dbg_shapes_system.shader_attribs.pos,
-        2, GL_FLOAT, GL_FALSE, sizeof(DbgShapesSystem::Vert),
-        (void*)offsetof(DbgShapesSystem::Vert, pos));
-    glVertexAttribPointer(dbg_shapes_system.shader_attribs.col,
-        4, GL_FLOAT, GL_FALSE, sizeof(DbgShapesSystem::Vert),
-        (void*)offsetof(DbgShapesSystem::Vert, col));
-#elif defined(LUX_GL_3_3)
-    glBindVertexArray(dbg_shapes_system.vao);
-#endif
-    glBindBuffer(GL_ARRAY_BUFFER, dbg_shapes_system.vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(DbgShapesSystem::Vert) * verts.size(),
-        verts.data(), GL_DYNAMIC_DRAW);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, dbg_shapes_system.ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(U32) * idxs.size(),
-        idxs.data(), GL_DYNAMIC_DRAW);
+    dbg_shapes_system.context.bind();
+    dbg_shapes_system.v_buff.bind();
+    dbg_shapes_system.v_buff.write(verts.size(), verts.data(), GL_DYNAMIC_DRAW);
+    dbg_shapes_system.i_buff.bind();
+    dbg_shapes_system.i_buff.write(idxs.size(), idxs.data(), GL_DYNAMIC_DRAW);
+
     glUseProgram(dbg_shapes_system.program);
     glEnable(GL_BLEND);
     glPointSize(DBG_POINT_SIZE);
@@ -560,10 +504,7 @@ static void render_dbg_shapes(void*, Vec2F const& pos, Vec2F const& scale) {
     glDisable(GL_BLEND);
     glLineWidth(1.f);
     glPointSize(1.f);
-#if defined(LUX_GLES_2_0)
-    glDisableVertexAttribArray(dbg_shapes_system.shader_attribs.pos);
-    glDisableVertexAttribArray(dbg_shapes_system.shader_attribs.col);
-#endif
+    dbg_shapes_system.context.unbind();
 }
 
 static void render_pane(void* ptr, Vec2F const& pos, Vec2F const& scale) {
@@ -579,33 +520,17 @@ static void render_pane(void* ptr, Vec2F const& pos, Vec2F const& scale) {
         constexpr U32 order[6] = {0, 1, 2, 2, 3, 1};
         idxs[i] = order[i];
     }
-#if defined(LUX_GLES_2_0)
-    glEnableVertexAttribArray(pane_system.shader_attribs.pos);
-    glEnableVertexAttribArray(pane_system.shader_attribs.bg_col);
-    glVertexAttribPointer(pane_system.shader_attribs.pos,
-        2, GL_FLOAT, GL_FALSE, sizeof(PaneSystem::Vert),
-        (void*)offsetof(PaneSystem::Vert, pos));
-    glVertexAttribPointer(pane_system.shader_attribs.bg_col,
-        4, GL_FLOAT, GL_FALSE, sizeof(PaneSystem::Vert),
-        (void*)offsetof(PaneSystem::Vert, bg_col));
-#elif defined(LUX_GL_3_3)
-    glBindVertexArray(pane.vao);
-#endif
-    glBindBuffer(GL_ARRAY_BUFFER, pane.vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(PaneSystem::Vert) * 4,
-        verts, GL_DYNAMIC_DRAW);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pane.ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(U32) * 6,
-        idxs, GL_DYNAMIC_DRAW);
+    pane.context.bind();
+    pane.v_buff.bind();
+    pane.v_buff.write(4, verts, GL_DYNAMIC_DRAW);
+    pane.i_buff.bind();
+    pane.i_buff.write(6, idxs, GL_DYNAMIC_DRAW);
     glUseProgram(pane_system.program);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
     glDisable(GL_BLEND);
-#if defined(LUX_GLES_2_0)
-    glDisableVertexAttribArray(pane_system.shader_attribs.pos);
-    glDisableVertexAttribArray(pane_system.shader_attribs.bg_col);
-#endif
+    pane.context.unbind();
 }
 
 static void ui_render(UiId id, Vec2F const& pos, Vec2F const& scale) {
