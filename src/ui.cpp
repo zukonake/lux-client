@@ -91,21 +91,18 @@ struct TextSystem {
     };
 #pragma pack(pop)
 
-    GLuint program;
-    GLuint font_texture;
-
-    struct {
-        GLint pos;
-        GLint font_pos;
-        GLint fg_col;
-        GLint bg_col;
-    } shader_attribs;
+    GLuint      program;
+    GLuint      font_texture;
+    gl::VertFmt vert_fmt;
 } static text_system;
 
 TextId create_text(Vec2F pos, Vec2F scale, const char* str, UiId parent) {
     TextId id  = ui_texts.emplace();
     auto& text = ui_texts[id];
     text.ui    = new_ui(parent);
+    text.verts.init();
+    text.idxs.init();
+    text.context.init(text.verts, text_system.vert_fmt);
     auto& ui   = ui_elems[text.ui];
     ui.render  = &render_text;
     ui.pos     = pos;
@@ -115,44 +112,15 @@ TextId create_text(Vec2F pos, Vec2F scale, const char* str, UiId parent) {
     SizeT str_sz = std::strlen(str);
     text.buff.resize(str_sz);
     std::memcpy(text.buff.data(), str, str_sz);
-
-    glGenBuffers(1, &text.vbo);
-    glGenBuffers(1, &text.ebo);
-
-#if defined(LUX_GL_3_3)
-    glGenVertexArrays(1, &text.vao);
-    glBindVertexArray(text.vao);
-
-    glBindBuffer(GL_ARRAY_BUFFER, text.vbo);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, text.ebo);
-    glEnableVertexAttribArray(text_system.shader_attribs.pos);
-    glEnableVertexAttribArray(text_system.shader_attribs.font_pos);
-    glEnableVertexAttribArray(text_system.shader_attribs.fg_col);
-    glEnableVertexAttribArray(text_system.shader_attribs.bg_col);
-    glVertexAttribPointer(text_system.shader_attribs.pos,
-        2, GL_FLOAT, GL_FALSE, sizeof(TextSystem::Vert),
-        (void*)offsetof(TextSystem::Vert, pos));
-    glVertexAttribPointer(text_system.shader_attribs.font_pos,
-        2, GL_UNSIGNED_BYTE, GL_FALSE, sizeof(TextSystem::Vert),
-        (void*)offsetof(TextSystem::Vert, font_pos));
-    glVertexAttribPointer(text_system.shader_attribs.fg_col,
-        4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(TextSystem::Vert),
-        (void*)offsetof(TextSystem::Vert, fg_col));
-    glVertexAttribPointer(text_system.shader_attribs.bg_col,
-        4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(TextSystem::Vert),
-        (void*)offsetof(TextSystem::Vert, bg_col));
-#endif
     return id;
 }
 
 void erase_text(TextId id) {
     LUX_ASSERT(ui_texts.contains(id));
     auto& text = ui_texts[id];
-    glDeleteBuffers(1, &text.vbo);
-    glDeleteBuffers(1, &text.ebo);
-#if defined(LUX_GL_3_3)
-    glDeleteVertexArrays(1, &text.vao);
-#endif
+    text.verts.deinit();
+    text.idxs.deinit();
+    text.context.deinit();
     erase_ui(ui_texts[id].ui);
     ui_texts.erase(id);
 }
@@ -244,14 +212,11 @@ void ui_init() {
     set_uniform("font_pos_scale", text_system.program,
                 glUniform2fv, 1, glm::value_ptr(font_pos_scale));
 
-    text_system.shader_attribs.pos =
-        glGetAttribLocation(text_system.program, "pos");
-    text_system.shader_attribs.font_pos =
-        glGetAttribLocation(text_system.program, "font_pos");
-    text_system.shader_attribs.fg_col =
-        glGetAttribLocation(text_system.program, "fg_col");
-    text_system.shader_attribs.bg_col =
-        glGetAttribLocation(text_system.program, "bg_col");
+    text_system.vert_fmt.init(text_system.program, {
+        {"pos"     , 2, GL_FLOAT        , false},
+        {"font_pos", 2, GL_UNSIGNED_BYTE, false},
+        {"fg_col"  , 4, GL_UNSIGNED_BYTE, true},
+        {"bg_col"  , 4, GL_UNSIGNED_BYTE, true}});
 
     pane_system.program = load_program("glsl/pane.vert", "glsl/pane.frag");
     glUseProgram(pane_system.program);
@@ -302,13 +267,6 @@ void ui_init() {
 
 void ui_deinit() {
     erase_ui(ui_screen);
-}
-
-namespace gl {
-template<typename T>
-struct Buff {
-    
-};
 }
 
 static void render_text(void* ptr, Vec2F const& pos, Vec2F const& scale) {
@@ -388,32 +346,11 @@ static void render_text(void* ptr, Vec2F const& pos, Vec2F const& scale) {
         ++quad_len;
         off.x += 1.f;
     }
-#if defined(LUX_GLES_2_0)
-    glEnableVertexAttribArray(text_system.shader_attribs.pos);
-    glEnableVertexAttribArray(text_system.shader_attribs.font_pos);
-    glEnableVertexAttribArray(text_system.shader_attribs.fg_col);
-    glEnableVertexAttribArray(text_system.shader_attribs.bg_col);
-    glVertexAttribPointer(text_system.shader_attribs.pos,
-        2, GL_FLOAT, GL_FALSE, sizeof(TextSystem::Vert),
-        (void*)offsetof(TextSystem::Vert, pos));
-    glVertexAttribPointer(text_system.shader_attribs.font_pos,
-        2, GL_UNSIGNED_BYTE, GL_FALSE, sizeof(TextSystem::Vert),
-        (void*)offsetof(TextSystem::Vert, font_pos));
-    glVertexAttribPointer(text_system.shader_attribs.fg_col,
-        4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(TextSystem::Vert),
-        (void*)offsetof(TextSystem::Vert, fg_col));
-    glVertexAttribPointer(text_system.shader_attribs.bg_col,
-        4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(TextSystem::Vert),
-        (void*)offsetof(TextSystem::Vert, bg_col));
-#elif defined(LUX_GL_3_3)
-    glBindVertexArray(text.vao);
-#endif
-    glBindBuffer(GL_ARRAY_BUFFER, text.vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(TextSystem::Vert) * quad_len * 4,
-        verts.data(), GL_DYNAMIC_DRAW);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, text.ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(U32) * quad_len * 6,
-        idxs.data(), GL_DYNAMIC_DRAW);
+    text.context.bind();
+    text.verts.bind();
+    text.verts.write(quad_len * 4, verts.data(), GL_DYNAMIC_DRAW);
+    text.idxs.bind();
+    text.idxs.write(quad_len * 6, idxs.data(), GL_DYNAMIC_DRAW);
 
     glUseProgram(text_system.program);
     glBindTexture(GL_TEXTURE_2D, text_system.font_texture);
@@ -421,12 +358,7 @@ static void render_text(void* ptr, Vec2F const& pos, Vec2F const& scale) {
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glDrawElements(GL_TRIANGLES, quad_len * 6, GL_UNSIGNED_INT, 0);
     glDisable(GL_BLEND);
-#if defined(LUX_GLES_2_0)
-    glDisableVertexAttribArray(text_system.shader_attribs.pos);
-    glDisableVertexAttribArray(text_system.shader_attribs.font_pos);
-    glDisableVertexAttribArray(text_system.shader_attribs.fg_col);
-    glDisableVertexAttribArray(text_system.shader_attribs.bg_col);
-#endif
+    text.context.unbind();
 }
 
 static void render_dbg_shapes(void*, Vec2F const& pos, Vec2F const& scale) {
@@ -701,133 +633,4 @@ void ui_render() {
     ui_elems.free_slots();
     ui_texts.free_slots();
     ui_panes.free_slots();
-}
-namespace gl {
-//@CONSIDER m4 macros for generating VertFmt and Vert struct
-template<typename T>
-struct Buff {
-	Buff() {
-		glGenBuffers(1, &id);
-	}
-	
-	~Buff() {
-		glDeleteBuffers(1, &id);
-	}
-	
-	void bind(GLenum target) const {
-		glBindBuffer(target, id);
-	}
-	
-	void write(GLenum target, SizeT len, T const* data, GLenum usage) {
-		bind();
-		glBufferData(target, sizeof(T) * len, data, usage);
-	}
-    GLuint id;
-};
-
-template<typename T>
-struct VertBuff : Buff<T> {
-	void bind() const {
-		Buff<T>::bind(GL_ARRAY_BUFFER);
-	}
-	
-	void write(SizeT len, T const* data, GLenum usage) {
-		Buff<T>::write(GL_ARRAY_BUFFER, len, data, usage);
-	}
-};
-
-struct Program {
-	
-};
-
-template<SizeT attribs_len>
-struct VertFmt {
-	struct AttribDef {
-		char const* ident;
-		Uns    num;
-		GLenum type;
-		bool   normalize;
-	};
-	struct Attrib {
-		GLint  pos;
-		Uns    num;
-		GLenum type;
-		GLenum normalize;
-		void*  off;
-	};
-	VertFmt(Program const& program,
-			Arr<AttribDef, attribs_len> const& attrib_defs) {
-		vert_sz = 0;
-		for(Uns i = 0; i < attribs_len; i++) {
-			auto&    attrib = attribs[i];
-			auto const& def = attrib_defs[i];
-			attrib.pos  = glGetAttribLocation(program, def.ident);
-			attrib.num  = def.num;
-			attrib.type = def.type
-			attrib.normalize = def.normalize ? GL_TRUE : GL_FALSE;
-			attrib.off  = (void*)vert_sz;
-			//@TODO compile-time ?
-			//@CONSIDER make_attrib that infers the gl stuff from type
-			//e.g. Vec2F etc.
-			switch(attrib.type) {
-				case GL_FLOAT:			vert_sz += sizeof(F32); break;
-				case GL_DOUBLE:  		vert_sz += sizeof(F64); break;
-				case GL_BYTE:		    vert_sz += sizeof(I8);  break;
-				case GL_UNSIGNED_BYTE:  vert_sz += sizeof(U8);  break;
-				case GL_SHORT: 			vert_sz += sizeof(I16); break;
-				case GL_UNSIGNED_SHORT: vert_sz += sizeof(U16); break;
-				case GL_INT: 			vert_sz += sizeof(I32); break;
-				case GL_UNSIGNED_INT:   vert_sz += sizeof(U32); break;
-				default: LUX_UNREACHABLE();
-			}
-		}
-	}
-	Arr<Attrib, attribs_defs> attribs;
-	SizeT vert_sz;
-}
-
-template<SizeT attribs_len>
-struct VertContext {
-	VertContext(VertBuff<T> const& _vert_buff,
-				VertFmt<attribs_len> const& fmt) :
-		vert_buff(_vert_buff),
-		vert_fmt(_vert_fmt) {
-#if defined(LUX_GL_VAO)
-		glGenVertexArrays(1, &vao_id);
-		bind();
-		bind_attribs();
-#endif
-	}
-#if defined(LUX_GL_VAO)
-	~VertContext() {
-		glDeleteVertexArrays(1, &vao_id);
-	}
-#endif
-	void bind() {
-#if defined(LUX_GL_VAO)
-		glBindVerrtexArray(vao_id);
-#else
-		bind_attribs();
-#endif
-	}
-	void unbind() {
-#if !defined(LUX_GL_VAO)
-		for(auto const& attrib : vert_fmt.attribs) {
-			glDisableVertexAttribArray(attrib.pos);
-		}
-#endif
-	}
-	void bind_attribs() {
-		vert_buff.bind();
-		for(auto const& attrib : vert_fmt.attribs) {
-			glEnableVertexAttribArray(attrib.pos);
-			glVertexAttribPointer(attrib.pos, attrib.num,
-				attrib.type, attrib.normalize, vert_fmt.vert_sz, attrib.off);
-		}
-	}
-	GLuint vao_id;
-	VertBuff<T>          const& vert_buff;
-	VertFmt<attribs_len> const& vert_fmt;
-};
-
 }

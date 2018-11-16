@@ -16,6 +16,8 @@
 
 #if defined(LUX_GLES_2_0)
     #define GLFW_INCLUDE_ES2
+#elif defined(LUX_GL_3_3)
+    #define LUX_GL_VAO
 #endif
 
 #define GLM_FORCE_PURE

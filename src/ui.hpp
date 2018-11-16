@@ -37,11 +37,9 @@ struct UiText {
     UiId ui;
     DynArr<char> buff;
 
-    GLuint vbo;
-    GLuint ebo;
-#if defined(LUX_GL_3_3)
-    GLuint vao;
-#endif
+    gl::VertBuff    verts;
+    gl::IdxBuff     idxs;
+    gl::VertContext context;
 };
 
 struct UiPane {

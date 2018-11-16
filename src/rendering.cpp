@@ -205,3 +205,69 @@ F32 get_aim_rotation() {
     Vec2D mouse_pos = (get_mouse_pos() / (Vec2D)window_size) - 0.5;
     return -std::atan2(-mouse_pos.y, mouse_pos.x) + glm::half_pi<F32>();
 }
+
+//@TODO more abstractions + above
+namespace gl {
+
+void Buff::init() {
+    glGenBuffers(1, &id);
+}
+
+void Buff::deinit() {
+    glDeleteBuffers(1, &id);
+}
+
+void Buff::bind(GLenum target) const {
+    glBindBuffer(target, id);
+}
+
+void VertBuff::bind() const {
+    Buff::bind(GL_ARRAY_BUFFER);
+}
+
+void IdxBuff::bind() const {
+    Buff::bind(GL_ELEMENT_ARRAY_BUFFER);
+}
+
+void VertContext::init(VertBuff const& _vert_buff, VertFmt const& _vert_fmt) {
+    vert_buff = &_vert_buff;
+    vert_fmt  = &_vert_fmt;
+#if defined(LUX_GL_VAO)
+    glGenVertexArrays(1, &vao_id);
+    bind();
+    bind_attribs();
+#endif
+}
+
+void VertContext::deinit() {
+#if defined(LUX_GL_VAO)
+    glDeleteVertexArrays(1, &vao_id);
+#endif
+}
+
+void VertContext::bind() {
+#if defined(LUX_GL_VAO)
+    glBindVertexArray(vao_id);
+#else
+    bind_attribs();
+#endif
+}
+
+void VertContext::unbind() {
+#if !defined(LUX_GL_VAO)
+    for(auto const& attrib : vert_fmt->attribs) {
+        glDisableVertexAttribArray(attrib.pos);
+    }
+#endif
+}
+
+void VertContext::bind_attribs() {
+    vert_buff->bind();
+    for(auto const& attrib : vert_fmt->attribs) {
+        glEnableVertexAttribArray(attrib.pos);
+        glVertexAttribPointer(attrib.pos, attrib.num,
+            attrib.type, attrib.normalize, vert_fmt->vert_sz, attrib.off);
+    }
+}
+
+}
