@@ -19,23 +19,15 @@ static GLuint tileset;
 
 #pragma pack(push, 1)
 struct Vert {
-    typedef U32 Idx;
-    static constexpr GLenum IDX_GL_TYPE = GL_UNSIGNED_INT;
     Vec2F    pos;
     Vec2<U8> tex_pos;
 };
 #pragma pack(pop)
 
-static GLuint vbo;
-static GLuint ebo;
-#if defined(LUX_GL_3_3)
-static GLuint vao;
-#endif
-
-struct {
-    GLint pos;
-    GLint tex_pos;
-} static shader_attribs;
+static gl::VertBuff v_buff;
+static gl::IdxBuff  i_buff;
+static gl::Context  context;
+static gl::VertFmt  vert_fmt;
 
 static void entity_render(void *, Vec2F const&, Vec2F const&);
 
@@ -45,32 +37,17 @@ void entity_init() {
     program = load_program("glsl/entity.vert", "glsl/entity.frag");
 
     glUseProgram(program);
-    shader_attribs.pos     = glGetAttribLocation(program, "pos");
-    shader_attribs.tex_pos = glGetAttribLocation(program, "tex_pos");
+    vert_fmt.init(program,
+        {{"pos"    , 2, GL_FLOAT        , false},
+         {"tex_pos", 2, GL_UNSIGNED_BYTE, false}});
     Vec2U tileset_sz;
     tileset = load_texture(tileset_path, tileset_sz);
     Vec2F tex_scale = (Vec2F)tile_sz / (Vec2F)tileset_sz;
     set_uniform("tex_scale", program, glUniform2fv, 1,
                 glm::value_ptr(tex_scale));
 
-    glGenBuffers(1, &vbo);
-    glGenBuffers(1, &ebo);
-
-#if defined(LUX_GL_3_3)
-    glGenVertexArrays(1, &vao);
-    glBindVertexArray(vao);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glEnableVertexAttribArray(shader_attribs.pos);
-    glEnableVertexAttribArray(shader_attribs.tex_pos);
-    glVertexAttribPointer(shader_attribs.pos,
-        2, GL_FLOAT, GL_FALSE, sizeof(Vert),
-        (void*)offsetof(Vert, pos));
-    glVertexAttribPointer(shader_attribs.tex_pos,
-        2, GL_UNSIGNED_BYTE, GL_FALSE, sizeof(Vert),
-        (void*)offsetof(Vert, tex_pos));
-#endif
+    v_buff.init();
+    i_buff.init();
     ui_entity = new_ui(ui_world, 50);
     ui_elems[ui_entity].render = &entity_render;
 }
@@ -81,20 +58,6 @@ static void entity_render(void *, Vec2F const& translation, Vec2F const& scale) 
                 1, glm::value_ptr(scale));
     set_uniform("translation", program, glUniform2fv,
                 1, glm::value_ptr(translation));
-
-#if defined(LUX_GLES_2_0)
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glEnableVertexAttribArray(shader_attribs.pos);
-    glEnableVertexAttribArray(shader_attribs.tex_pos);
-    glVertexAttribPointer(shader_attribs.pos,
-        2, GL_FLOAT, GL_FALSE, sizeof(Vert),
-        (void*)offsetof(Vert, pos));
-    glVertexAttribPointer(shader_attribs.tex_pos,
-        2, GL_UNSIGNED_BYTE, GL_FALSE, sizeof(Vert),
-        (void*)offsetof(Vert, tex_pos));
-#elif defined(LUX_GL_3_3)
-    glBindVertexArray(vao);
-#endif
 
     static DynArr<Vert::Idx> idxs;
     static DynArr<Vert>     verts;
@@ -147,18 +110,15 @@ static void entity_render(void *, Vec2F const& translation, Vec2F const& scale) 
         }
     }
 
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER,
-                 sizeof(Vert) * verts.size(), verts.data(), GL_DYNAMIC_DRAW);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-                 sizeof(Vert::Idx) * idxs.size(), idxs.data(), GL_DYNAMIC_DRAW);
+    context.bind();
+    v_buff.bind();
+    v_buff.write(verts.size(), verts.data(), GL_DYNAMIC_DRAW);
+    i_buff.bind();
+    i_buff.write(idxs.size(), idxs.data(), GL_DYNAMIC_DRAW);
 
     glBindTexture(GL_TEXTURE_2D, tileset);
     glDrawElements(GL_TRIANGLES, idxs.size(), Vert::IDX_GL_TYPE, 0);
-#if defined(LUX_GLES_2_0)
-    glDisableVertexAttribArray(shader_attribs.pos);
-#endif
+    context.unbind();
 }
 
 void set_net_entity_comps(NetSsTick::EntityComps const& net_comps) {
