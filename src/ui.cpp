@@ -551,7 +551,7 @@ static bool ui_mouse(UiId id, Transform const& tr, int button,
                             int action) {
     UiNode* ui = ui_nodes.at(id);
     Vec2F total_scale = tr.scale * ui->tr.scale;
-    if(ui->render != nullptr) {
+    if(ui->mouse != nullptr) {
         if((*ui->mouse)(ui->ext_id, -(ui->tr.pos + tr.pos) / ui->tr.scale,
                         button, action)) {
             return true;

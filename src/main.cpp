@@ -31,7 +31,7 @@ void mouse_button_cb(GLFWwindow*, int button, int action, int) {
 
 void window_resize_cb(GLFWwindow*, int win_w, int win_h)
 {
-    static Vec2U old_sz = conf.window_size;
+    static Vec2U old_sz = {1.f, 1.f};
     LUX_LOG("window size change to %ux%u", win_w, win_h);
     glViewport(0, 0, win_w, win_h);
     console_window_sz_cb({win_w, win_h});
