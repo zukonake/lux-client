@@ -572,6 +572,25 @@ static bool ui_mouse(UiId id, Transform const& tr, int button,
 }
 
 static bool ui_scroll(UiId id, Transform const& tr, F64 off) {
+    UiNode* ui = ui_nodes.at(id);
+    Vec2F total_scale = tr.scale * ui->tr.scale;
+    if(ui->scroll != nullptr) {
+        if((*ui->scroll)(ui->ext_id, (ui->tr.pos + tr.pos) / ui->tr.scale,
+                         off)) {
+            return true;
+        }
+    }
+    for(auto it = ui->children.begin(); it != ui->children.end();) {
+        if(!ui_nodes.contains(*it)) {
+            it = ui->children.erase(it);
+        } else {
+            if(ui_scroll(*it, {(ui->tr.pos + tr.pos) / ui->tr.scale,
+                        total_scale}, off)) {
+                return true;
+            }
+            ++it;
+        }
+    }
     return false;
 }
 

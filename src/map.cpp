@@ -82,6 +82,15 @@ bool map_mouse(U32, Vec2F pos, int, int) {
     return true;
 }
 
+bool map_scroll(U32, Vec2F pos, F64 off) {
+    auto& world = ui_nodes[ui_world];
+    F32 old_ratio = world.tr.scale.x / world.tr.scale.y;
+    world.tr.scale.y += off * 0.01f;
+    world.tr.scale.y = glm::clamp(world.tr.scale.y, 1.f / 50.f, 1.f);
+    world.tr.scale.x = world.tr.scale.y * old_ratio;
+    return true;
+}
+
 static void map_load_programs() {
     char const* tileset_path = "tileset.png";
     Vec2U const tile_size = {8, 8};
@@ -137,6 +146,7 @@ void map_init() {
     ui_map = ui_create(ui_camera);
     ui_nodes[ui_map].render = &map_render;
     ui_nodes[ui_map].mouse = &map_mouse;
+    ui_nodes[ui_map].scroll = &map_scroll;
     ui_light = ui_create(ui_camera, 128);
     ui_nodes[ui_light].render = &light_render;
 }
