@@ -26,7 +26,7 @@ void scroll_cb(GLFWwindow* window, F64, F64 off) {
 }
 
 void mouse_button_cb(GLFWwindow*, int button, int action, int) {
-    ui_mouse_button(get_mouse_pos(), button, action);
+    ui_mouse(get_mouse_pos(), button, action);
 }
 
 void window_resize_cb(GLFWwindow*, int win_w, int win_h)
@@ -85,13 +85,13 @@ int main(int argc, char** argv) {
     glfwSetScrollCallback(glfw_window, scroll_cb);
     glfwSetKeyCallback(glfw_window, key_cb);
     UiPaneId coord_pane =
-        ui_pane_create(ui_hud, {{-1.f, -1.f}, {0.4f, 0.1f}},
+        ui_pane_create(ui_hud, {{-1.f, -1.f}, {0.5f, 0.1f}},
                        {0.5f, 0.5f, 0.5f, 0.5f});
     UiTextId coord_txt =
         ui_text_create(ui_panes[coord_pane].ui,
-                       {{0.f, 0.f}, {0.08f, 0.5f}}, "");
+                       {{0.f, 0.f}, {0.07f, 0.5f}}, "");
     UiPaneId eq_pane =
-        ui_pane_create(ui_hud, {{-1.f, 0.f}, {0.8f, 1.f}},
+        ui_pane_create(ui_hud, {{-1.f, 0.f}, {0.7f, 1.f}},
                        {0.5f, 0.5f, 0.5f, 0.5f});
 
     Vec2<int> win_size;

@@ -28,7 +28,7 @@ Vec2U get_window_size() {
 Vec2D get_mouse_pos() {
     Vec2D temp;
     glfwGetCursorPos(glfw_window, &temp.x, &temp.y);
-    return ((temp / (Vec2D)get_window_size()) * 2.0) - 1.0;
+    return Vec2D(-1.f, 1.f) * (((temp / (Vec2D)get_window_size()) * 2.0) - 1.0);
 }
 
 void rendering_init() {
@@ -202,7 +202,7 @@ GLuint load_texture(char const* path, Vec2U& size_out) {
 
 F32 get_aim_rotation() {
     Vec2D mouse_pos = get_mouse_pos() * (Vec2D)get_window_size();
-    return -std::atan2(-mouse_pos.y, mouse_pos.x) + glm::half_pi<F32>();
+    return std::atan2(-mouse_pos.y, mouse_pos.x) - glm::half_pi<F32>();
 }
 
 //@TODO more abstractions + above

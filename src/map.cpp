@@ -74,8 +74,11 @@ static void try_build_mesh(ChkPos const& pos);
 static void build_mat_mesh(MatMesh& mesh, Chunk const& chunk, ChkPos const& chk_pos);
 static void build_light_mesh(LightMesh& mesh, Chunk const& chunk, ChkPos const& chk_pos);
 
-bool map_mouse(void*, Vec2F pos, int button, int action) {
-    LUX_LOG("%.2f, %.2f", pos.x, pos.y);
+bool map_mouse(U32, Vec2F pos, int, int) {
+    auto& action = cs_tick.actions.emplace_back();
+    action.tag = NetCsTick::Action::BREAK;
+    action.target.tag = NetCsTick::Action::Target::POINT;
+    action.target.point = pos;
     return true;
 }
 
@@ -133,7 +136,7 @@ void map_init() {
 
     ui_map = ui_create(ui_camera);
     ui_nodes[ui_map].render = &map_render;
-    //ui_nodes[ui_map].mouse = &map_mouse; @TODO
+    ui_nodes[ui_map].mouse = &map_mouse;
     ui_light = ui_create(ui_camera, 128);
     ui_nodes[ui_light].render = &light_render;
 }
@@ -250,6 +253,9 @@ void tiles_update(ChkPos const& pos, NetSsSgnl::Tiles::Chunk const& net_chunk) {
     std::memcpy(chunk.wall.raw_data, net_chunk.wall.raw_data,
                 sizeof(net_chunk.wall));
     std::memset(chunk.light_lvl, 0, sizeof(chunk.light_lvl));
+    if(meshes.count(pos) > 0) {
+        build_mat_mesh(meshes.at(pos).mat, chunk, pos);
+    }
 }
 
 void light_update(ChkPos const& pos,

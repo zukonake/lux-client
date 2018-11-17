@@ -145,7 +145,7 @@ UiPaneId ui_pane_create(UiId parent, Transform const& tr, Vec4F const& bg_col) {
     ui.render = &pane_render;
     ui.tr     = tr;
     ui.ext_id = id;
-    ui.fixed_aspect = false;
+    ui.fixed_aspect = true;
     pane.bg_col = bg_col;
     return id;
 }
@@ -547,8 +547,27 @@ static void ui_render(UiId id, Transform const& tr) {
     }
 }
 
-static bool ui_mouse_button(UiId id, Transform const& tr, int button,
+static bool ui_mouse(UiId id, Transform const& tr, int button,
                             int action) {
+    UiNode* ui = ui_nodes.at(id);
+    Vec2F total_scale = tr.scale * ui->tr.scale;
+    if(ui->render != nullptr) {
+        if((*ui->mouse)(ui->ext_id, -(ui->tr.pos + tr.pos) / ui->tr.scale,
+                        button, action)) {
+            return true;
+        }
+    }
+    for(auto it = ui->children.begin(); it != ui->children.end();) {
+        if(!ui_nodes.contains(*it)) {
+            it = ui->children.erase(it);
+        } else {
+            if(ui_mouse(*it, {(ui->tr.pos + tr.pos) / ui->tr.scale,
+                        total_scale}, action, button)) {
+                return true;
+            }
+            ++it;
+        }
+    }
     return false;
 }
 
@@ -556,8 +575,8 @@ static bool ui_scroll(UiId id, Transform const& tr, F64 off) {
     return false;
 }
 
-bool ui_mouse_button(Vec2F pos, int button, int action) {
-    return ui_mouse_button(ui_screen, {pos, {1.f, 1.f}}, button, action);
+bool ui_mouse(Vec2F pos, int button, int action) {
+    return ui_mouse(ui_screen, {pos, {1.f, 1.f}}, button, action);
 }
 
 bool ui_scroll(Vec2F pos, F64 off) {
