@@ -18,44 +18,46 @@ F32 constexpr DBG_ARROW_HEAD_LEN = 0.2f;
 
 UiId ui_screen;
 UiId ui_world;
+UiId ui_camera;
 UiId ui_dbg_shapes;
 UiId ui_hud;
 
-SparseDynArr<UiElement, U16> ui_elems;
-SparseDynArr<UiText   , U16> ui_texts;
-SparseDynArr<UiPane   , U16> ui_panes;
+SparseDynArr<UiNode, U16> ui_nodes;
+SparseDynArr<UiText, U16> ui_texts;
+SparseDynArr<UiPane, U16> ui_panes;
 
-static void render_text(void*, Vec2F const&, Vec2F const&);
-static void render_pane(void*, Vec2F const&, Vec2F const&);
-static void render_dbg_shapes(void* ptr, Vec2F const& pos, Vec2F const& scale);
+static void text_render(U32, Transform const&);
+static void text_deinit(U32);
+static void pane_render(U32, Transform const&);
+static void pane_deinit(U32);
+static void dbg_shapes_render(U32, Transform const&);
 
-UiId new_ui() {
-    UiId id = ui_elems.emplace();
-    return id;
-}
-
-UiId new_ui(UiId parent, U8 priority) {
-    UiId id = ui_elems.emplace();
-    LUX_ASSERT(ui_elems.contains(parent));
-    ui_elems[id].priority = priority;
-    ui_elems[parent].children.emplace_back(id);
-    std::sort(ui_elems[parent].children.begin(),
-              ui_elems[parent].children.end(),
+UiId ui_create(UiId parent, U8 priority) {
+    UiId id = ui_nodes.emplace();
+    ui_nodes[id].priority = priority;
+    LUX_ASSERT(ui_nodes.contains(parent));
+    ui_nodes[parent].children.emplace_back(id);
+    std::sort(ui_nodes[parent].children.begin(),
+              ui_nodes[parent].children.end(),
               [](UiId const& a, UiId const& b) {
-                  if(ui_elems.contains(a) && ui_elems.contains(b)) {
-                      return ui_elems[a].priority < ui_elems[b].priority;
+                  if(ui_nodes.contains(a) && ui_nodes.contains(b)) {
+                      return ui_nodes[a].priority < ui_nodes[b].priority;
                   }
                   return false;
               });
     return id;
 }
 
-void erase_ui(UiId id) {
-    LUX_ASSERT(ui_elems.contains(id));
-    for(UiId child : ui_elems[id].children) {
-        erase_ui(child);
+void ui_erase(UiId id) {
+    LUX_ASSERT(ui_nodes.contains(id));
+    auto& ui = ui_nodes[id];
+    for(UiId child : ui.children) {
+        ui_erase(child);
     }
-    ui_elems.erase(id);
+    if(ui.deinit != nullptr) {
+        (*ui.deinit)(ui.ext_id);
+    }
+    ui_nodes.erase(id);
 }
 
 struct DbgShapesSystem {
@@ -91,18 +93,18 @@ struct TextSystem {
     gl::VertFmt vert_fmt;
 } static text_system;
 
-TextId create_text(Vec2F pos, Vec2F scale, const char* str, UiId parent) {
-    TextId id  = ui_texts.emplace();
-    auto& text = ui_texts[id];
-    text.ui    = new_ui(parent);
+UiTextId ui_text_create(UiId parent, Transform const& tr, const char* str) {
+    UiTextId id = ui_texts.emplace();
+    auto& text  = ui_texts[id];
+    text.ui     = ui_create(parent);
     text.v_buff.init();
     text.i_buff.init();
     text.context.init({text.v_buff}, text_system.vert_fmt);
-    auto& ui   = ui_elems[text.ui];
-    ui.render  = &render_text;
-    ui.pos     = pos;
-    ui.scale   = scale;
-    ui.ptr     = (void*)(std::uintptr_t)id;
+    auto& ui  = ui_nodes[text.ui];
+    ui.deinit = &text_deinit;
+    ui.render = &text_render;
+    ui.tr     = tr;
+    ui.ext_id = id;
     ui.fixed_aspect = true;
     SizeT str_sz = std::strlen(str);
     text.buff.resize(str_sz);
@@ -110,13 +112,12 @@ TextId create_text(Vec2F pos, Vec2F scale, const char* str, UiId parent) {
     return id;
 }
 
-void erase_text(TextId id) {
+void text_deinit(U32 id) {
     LUX_ASSERT(ui_texts.contains(id));
     auto& text = ui_texts[id];
     text.v_buff.deinit();
     text.i_buff.deinit();
     text.context.deinit();
-    erase_ui(ui_texts[id].ui);
     ui_texts.erase(id);
 }
 
@@ -132,48 +133,47 @@ struct PaneSystem {
     gl::VertFmt vert_fmt;
 } static pane_system;
 
-PaneId create_pane(Vec2F pos, Vec2F scale, Vec2F size,
-                       Vec4F const& bg_col, UiId parent) {
-    PaneId id  = ui_panes.emplace();
+UiPaneId ui_pane_create(UiId parent, Transform const& tr, Vec4F const& bg_col) {
+    UiPaneId id = ui_panes.emplace();
     auto& pane = ui_panes[id];
-    pane.ui    = new_ui(parent);
+    pane.ui    = ui_create(parent);
     pane.v_buff.init();
     pane.i_buff.init();
     pane.context.init({pane.v_buff}, pane_system.vert_fmt);
-    auto& ui   = ui_elems[pane.ui];
-    ui.render  = &render_pane;
-    ui.pos     = pos;
-    ui.scale   = scale;
-    ui.ptr     = (void*)(std::uintptr_t)id;
-    ui.fixed_aspect = true;
-    pane.size   = size;
+    auto& ui  = ui_nodes[pane.ui];
+    ui.deinit = &pane_deinit;
+    ui.render = &pane_render;
+    ui.tr     = tr;
+    ui.ext_id = id;
+    ui.fixed_aspect = false;
     pane.bg_col = bg_col;
     return id;
 }
 
-void erase_pane(PaneId id) {
+void pane_deinit(U32 id) {
     LUX_ASSERT(ui_panes.contains(id));
     auto& pane = ui_panes[id];
     pane.v_buff.deinit();
     pane.i_buff.deinit();
     pane.context.deinit();
-    erase_ui(ui_panes[id].ui);
     ui_panes.erase(id);
 }
 
-static void update_aspect(UiId id, F32 w_to_h) {
-    auto& ui = ui_elems[id];
+static void update_aspect(UiId id, F32 old_ratio, F32 ratio) {
+    auto& ui = ui_nodes[id];
     if(ui.fixed_aspect) {
-        ui.scale.x = ui.scale.y * w_to_h;
+        ui.tr.scale.x /= old_ratio;
+        ui.tr.scale.x *= ratio;
     } else {
         for(auto& child : ui.children) {
-            update_aspect(child, w_to_h);
+            update_aspect(child, old_ratio, ratio);
         }
     }
 }
 
-void ui_window_sz_cb(Vec2U const& sz) {
-    update_aspect(ui_screen, (F32)sz.y / (F32)sz.x);
+void ui_window_sz_cb(Vec2U const& old_sz, Vec2U const& sz) {
+    update_aspect(ui_screen, (F32)old_sz.y / (F32)old_sz.x,
+                             (F32)sz.y / (F32)sz.x);
 }
 
 void ui_init() {
@@ -210,26 +210,29 @@ void ui_init() {
     dbg_shapes_system.context.init({dbg_shapes_system.v_buff},
                                    dbg_shapes_system.vert_fmt);
 
-    ui_screen = new_ui();
-    ui_elems[ui_screen].scale = {1.f, -1.f};
-    ui_world  = new_ui(ui_screen);
-    ui_dbg_shapes = new_ui(ui_world, -1);
-    ui_elems[ui_dbg_shapes].render = &render_dbg_shapes;
-    //@TODO calculate
-    ui_elems[ui_world].scale = {1.f / 5.f, 1.f / 5.f};
-    ui_elems[ui_world].fixed_aspect = true;
+    ui_screen = ui_nodes.emplace();
+    ui_nodes[ui_screen].tr.scale = {1.f, -1.f};
+    ui_dbg_shapes = ui_create(ui_world, 0x80);
+    ui_nodes[ui_dbg_shapes].render = &dbg_shapes_render;
+    //@TODO calculate (config?)
+    ui_world  = ui_create(ui_screen);
+    ui_nodes[ui_world].tr.scale = {1.f / 5.f, 1.f / 5.f};
+    ui_nodes[ui_world].fixed_aspect = true;
+    ui_camera = ui_create(ui_world);
 
-    ui_hud = new_ui(ui_screen);
-    ui_elems[ui_hud].scale = {0.01f, 0.01f};
+    ui_hud = ui_create(ui_screen);
+    ui_nodes[ui_hud].tr.scale = {1.f, 1.f};
 }
 
 void ui_deinit() {
-    erase_ui(ui_screen);
+    ui_erase(ui_screen);
+    LUX_ASSERT(ui_nodes.size() == 0);
+    LUX_ASSERT(ui_texts.size() == 0);
+    LUX_ASSERT(ui_panes.size() == 0);
 }
 
-static void render_text(void* ptr, Vec2F const& pos, Vec2F const& scale) {
-    TextId text_id = (TextId)(std::uintptr_t)ptr;
-    auto& text = ui_texts[text_id];
+static void text_render(U32 id, Transform const& tr) {
+    auto& text = ui_texts[id];
     static DynArr<TextSystem::Vert> verts;
     static DynArr<U32>               idxs;
     idxs.resize(text.buff.size() * 6);
@@ -293,7 +296,7 @@ static void render_text(void* ptr, Vec2F const& pos, Vec2F const& scale) {
         for(Uns i = 0; i < 4; ++i) {
             constexpr Vec2I quad[4] = {{0, 0}, {0, 1}, {1, 0}, {1, 1}};
             verts[quad_len * 4 + i] = {
-                pos + ((Vec2F)quad[i] + off) * scale,
+                (tr.pos + (Vec2F)quad[i] + off) * tr.scale,
                 Vec2<U8>(character % 16, character / 16) + (Vec2<U8>)quad[i],
                 fg_col, bg_col};
         }
@@ -319,22 +322,22 @@ static void render_text(void* ptr, Vec2F const& pos, Vec2F const& scale) {
     text.context.unbind();
 }
 
-static void render_dbg_shapes(void*, Vec2F const& pos, Vec2F const& scale) {
+static void dbg_shapes_render(U32, Transform const& tr) {
     //@IMPROVE we could optimize by sharing verts between borders and fills
+    //@CONSIDER static buffs as in text rendering
     auto& verts = dbg_shapes_system.verts;
     auto& idxs  = dbg_shapes_system.idxs;
     verts.clear();
     idxs.clear();
     Uns lines_start;
     Uns triangles_start;
+#define ADD_VERT(off) \
+        verts.push_back({(tr.pos + off) * tr.scale, shape.col})
     for(auto const& shape : ss_tick.dbg_inf.shapes) {
-        auto add_vert = [&](Vec2F off) {
-            verts.push_back({pos + off * scale, shape.col});
-        };
         switch(shape.tag) {
             case NetSsTick::DbgInf::Shape::POINT: {
                 idxs.emplace_back(verts.size());
-                add_vert(shape.point.pos);
+                ADD_VERT(shape.point.pos);
                 break;
             }
             default: break;
@@ -342,17 +345,14 @@ static void render_dbg_shapes(void*, Vec2F const& pos, Vec2F const& scale) {
     }
     lines_start = idxs.size();
     for(auto const& shape : ss_tick.dbg_inf.shapes) {
-        auto add_vert = [&](Vec2F off) {
-            verts.push_back({pos + off * scale, shape.col});
-        };
         switch(shape.tag) {
             case NetSsTick::DbgInf::Shape::LINE: {
                 constexpr U32 order[] = {0, 1};
                 for(auto const& idx : order) {
                     idxs.emplace_back(idx + verts.size());
                 }
-                add_vert(shape.line.beg);
-                add_vert(shape.line.end);
+                ADD_VERT(shape.line.beg);
+                ADD_VERT(shape.line.end);
                 break;
             }
             case NetSsTick::DbgInf::Shape::ARROW: {
@@ -361,12 +361,12 @@ static void render_dbg_shapes(void*, Vec2F const& pos, Vec2F const& scale) {
                 for(auto const& idx : order) {
                     idxs.emplace_back(idx + verts.size());
                 }
-                add_vert(shape.arrow.beg);
-                add_vert(shape.arrow.end);
+                ADD_VERT(shape.arrow.beg);
+                ADD_VERT(shape.arrow.end);
                 Vec2F d = glm::normalize(shape.arrow.beg - shape.arrow.end);
-                add_vert(shape.arrow.end +
+                ADD_VERT(shape.arrow.end +
                     glm::rotate(d, tau / -8.f) * DBG_ARROW_HEAD_LEN);
-                add_vert(shape.arrow.end +
+                ADD_VERT(shape.arrow.end +
                     glm::rotate(d, tau /  8.f) * DBG_ARROW_HEAD_LEN);
                 break;
             }
@@ -378,7 +378,7 @@ static void render_dbg_shapes(void*, Vec2F const& pos, Vec2F const& scale) {
                 constexpr Vec2F cross[4] =
                     {{-1.f, -1.f}, {1.f, 1.f}, {1.f, -1.f}, {-1.f, 1.f}};
                 for(auto const& vert : cross) {
-                    add_vert(shape.cross.pos + vert * shape.cross.sz);
+                    ADD_VERT(shape.cross.pos + vert * shape.cross.sz);
                 }
                 break;
             }
@@ -394,7 +394,7 @@ static void render_dbg_shapes(void*, Vec2F const& pos, Vec2F const& scale) {
                    {{0.f, -1.f}, {diag, -diag}, { 1.f, 0.f}, { diag,  diag},
                     {0.f,  1.f}, {-diag, diag}, {-1.f, 0.f}, {-diag, -diag}};
                 for(auto const& vert : octagon) {
-                    add_vert(shape.sphere.pos + vert * shape.sphere.rad);
+                    ADD_VERT(shape.sphere.pos + vert * shape.sphere.rad);
                 }
                 break;
             }
@@ -405,7 +405,7 @@ static void render_dbg_shapes(void*, Vec2F const& pos, Vec2F const& scale) {
                     idxs.emplace_back(idx + verts.size());
                 }
                 for(Uns i = 0; i < 3; ++i) {
-                    add_vert(shape.triangle.verts[i]);
+                    ADD_VERT(shape.triangle.verts[i]);
                 }
                 break;
             }
@@ -419,7 +419,7 @@ static void render_dbg_shapes(void*, Vec2F const& pos, Vec2F const& scale) {
                 constexpr Vec2F quad[4] =
                     {{-1.f, -1.f}, {1.f, -1.f}, {1.f, 1.f}, {-1.f, 1.f}};
                 for(auto const& vert : quad) {
-                    add_vert(shape.rect.pos +
+                    ADD_VERT(shape.rect.pos +
                         glm::rotate(vert, shape.rect.angle) * shape.rect.sz);
                 }
                 break;
@@ -429,9 +429,6 @@ static void render_dbg_shapes(void*, Vec2F const& pos, Vec2F const& scale) {
     }
     triangles_start = idxs.size();
     for(auto const& shape : ss_tick.dbg_inf.shapes) {
-        auto add_vert = [&](Vec2F off) {
-            verts.push_back({pos + off * scale, shape.col});
-        };
         switch(shape.tag) {
             case NetSsTick::DbgInf::Shape::SPHERE: {
                 constexpr U32 order[] = {0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 5,
@@ -444,7 +441,7 @@ static void render_dbg_shapes(void*, Vec2F const& pos, Vec2F const& scale) {
                     {0.f, -1.f}, {diag, -diag}, { 1.f, 0.f}, { diag,  diag},
                     {0.f,  1.f}, {-diag, diag}, {-1.f, 0.f}, {-diag, -diag}};
                 for(auto const& vert : octagon) {
-                    add_vert(shape.sphere.pos + vert * shape.sphere.rad);
+                    ADD_VERT(shape.sphere.pos + vert * shape.sphere.rad);
                 }
                 break;
             }
@@ -455,7 +452,7 @@ static void render_dbg_shapes(void*, Vec2F const& pos, Vec2F const& scale) {
                     idxs.emplace_back(idx + verts.size());
                 }
                 for(Uns i = 0; i < 3; ++i) {
-                    add_vert(shape.triangle.verts[i]);
+                    ADD_VERT(shape.triangle.verts[i]);
                 }
                 break;
             }
@@ -467,7 +464,7 @@ static void render_dbg_shapes(void*, Vec2F const& pos, Vec2F const& scale) {
                 constexpr Vec2F quad[4] =
                     {{-1.f, -1.f}, {1.f, -1.f}, {1.f, 1.f}, {-1.f, 1.f}};
                 for(auto const& vert : quad) {
-                    add_vert(shape.rect.pos +
+                    ADD_VERT(shape.rect.pos +
                         glm::rotate(vert, shape.rect.angle) * shape.rect.sz);
                 }
                 break;
@@ -475,6 +472,7 @@ static void render_dbg_shapes(void*, Vec2F const& pos, Vec2F const& scale) {
             default: break;
         }
     }
+#undef ADD_VERT
     dbg_shapes_system.context.bind();
     dbg_shapes_system.v_buff.bind();
     dbg_shapes_system.v_buff.write(verts.size(), verts.data(), GL_DYNAMIC_DRAW);
@@ -507,14 +505,13 @@ static void render_dbg_shapes(void*, Vec2F const& pos, Vec2F const& scale) {
     dbg_shapes_system.context.unbind();
 }
 
-static void render_pane(void* ptr, Vec2F const& pos, Vec2F const& scale) {
+static void pane_render(U32 id, Transform const& tr) {
     Arr<PaneSystem::Vert, 4> verts;
     Arr<U32             , 6> idxs;
-    PaneId pane_id = (PaneId)(std::uintptr_t)ptr;
-    auto& pane = ui_panes[pane_id];
+    auto& pane = ui_panes[id];
     for(Uns i = 0; i < 4; ++i) {
         constexpr Vec2F quad[4] = {{0, 0}, {0, 1}, {1, 0}, {1, 1}};
-        verts[i] ={pos + quad[i] * scale * pane.size, pane.bg_col};
+        verts[i] ={(tr.pos + quad[i]) * tr.scale, pane.bg_col};
     }
     for(Uns i = 0; i < 6; ++i) {
         constexpr U32 order[6] = {0, 1, 2, 2, 3, 1};
@@ -533,29 +530,43 @@ static void render_pane(void* ptr, Vec2F const& pos, Vec2F const& scale) {
     pane.context.unbind();
 }
 
-static void ui_render(UiId id, Vec2F const& pos, Vec2F const& scale) {
-    UiElement* ui = ui_elems.at(id);
-    Vec2F total_scale = scale * ui->scale;
+static void ui_render(UiId id, Transform const& tr) {
+    UiNode* ui = ui_nodes.at(id);
+    Vec2F total_scale = tr.scale * ui->tr.scale;
     if(ui->render != nullptr) {
-        (*ui->render)(ui->ptr, ui->pos * scale + pos, total_scale);
-        ui = ui_elems.at(id);
-        if(ui == nullptr) return;
+        (*ui->render)(ui->ext_id, {(ui->tr.pos + tr.pos) / ui->tr.scale,
+                      total_scale});
     }
     for(auto it = ui->children.begin(); it != ui->children.end();) {
-        if(!ui_elems.contains(*it)) {
+        if(!ui_nodes.contains(*it)) {
             it = ui->children.erase(it);
         } else {
-            ui_render(*it, ui->pos * scale + pos, total_scale);
-            ui = ui_elems.at(id);
-            if(ui == nullptr) return;
+            ui_render(*it, {(ui->tr.pos + tr.pos) / ui->tr.scale, total_scale});
             ++it;
         }
     }
 }
 
+static bool ui_mouse_button(UiId id, Transform const& tr, int button,
+                            int action) {
+    return false;
+}
+
+static bool ui_scroll(UiId id, Transform const& tr, F64 off) {
+    return false;
+}
+
+bool ui_mouse_button(Vec2F pos, int button, int action) {
+    return ui_mouse_button(ui_screen, {pos, {1.f, 1.f}}, button, action);
+}
+
+bool ui_scroll(Vec2F pos, F64 off) {
+    return ui_scroll(ui_screen, {pos, {1.f, 1.f}}, off);
+}
+
 void ui_render() {
-    ui_render(ui_screen, {0.f, 0.f}, {1.f, 1.f});
-    ui_elems.free_slots();
+    ui_render(ui_screen, {{0.f, 0.f}, {1.f, 1.f}});
+    ui_nodes.free_slots();
     ui_texts.free_slots();
     ui_panes.free_slots();
 }

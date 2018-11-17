@@ -74,6 +74,11 @@ static void try_build_mesh(ChkPos const& pos);
 static void build_mat_mesh(MatMesh& mesh, Chunk const& chunk, ChkPos const& chk_pos);
 static void build_light_mesh(LightMesh& mesh, Chunk const& chunk, ChkPos const& chk_pos);
 
+bool map_mouse(void*, Vec2F pos, int button, int action) {
+    LUX_LOG("%.2f, %.2f", pos.x, pos.y);
+    return true;
+}
+
 static void map_load_programs() {
     char const* tileset_path = "tileset.png";
     Vec2U const tile_size = {8, 8};
@@ -97,8 +102,8 @@ static void map_load_programs() {
          {"col", 3, GL_UNSIGNED_BYTE , true , false}});
 }
 
-static void map_render(void *, Vec2F const& pos, Vec2F const& scale);
-static void light_render(void *, Vec2F const& pos, Vec2F const& scale);
+static void map_render(U32, Transform const&);
+static void light_render(U32, Transform const&);
 
 void map_init() {
     map_load_programs();
@@ -126,20 +131,22 @@ void map_init() {
     geometry_mesh.i_buff.bind();
     geometry_mesh.i_buff.write(CHK_VOL * 6, idxs, GL_STATIC_DRAW);
 
-    ui_map   = new_ui(ui_world);
-    ui_elems[ui_map].render = &map_render;
-    ui_light = new_ui(ui_world, 128);
-    ui_elems[ui_light].render = &light_render;
+    ui_map = ui_create(ui_camera);
+    ui_nodes[ui_map].render = &map_render;
+    //ui_nodes[ui_map].mouse = &map_mouse; @TODO
+    ui_light = ui_create(ui_camera, 128);
+    ui_nodes[ui_light].render = &light_render;
 }
 
-static void map_render(void *, Vec2F const& pos, Vec2F const& scale) {
+static void map_render(U32, Transform const& tr) {
     U32 RENDER_DIST =
-        glm::ceil(glm::compMax((1.f / ui_elems[ui_world].scale) / (F32)CHK_SIZE));
+        (glm::compMax(rcp(ui_nodes[ui_world].tr.scale) / (F32)CHK_SIZE)) + 2.f;
 
+    Vec2F player_pos = -ui_nodes[ui_camera].tr.pos;
     static DynArr<ChkPos> render_list;
     render_list.reserve(std::pow(2 * RENDER_DIST - 1, 2));
 
-    ChkPos center = to_chk_pos(last_player_pos);
+    ChkPos center = to_chk_pos(player_pos);
     ChkPos iter;
     for(iter.y  = center.y - RENDER_DIST;
         iter.y <= center.y + RENDER_DIST;
@@ -154,11 +161,11 @@ static void map_render(void *, Vec2F const& pos, Vec2F const& scale) {
 
     glUseProgram(tile_program);
     set_uniform("scale", tile_program, glUniform2fv,
-                1, glm::value_ptr(scale));
+                1, glm::value_ptr(tr.scale));
     glBindTexture(GL_TEXTURE_2D, tileset);
 
     for(auto const& chk_pos : render_list) {
-        Vec2F translation = pos + (Vec2F)(chk_pos * ChkPos(CHK_SIZE)) * scale;
+        Vec2F translation = tr.pos + (Vec2F)(chk_pos * ChkPos(CHK_SIZE));
         set_uniform("translation", tile_program, glUniform2fv,
                     1, glm::value_ptr(translation));
 
@@ -172,16 +179,18 @@ static void map_render(void *, Vec2F const& pos, Vec2F const& scale) {
     render_list.clear();
 }
 
-static void light_render(void *, Vec2F const& pos, Vec2F const& scale) {
+static void light_render(U32, Transform const& tr) {
     //@TODO merge with tile render
     //@TODO no caps
+    //@TODO the calculation seems off? (+2.f??)
     U32 RENDER_DIST =
-        glm::ceil(glm::compMax((1.f / ui_elems[ui_world].scale) / (F32)CHK_SIZE));
+        (glm::compMax(rcp(ui_nodes[ui_world].tr.scale) / (F32)CHK_SIZE)) + 2.f;
 
     static DynArr<ChkPos> render_list;
     render_list.reserve(std::pow(2 * RENDER_DIST - 1, 2));
 
-    ChkPos center = to_chk_pos(last_player_pos);
+    Vec2F player_pos = -ui_nodes[ui_camera].tr.pos;
+    ChkPos center = to_chk_pos(player_pos);
     ChkPos iter;
     for(iter.y  = center.y - RENDER_DIST;
         iter.y <= center.y + RENDER_DIST;
@@ -197,9 +206,9 @@ static void light_render(void *, Vec2F const& pos, Vec2F const& scale) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_ZERO, GL_SRC_COLOR);
     set_uniform("scale", light_program, glUniform2fv,
-                1, glm::value_ptr(scale));
+                1, glm::value_ptr(tr.scale));
     for(auto const& chk_pos : render_list) {
-        Vec2F translation = pos + (Vec2F)(chk_pos * ChkPos(CHK_SIZE)) * scale;
+        Vec2F translation = tr.pos + (Vec2F)(chk_pos * ChkPos(CHK_SIZE));
         set_uniform("translation", light_program, glUniform2fv,
                     1, glm::value_ptr(translation));
 

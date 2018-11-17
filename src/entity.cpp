@@ -29,7 +29,7 @@ static gl::IdxBuff     i_buff;
 static gl::VertContext context;
 static gl::VertFmt     vert_fmt;
 
-static void entity_render(void *, Vec2F const&, Vec2F const&);
+static void entity_render(U32, Transform const&);
 
 void entity_init() {
     constexpr Vec2U tile_sz = {8, 8};
@@ -49,16 +49,16 @@ void entity_init() {
     v_buff.init();
     i_buff.init();
     context.init({v_buff}, vert_fmt);
-    ui_entity = new_ui(ui_world, 50);
-    ui_elems[ui_entity].render = &entity_render;
+    ui_entity = ui_create(ui_camera, 50);
+    ui_nodes[ui_entity].render = &entity_render;
 }
 
-static void entity_render(void *, Vec2F const& translation, Vec2F const& scale) {
+static void entity_render(U32, Transform const& tr) {
     glUseProgram(program);
     set_uniform("scale", program, glUniform2fv,
-                1, glm::value_ptr(scale));
+                1, glm::value_ptr(tr.scale));
     set_uniform("translation", program, glUniform2fv,
-                1, glm::value_ptr(translation));
+                1, glm::value_ptr(tr.pos));
 
     static DynArr<U32>  idxs;
     static DynArr<Vert> verts;
@@ -68,8 +68,8 @@ static void entity_render(void *, Vec2F const& translation, Vec2F const& scale) 
     for(auto const& id : entities) {
         if(comps.pos.count(id) > 0 &&
            comps.visible.count(id) > 0) {
-            Vec2F const& pos = Vec2F(comps.pos.at(id));
-            Vec2F const& quad_sz = comps.visible.at(id).quad_sz;
+            Vec2F pos = Vec2F(comps.pos.at(id));
+            Vec2F quad_sz = comps.visible.at(id).quad_sz;
             F32 angle = 0;
             if(comps.orientation.count(id) > 0) {
                 angle = comps.orientation.at(id).angle;
@@ -98,14 +98,16 @@ static void entity_render(void *, Vec2F const& translation, Vec2F const& scale) 
                         name_str = "\\f7" + name_str;
                     }
                     comps.text[id] = {
-                        create_text({0, 0}, {1.f, 1.f}, name_str.c_str(), ui_entity)};
+                        ui_text_create(ui_entity, {{0, 0}, {1.f, 1.f}},
+                                       name_str.c_str())};
                 }
                 UiText* text = ui_texts.at(comps.text.at(id).text);
                 if(text == nullptr) {
                     comps.text.erase(id);
                 } else {
                     //@TODO what if UI was deleted as well?
-                    ui_elems[text->ui].pos = pos - Vec2F(name.size() / 2.f, 2.f);
+                    ui_nodes[text->ui].tr.pos =
+                        pos - Vec2F(name.size() / 2.f, 2.f);
                 }
             }
         }
@@ -148,7 +150,10 @@ void set_net_entity_comps(NetSsTick::EntityComps const& net_comps) {
         if(comps.name.count(id) == 0 ||
            comps.pos.count(id) == 0 ||
            comps.visible.count(id) == 0) {
-            erase_text(it->second.text);
+            auto* text = ui_texts.at(it->second.text);
+            if(text != nullptr && ui_nodes.contains(text->ui)) {
+                ui_erase(text->ui);
+            }
             it = comps.text.erase(it);
         } else ++it;
     }

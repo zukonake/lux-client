@@ -313,6 +313,8 @@ LUX_MAY_FAIL client_tick(GLFWwindow* glfw_window) {
             dir.x = 1.f;
         }
         F32 angle = get_aim_rotation();
+        //this should get replaced by UI world callback that sets the angle
+        //based on the player world position, not the screen center
         //@TODO cs_tick.player_aim_angle = angle;
         if(dir.x != 0.f || dir.y != 0.f) {
             dir = glm::normalize(dir);

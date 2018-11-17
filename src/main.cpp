@@ -21,16 +21,25 @@ struct {
     Vec2U window_size = {800, 600};
 } conf;
 
-void window_resize_cb(GLFWwindow* window, int win_w, int win_h)
+void scroll_cb(GLFWwindow* window, F64, F64 off) {
+    ui_scroll(get_mouse_pos(), off);
+}
+
+void mouse_button_cb(GLFWwindow*, int button, int action, int) {
+    ui_mouse_button(get_mouse_pos(), button, action);
+}
+
+void window_resize_cb(GLFWwindow*, int win_w, int win_h)
 {
-    (void)window;
+    static Vec2U old_sz = conf.window_size;
     LUX_LOG("window size change to %ux%u", win_w, win_h);
     glViewport(0, 0, win_w, win_h);
     console_window_sz_cb({win_w, win_h});
-    ui_window_sz_cb({win_w, win_h});
+    ui_window_sz_cb(old_sz, {win_w, win_h});
+    old_sz = {win_w, win_h};
 }
 
-void key_cb(GLFWwindow* window, int key, int scancode, int action, int mods)
+void key_cb(GLFWwindow*, int key, int scancode, int action, int mods)
 {
     //@CONSIDER a centralized input system
     console_key_cb(key, scancode, action, mods);
@@ -72,12 +81,18 @@ int main(int argc, char** argv) {
     entity_init();
     check_opengl_error();
     glfwSetWindowSizeCallback(glfw_window, window_resize_cb);
+    glfwSetMouseButtonCallback(glfw_window, mouse_button_cb);
+    glfwSetScrollCallback(glfw_window, scroll_cb);
     glfwSetKeyCallback(glfw_window, key_cb);
-    PaneId dbg_pane =
-        create_pane({-100.f, -100.f}, {5.f, 5.f}, {15.f, 2.f}, {1.f, 1.f, 1.f, 0.5f}, ui_hud);
-    TextId coord_txt = create_text({0.f, 0.f}, {1.f, 1.f}, "", ui_panes[dbg_pane].ui);
-    PaneId eq_pane =
-        create_pane({-100.f, -0.f}, {5.f, 5.f}, {20.f, 20.f}, {0.5f, 0.5f, 0.5f, 0.5f}, ui_hud);
+    UiPaneId coord_pane =
+        ui_pane_create(ui_hud, {{-1.f, -1.f}, {0.4f, 0.1f}},
+                       {0.5f, 0.5f, 0.5f, 0.5f});
+    UiTextId coord_txt =
+        ui_text_create(ui_panes[coord_pane].ui,
+                       {{0.f, 0.f}, {0.08f, 0.5f}}, "");
+    UiPaneId eq_pane =
+        ui_pane_create(ui_hud, {{-1.f, 0.f}, {0.8f, 1.f}},
+                       {0.5f, 0.5f, 0.5f, 0.5f});
 
     Vec2<int> win_size;
     glfwGetWindowSize(glfw_window, &win_size.x, &win_size.y);
@@ -101,8 +116,9 @@ int main(int argc, char** argv) {
                         auto const& name = entity_comps.name.at(item);
                         DynStr name_str(name.cbegin(), name.cend());
                         entity_comps.text[item].text =
-                            create_text({0.f, off}, {1.f, 1.f}, name_str.c_str(), ui_panes[eq_pane].ui);
-                        off += 1.f;
+                            ui_text_create(ui_panes[eq_pane].ui,
+                                {{0.f, off}, {0.08f, 0.1f}}, name_str.c_str());
+                        off += 0.1f;
                     }
                 }
             }
@@ -112,8 +128,7 @@ int main(int argc, char** argv) {
             ui_texts[coord_txt].buff.resize(coord_str.size());
             std::memcpy(ui_texts[coord_txt].buff.data(),
                         coord_str.data(), coord_str.size());
-            ui_elems[ui_world].pos = -Vec2F(last_player_pos) *
-                                     ui_elems[ui_world].scale;
+            ui_nodes[ui_camera].tr.pos = -Vec2F(last_player_pos);
             ui_render();
             check_opengl_error();
             glfwSwapBuffers(glfw_window);

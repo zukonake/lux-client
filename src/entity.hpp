@@ -22,7 +22,7 @@ struct EntityComps {
         DynArr<EntityId> items;
     };
     struct Text {
-        TextId text;
+        UiTextId text;
     };
 
     IdMap<EntityId, Pos>         pos;
