@@ -8,9 +8,10 @@
 #include <lux_shared/net/data.hpp>
 
 struct Chunk {
-    Arr<LightLvl, CHK_VOL> light_lvl;
-    Arr<TileId  , CHK_VOL> id;
-    BitArr<CHK_VOL>      wall;
+    Arr<LightLvl, CHK_VOL> light_lvl = {};
+    Arr<TileId  , CHK_VOL> floor;
+    Arr<TileId  , CHK_VOL> wall;
+    Arr<TileId  , CHK_VOL> roof;
 };
 
 extern VecSet<ChkPos> chunk_requests;

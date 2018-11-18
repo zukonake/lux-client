@@ -114,6 +114,7 @@ void VertFmt::init(GLuint program_id,
     for(Uns i = 0; i < defs_len; i++) {
         auto&    attrib = attribs[i];
         auto const& def = attrib_defs[i];
+        //@TODO this might fail if the attrib is optimized away
         attrib.pos  = glGetAttribLocation(program_id, def.ident);
         attrib.num  = def.num;
         attrib.type = def.type;

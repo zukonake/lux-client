@@ -18,13 +18,11 @@
 #include "map.hpp"
 
 UiId ui_map;
-UiId ui_light;
 
-GLuint tile_program;
+GLuint program;
 GLuint tileset;
-GLuint light_program;
 
-struct GeometryMesh {
+struct GridMesh {
 #pragma pack(push, 1)
     struct Vert {
         Vec2<U16> pos;
@@ -34,55 +32,40 @@ struct GeometryMesh {
     gl::IdxBuff  i_buff;
 };
 
-struct MatMesh {
-#pragma pack(push, 1)
-    struct Vert {
-        Vec2F tex_pos;
-    };
-#pragma pack(pop)
-    gl::VertBuff    v_buff;
-    gl::VertContext context;
-};
-
-struct LightMesh {
-#pragma pack(push, 1)
-    struct Vert {
-        //@TODO separate vbo?
-        Vec2<U16> pos;
-        Vec3<U8>  col;
-    };
-#pragma pack(pop)
-    gl::VertBuff    v_buff;
-    gl::IdxBuff     i_buff;
-    gl::VertContext context;
-};
-
-gl::VertFmt tile_vert_fmt;
-gl::VertFmt light_vert_fmt;
+gl::VertFmt vert_fmt;
 
 struct ChunkMesh {
-    MatMesh   mat;
-    LightMesh light;
+#pragma pack(push, 1)
+    struct Vert {
+        Vec3<U8> light;
+        Vec2F    floor_tex;
+        Vec2F    wall_tex;
+        Vec2F    roof_tex;
+    };
+#pragma pack(pop)
+    gl::VertBuff    v_buff;
+    gl::VertContext context;
 };
 
-static GeometryMesh       geometry_mesh;
+static GridMesh           grid_mesh;
 VecMap<ChkPos, Chunk>     chunks;
 VecMap<ChkPos, ChunkMesh> meshes;
 VecSet<ChkPos>            chunk_requests;
 
 static bool try_build_mesh(ChkPos const& pos);
-static void build_mat_mesh(MatMesh& mesh, Chunk const& chunk, ChkPos const& chk_pos);
-static void build_light_mesh(LightMesh& mesh, Chunk const& chunk, ChkPos const& chk_pos);
+static void build_mesh(ChunkMesh& mesh, ChkPos const& chk_pos);
 
 bool map_mouse(U32, Vec2F pos, int, int) {
-    auto& action = cs_tick.actions.emplace_back();
+    /*auto& action = cs_tick.actions.emplace_back();
     action.tag = NetCsTick::Action::BREAK;
     action.target.tag = NetCsTick::Action::Target::POINT;
-    action.target.point = pos;
+    action.target.point = pos;*/
+    glUseProgram(program);
+    set_uniform("cursor_pos", program, glUniform2fv, 1, glm::value_ptr(pos));
     return true;
 }
 
-bool map_scroll(U32, Vec2F pos, F64 off) {
+bool map_scroll(U32, Vec2F, F64 off) {
     auto& world = ui_nodes[ui_world];
     F32 old_ratio = world.tr.scale.x / world.tr.scale.y;
     world.tr.scale.y += off * 0.01f;
@@ -94,33 +77,31 @@ bool map_scroll(U32, Vec2F pos, F64 off) {
 static void map_load_programs() {
     char const* tileset_path = "tileset.png";
     Vec2U const tile_size = {8, 8};
-    tile_program = load_program("glsl/tile.vert", "glsl/tile.frag");
+    program = load_program("glsl/tile.vert", "glsl/tile.frag");
     Vec2U tileset_size;
     tileset = load_texture(tileset_path, tileset_size);
     Vec2F tex_scale = (Vec2F)tile_size / (Vec2F)tileset_size;
 
-    glUseProgram(tile_program);
-    tile_vert_fmt.init(tile_program,
-        {{"pos"    , 2, GL_UNSIGNED_SHORT, false, false},
-         {"tex_pos", 2, GL_FLOAT         , false, true}});
+    glUseProgram(program);
+    vert_fmt.init(program,
+        {{"pos"      , 2, GL_UNSIGNED_SHORT, false, false},
+         {"light"    , 3, GL_UNSIGNED_BYTE , true , true },
+         {"floor_tex", 2, GL_FLOAT         , false, false},
+         {"wall_tex" , 2, GL_FLOAT         , false, false},
+         {"roof_tex" , 2, GL_FLOAT         , false, false}});
 
-    set_uniform("tex_scale", tile_program, glUniform2fv,
+    set_uniform("tex_scale", program, glUniform2fv,
                 1, glm::value_ptr(tex_scale));
-
-    light_program = load_program("glsl/light.vert", "glsl/light.frag");
-    glUseProgram(light_program);
-    light_vert_fmt.init(light_program,
-        {{"pos", 2, GL_UNSIGNED_SHORT, false, false},
-         {"col", 3, GL_UNSIGNED_BYTE , true , false}});
+    //@TODO calc
+    set_uniform("roof_reveal_rad", program, glUniform1f, 16.f);
 }
 
 static void map_render(U32, Transform const&);
-static void light_render(U32, Transform const&);
 
 void map_init() {
     map_load_programs();
 
-    Arr<GeometryMesh::Vert, CHK_VOL * 4> verts;
+    Arr<GridMesh::Vert, CHK_VOL * 4> verts;
     Arr<U32               , CHK_VOL * 6> idxs;
 
     for(ChkIdx i = 0; i < CHK_VOL; ++i) {
@@ -133,30 +114,29 @@ void map_init() {
         }
     }
     gl::VertContext::unbind_all();
-    geometry_mesh.v_buff.init();
-    geometry_mesh.v_buff.bind();
-    geometry_mesh.v_buff.write(CHK_VOL * 4, verts, GL_STATIC_DRAW);
+    grid_mesh.v_buff.init();
+    grid_mesh.v_buff.bind();
+    grid_mesh.v_buff.write(CHK_VOL * 4, verts, GL_STATIC_DRAW);
 
-    geometry_mesh.i_buff.init();
-    geometry_mesh.i_buff.bind();
-    geometry_mesh.i_buff.write(CHK_VOL * 6, idxs, GL_STATIC_DRAW);
+    grid_mesh.i_buff.init();
+    grid_mesh.i_buff.bind();
+    grid_mesh.i_buff.write(CHK_VOL * 6, idxs, GL_STATIC_DRAW);
 
     ui_map = ui_create(ui_camera);
     ui_nodes[ui_map].render = &map_render;
-    ui_nodes[ui_map].mouse = &map_mouse;
+    ui_nodes[ui_map].mouse  = &map_mouse;
     ui_nodes[ui_map].scroll = &map_scroll;
-    ui_light = ui_create(ui_camera, 128);
-    ui_nodes[ui_light].render = &light_render;
 }
 
-static void get_render_list(DynArr<ChkPos>* render_list) {
+static void map_render(U32, Transform const& tr) {
+    static DynArr<ChkPos> render_list;
     //@TODO the calculation seems off? (+2.f??)
     U32 render_dist =
         (glm::compMax(rcp(ui_nodes[ui_world].tr.scale) / (F32)CHK_SIZE)) + 2.f;
 
     Vec2F player_pos = -ui_nodes[ui_camera].tr.pos;
-    render_list->clear();
-    render_list->reserve(std::pow(2 * render_dist - 1, 2));
+    render_list.clear();
+    render_list.reserve(std::pow(2 * render_dist - 1, 2));
 
     ChkPos center = to_chk_pos(player_pos);
     ChkPos iter;
@@ -167,61 +147,34 @@ static void get_render_list(DynArr<ChkPos>* render_list) {
             iter.x <= center.x + render_dist;
             iter.x++) {
             if(meshes.count(iter) > 0 || try_build_mesh(iter)) {
-                render_list->emplace_back(iter);
+                render_list.emplace_back(iter);
             }
         }
     }
 
-}
-
-static void map_render(U32, Transform const& tr) {
-    static DynArr<ChkPos> render_list;
-    get_render_list(&render_list);
-    glUseProgram(tile_program);
-    set_uniform("scale", tile_program, glUniform2fv,
+    glUseProgram(program);
+    set_uniform("scale", program, glUniform2fv,
                 1, glm::value_ptr(tr.scale));
     glBindTexture(GL_TEXTURE_2D, tileset);
 
+    set_uniform("camera_pos", program, glUniform2fv, 1, glm::value_ptr(tr.pos));
     for(auto const& chk_pos : render_list) {
-        Vec2F translation = tr.pos + (Vec2F)(chk_pos * ChkPos(CHK_SIZE));
-        set_uniform("translation", tile_program, glUniform2fv,
-                    1, glm::value_ptr(translation));
+        Vec2F chk_translation = (Vec2F)(chk_pos * ChkPos(CHK_SIZE));
+        set_uniform("chk_pos", program, glUniform2fv, 1,
+            glm::value_ptr(chk_translation));
 
-        MatMesh const& mesh = meshes.at(chk_pos).mat;
+        ChunkMesh const& mesh = meshes.at(chk_pos);
         mesh.context.bind();
-        geometry_mesh.i_buff.bind();
+        grid_mesh.i_buff.bind();
         glDrawElements(GL_TRIANGLES, CHK_VOL * 6, GL_UNSIGNED_INT, 0);
         mesh.context.unbind();
     }
-}
-
-static void light_render(U32, Transform const& tr) {
-    static DynArr<ChkPos> render_list;
-    get_render_list(&render_list);
-    glUseProgram(light_program);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_ZERO, GL_SRC_COLOR);
-    set_uniform("scale", light_program, glUniform2fv,
-                1, glm::value_ptr(tr.scale));
-    for(auto const& chk_pos : render_list) {
-        Vec2F translation = tr.pos + (Vec2F)(chk_pos * ChkPos(CHK_SIZE));
-        set_uniform("translation", light_program, glUniform2fv,
-                    1, glm::value_ptr(translation));
-
-        LightMesh const& mesh = meshes.at(chk_pos).light;
-        mesh.context.bind();
-        mesh.i_buff.bind();
-        glDrawElements(GL_TRIANGLES, CHK_VOL * 6, GL_UNSIGNED_INT, 0);
-        mesh.context.unbind();
-    }
-    glDisable(GL_BLEND);
 }
 
 void map_reload_program() {
     LUX_LOG("reloading map program");
     glDeleteTextures(1, &tileset);
-    glDeleteProgram(tile_program);
-    glDeleteProgram(light_program);
+    glDeleteProgram(program);
     map_load_programs();
 }
 
@@ -240,14 +193,13 @@ static void guarantee_chunk(ChkPos const& pos) {
 void tiles_update(ChkPos const& pos, NetSsSgnl::Tiles::Chunk const& net_chunk) {
     guarantee_chunk(pos);
     Chunk& chunk = chunks.at(pos);
-    std::memcpy(chunk.id, net_chunk.id, sizeof(net_chunk.id));
-    std::memcpy(chunk.wall.raw_data, net_chunk.wall.raw_data,
-                sizeof(net_chunk.wall));
-    std::memset(chunk.light_lvl, 0, sizeof(chunk.light_lvl));
+    std::memcpy(chunk.floor, net_chunk.floor, sizeof(net_chunk.floor));
+    std::memcpy(chunk.wall , net_chunk.wall , sizeof(net_chunk.wall));
+    std::memcpy(chunk.roof , net_chunk.roof , sizeof(net_chunk.roof));
     for(auto const& offset : chebyshev<ChkCoord>) {
         ChkPos off_pos = pos + offset;
         if(is_chunk_loaded(off_pos) && meshes.count(off_pos) > 0) {
-            build_mat_mesh(meshes.at(off_pos).mat, chunks.at(off_pos), off_pos);
+            build_mesh(meshes.at(off_pos), off_pos);
         }
     }
 }
@@ -255,6 +207,7 @@ void tiles_update(ChkPos const& pos, NetSsSgnl::Tiles::Chunk const& net_chunk) {
 void light_update(ChkPos const& pos,
                   NetSsSgnl::Light::Chunk const& net_chunk) {
     if(!is_chunk_loaded(pos)) {
+        //@TODO warn
         LUX_LOG("chunk is not loaded");
         return;
     }
@@ -264,8 +217,7 @@ void light_update(ChkPos const& pos,
     for(auto const& offset : chebyshev<ChkCoord>) {
         ChkPos off_pos = pos + offset;
         if(is_chunk_loaded(off_pos) && meshes.count(off_pos) > 0) {
-            build_light_mesh(meshes.at(off_pos).light,
-                             chunks.at(off_pos), off_pos);
+            build_mesh(meshes.at(off_pos), off_pos);
         }
     }
 }
@@ -286,31 +238,26 @@ static bool try_build_mesh(ChkPos const& pos) {
     if(!can_build) return false;
 
     LUX_ASSERT(meshes.count(pos) == 0);
-    MatMesh& mat_mesh = meshes[pos].mat;
-    mat_mesh.v_buff.init();
-    mat_mesh.context.init({geometry_mesh.v_buff, mat_mesh.v_buff},
-                          tile_vert_fmt);
+    ChunkMesh& mesh = meshes[pos];
+    mesh.v_buff.init();
+    mesh.context.init({grid_mesh.v_buff, mesh.v_buff}, vert_fmt);
 
-    build_mat_mesh(mat_mesh, get_chunk(pos), pos);
-
-    LightMesh& light_mesh = meshes[pos].light;
-    light_mesh.v_buff.init();
-    light_mesh.i_buff.init();
-
-    light_mesh.context.init({light_mesh.v_buff}, light_vert_fmt);
-    build_light_mesh(light_mesh, get_chunk(pos), pos);
+    build_mesh(mesh, pos);
     return true;
 }
 
-static void build_mat_mesh(MatMesh& mesh, Chunk const& chunk, ChkPos const& chk_pos) {
-    Arr<MatMesh::Vert, CHK_VOL * 4> verts;
+static void build_mesh(ChunkMesh& mesh, ChkPos const& chk_pos) {
+    Chunk const& chunk = get_chunk(chk_pos);
+    Arr<ChunkMesh::Vert, CHK_VOL * 4> verts;
 
     for(ChkIdx i = 0; i < CHK_VOL; ++i) {
-        TileBp const& tile_bp = db_tile_bp(chunk.id[i]);
+        TileBp const& floor_bp = db_tile_bp(chunk.floor[i]);
+        TileBp const& wall_bp  = db_tile_bp(chunk.wall[i]);
+        TileBp const& roof_bp  = db_tile_bp(chunk.roof[i]);
         U8 neighbors = 0;
         Vec2F offset = {0, 0};
         Uns random_off = 0;
-        if(tile_bp.connected_tex) {
+        /*if(tile_bp.connected_tex) {
             for(Uns n = 0; n < 4; ++n) {
                 MapPos map_pos = to_map_pos(chk_pos, i) +
                     manhattan_hollow<MapCoord>[n];
@@ -337,26 +284,22 @@ static void build_mat_mesh(MatMesh& mesh, Chunk const& chunk, ChkPos const& chk_
                 case 0b0100: offset = {2, 3}; break;
                 case 0b1000: offset = {3, 3}; break;
             }
-        } else {
+        } else {*/
+            //@TODO random per layer
             random_off = lux_rand(to_map_pos(chk_pos, i));
-        }
+        //}
         constexpr F32 tx_edge = 0.001f;
         for(Uns j = 0; j < 4; ++j) {
             Uns tex_idx = (j + random_off) % 4;
-            verts[i * 4 + j].tex_pos = (Vec2F)tile_bp.tex_pos + offset +
+            Vec2F tex_pos = offset +
                 u_quad<F32>[tex_idx] - glm::sign(quad<F32>[tex_idx]) * tx_edge;
+            verts[i * 4 + j].light = Vec3F(0xFF);
+            verts[i * 4 + j].floor_tex = (Vec2F)floor_bp.tex_pos + tex_pos;
+            verts[i * 4 + j].wall_tex  = (Vec2F)wall_bp.tex_pos + tex_pos;
+            verts[i * 4 + j].roof_tex  = (Vec2F)roof_bp.tex_pos + tex_pos;
         }
     }
-
-    gl::VertContext::unbind_all();
-    mesh.v_buff.bind();
-    mesh.v_buff.write(CHK_VOL * 4, verts, GL_DYNAMIC_DRAW);
-}
-
-static void build_light_mesh(LightMesh& mesh, Chunk const& chunk, ChkPos const& pos) {
-    Arr<LightMesh::Vert, (CHK_SIZE + 1) * (CHK_SIZE + 1)> verts;
-    Arr<U32,  CHK_VOL * 6> idxs;
-
+    /*
     for(ChkIdx i = 0; i < std::pow(CHK_SIZE + 1, 2); ++i) {
         Vec2<U16> rel_pos = {i % (CHK_SIZE + 1), i / (CHK_SIZE + 1)};
         verts[i].pos = rel_pos;
@@ -396,11 +339,8 @@ static void build_light_mesh(LightMesh& mesh, Chunk const& chunk, ChkPos const& 
             }
             ++idx_off;
         }
-    }
+    }*/
     gl::VertContext::unbind_all();
     mesh.v_buff.bind();
-    mesh.v_buff.write(std::pow(CHK_SIZE + 1, 2), verts, GL_DYNAMIC_DRAW);
-
-    mesh.i_buff.bind();
-    mesh.i_buff.write(CHK_VOL * 6, idxs, GL_DYNAMIC_DRAW);
+    mesh.v_buff.write(CHK_VOL * 4, verts, GL_DYNAMIC_DRAW);
 }

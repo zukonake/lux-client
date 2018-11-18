@@ -307,12 +307,12 @@ LUX_MAY_FAIL client_tick(GLFWwindow* glfw_window) {
         } else if(glfwGetKey(glfw_window, GLFW_KEY_S) == GLFW_PRESS) {
             dir.y = 1.f;
         }
+        static F32 angle = 0.f;//get_aim_rotation();
         if(glfwGetKey(glfw_window, GLFW_KEY_A) == GLFW_PRESS) {
-            dir.x = -1.f;
+            angle -= 0.05f;
         } else if(glfwGetKey(glfw_window, GLFW_KEY_D) == GLFW_PRESS) {
-            dir.x = 1.f;
+            angle += 0.05f;
         }
-        F32 angle = get_aim_rotation();
         //this should get replaced by UI world callback that sets the angle
         //based on the player world position, not the screen center
         //@TODO cs_tick.player_aim_angle = angle;
