@@ -16,10 +16,11 @@ void add_tile(TileBp &&tile_bp) {
 void db_init() {
     add_tile({"void", "Void"              , {0, 0}, false});
     add_tile({"stone_floor", "Stone Floor", {1, 0}, false});
-    add_tile({"stone_wall", "Stone Wall"  , {0, 1}, true});
+    add_tile({"stone_wall", "Stone Wall"  , {0, 2}, true});
     add_tile({"raw_stone", "Raw Stone"    , {2, 0}, false});
     add_tile({"dirt", "Dirt"              , {3, 0}, false});
-    add_tile({"gravel", "Gravel"          , {3, 1}, false});
+    add_tile({"grass", "Grass"            , {0, 1}, false});
+    add_tile({"dark_grass", "Dark grass"  , {1, 1}, false});
     entities.push_back({{0, 0}, {1, 1}});
     entities.push_back({{0, 2}, {1, 1}});
     entities.push_back({{1, 0}, {1, 1}});
