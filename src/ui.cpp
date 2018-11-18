@@ -294,15 +294,13 @@ static void text_render(U32 id, Transform const& tr) {
             continue;
         }
         for(Uns i = 0; i < 4; ++i) {
-            constexpr Vec2I quad[4] = {{0, 0}, {0, 1}, {1, 0}, {1, 1}};
             verts[quad_len * 4 + i] = {
-                (tr.pos + (Vec2F)quad[i] + off) * tr.scale,
-                Vec2<U8>(character % 16, character / 16) + (Vec2<U8>)quad[i],
+                (tr.pos + u_quad<F32>[i] + off) * tr.scale,
+                Vec2<U8>(character % 16, character / 16) + u_quad<U8>[i],
                 fg_col, bg_col};
         }
         for(Uns i = 0; i < 6; ++i) {
-            constexpr U32 order[6] = {0, 1, 2, 2, 3, 1};
-            idxs[quad_len * 6 + i] = quad_len * 4 + order[i];
+            idxs[quad_len * 6 + i] = quad_len * 4 + quad_idxs<U32>[i];
         }
         ++quad_len;
         off.x += 1.f;
@@ -416,9 +414,7 @@ static void dbg_shapes_render(U32, Transform const& tr) {
                     idxs.emplace_back(idx + verts.size());
                 }
                 //@TODO rect_points from server
-                constexpr Vec2F quad[4] =
-                    {{-1.f, -1.f}, {1.f, -1.f}, {1.f, 1.f}, {-1.f, 1.f}};
-                for(auto const& vert : quad) {
+                for(auto const& vert : quad<F32>) {
                     ADD_VERT(shape.rect.pos +
                         glm::rotate(vert, shape.rect.angle) * shape.rect.sz);
                 }
@@ -461,9 +457,7 @@ static void dbg_shapes_render(U32, Transform const& tr) {
                 for(auto const& idx : order) {
                     idxs.emplace_back(idx + verts.size());
                 }
-                constexpr Vec2F quad[4] =
-                    {{-1.f, -1.f}, {1.f, -1.f}, {1.f, 1.f}, {-1.f, 1.f}};
-                for(auto const& vert : quad) {
+                for(auto const& vert : quad<F32>) {
                     ADD_VERT(shape.rect.pos +
                         glm::rotate(vert, shape.rect.angle) * shape.rect.sz);
                 }
@@ -510,12 +504,10 @@ static void pane_render(U32 id, Transform const& tr) {
     Arr<U32             , 6> idxs;
     auto& pane = ui_panes[id];
     for(Uns i = 0; i < 4; ++i) {
-        constexpr Vec2F quad[4] = {{0, 0}, {0, 1}, {1, 0}, {1, 1}};
-        verts[i] ={(tr.pos + quad[i]) * tr.scale, pane.bg_col};
+        verts[i] ={(tr.pos + u_quad<F32>[i]) * tr.scale, pane.bg_col};
     }
     for(Uns i = 0; i < 6; ++i) {
-        constexpr U32 order[6] = {0, 1, 2, 2, 3, 1};
-        idxs[i] = order[i];
+        idxs[i] = quad_idxs<U32>[i];
     }
     pane.context.bind();
     pane.v_buff.bind();

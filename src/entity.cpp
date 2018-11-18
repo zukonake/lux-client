@@ -74,18 +74,15 @@ static void entity_render(U32, Transform const& tr) {
             if(comps.orientation.count(id) > 0) {
                 angle = comps.orientation.at(id).angle;
             }
-            for(auto const& idx : {0, 1, 2, 2, 3, 1}) {
+            for(auto const& idx : quad_idxs<U32>) {
                 idxs.emplace_back(verts.size() + idx);
             }
-            Vec2F constexpr quad[] =
-                {{-1.f, -1.f}, {1.f, -1.f}, {-1.f, 1.f}, {1.f, 1.f}};
-            Vec2<U8> constexpr tex_quad[] = {{0, 0}, {1, 0}, {0, 1}, {1, 1}};
             EntitySprite const& sprite =
                 db_entity_sprite(comps.visible.at(id).visible_id);
             for(Uns i = 0; i < 4; ++i) {
                 verts.emplace_back(Vert
-                    {glm::rotate(quad_sz * quad[i], angle) + pos,
-                     tex_quad[i] * sprite.sz + sprite.pos});
+                    {glm::rotate(quad_sz * quad<F32>[i], angle) + pos,
+                     u_quad<U8>[i] * sprite.sz + sprite.pos});
             }
             //@TODO we need to remove when entity is removed
             if(comps.name.count(id) > 0) {
