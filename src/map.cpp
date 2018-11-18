@@ -309,6 +309,7 @@ static void build_mat_mesh(MatMesh& mesh, Chunk const& chunk, ChkPos const& chk_
         TileBp const& tile_bp = db_tile_bp(chunk.id[i]);
         U8 neighbors = 0;
         Vec2F offset = {0, 0};
+        Uns random_off = 0;
         if(tile_bp.connected_tex) {
             for(Uns n = 0; n < 4; ++n) {
                 MapPos map_pos = to_map_pos(chk_pos, i) +
@@ -336,11 +337,14 @@ static void build_mat_mesh(MatMesh& mesh, Chunk const& chunk, ChkPos const& chk_
                 case 0b0100: offset = {2, 3}; break;
                 case 0b1000: offset = {3, 3}; break;
             }
+        } else {
+            random_off = lux_rand(to_map_pos(chk_pos, i));
         }
         constexpr F32 tx_edge = 0.001f;
         for(Uns j = 0; j < 4; ++j) {
+            Uns tex_idx = (j + random_off) % 4;
             verts[i * 4 + j].tex_pos = (Vec2F)tile_bp.tex_pos + offset +
-                u_quad<F32>[j] - glm::sign(quad<F32>[j]) * tx_edge;
+                u_quad<F32>[tex_idx] - glm::sign(quad<F32>[tex_idx]) * tx_edge;
         }
     }
 
