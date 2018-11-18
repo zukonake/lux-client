@@ -126,12 +126,10 @@ void map_init() {
     for(ChkIdx i = 0; i < CHK_VOL; ++i) {
         IdxPos idx_pos = to_idx_pos(i);
         for(Uns j = 0; j < 4; ++j) {
-            constexpr Vec2<U16> quad[4] = {{0, 0}, {1, 0}, {0, 1}, {1, 1}};
-            verts[i * 4 + j].pos = (Vec2<U16>)idx_pos + quad[j];
+            verts[i * 4 + j].pos = (Vec2<U16>)idx_pos + u_quad<U16>[j];
         }
-        U32 constexpr idx_order[6] = {0, 1, 2, 2, 3, 1};
         for(Uns j = 0; j < 6; ++j) {
-            idxs[i * 6 + j] = i * 4 + idx_order[j];
+            idxs[i * 6 + j] = i * 4 + quad_idxs<U32>[j];
         }
     }
     gl::VertContext::unbind_all();
@@ -246,11 +244,7 @@ void tiles_update(ChkPos const& pos, NetSsSgnl::Tiles::Chunk const& net_chunk) {
     std::memcpy(chunk.wall.raw_data, net_chunk.wall.raw_data,
                 sizeof(net_chunk.wall));
     std::memset(chunk.light_lvl, 0, sizeof(chunk.light_lvl));
-    constexpr ChkPos offsets[9] =
-        {{-1, -1}, { 0, -1}, { 1, -1},
-         {-1,  0}, { 0,  0}, { 1,  0},
-         {-1,  1}, { 0,  1}, { 1,  1}};
-    for(auto const& offset : offsets) {
+    for(auto const& offset : chebyshev<ChkCoord>) {
         ChkPos off_pos = pos + offset;
         if(is_chunk_loaded(off_pos) && meshes.count(off_pos) > 0) {
             build_mat_mesh(meshes.at(off_pos).mat, chunks.at(off_pos), off_pos);
@@ -267,13 +261,7 @@ void light_update(ChkPos const& pos,
     Chunk& chunk = chunks.at(pos);
     std::memcpy(chunk.light_lvl, net_chunk.light_lvl,
                 CHK_VOL * sizeof(LightLvl));
-    //@TODO we could probably generalize those "offsets" arrays, for example
-    //moore neighborhood, von neumann neighborhood etc.
-    constexpr ChkPos offsets[9] =
-        {{-1, -1}, { 0, -1}, { 1, -1},
-         {-1,  0}, { 0,  0}, { 1,  0},
-         {-1,  1}, { 0,  1}, { 1,  1}};
-    for(auto const& offset : offsets) {
+    for(auto const& offset : chebyshev<ChkCoord>) {
         ChkPos off_pos = pos + offset;
         if(is_chunk_loaded(off_pos) && meshes.count(off_pos) > 0) {
             build_light_mesh(meshes.at(off_pos).light,
@@ -288,12 +276,8 @@ Chunk const& get_chunk(ChkPos const& pos) {
 }
 
 static bool try_build_mesh(ChkPos const& pos) {
-    constexpr ChkPos offsets[9] =
-        {{-1, -1}, { 0, -1}, { 1, -1},
-         {-1,  0}, { 0,  0}, { 1,  0},
-         {-1,  1}, { 0,  1}, { 1,  1}};
     bool can_build = true;
-    for(auto const& offset : offsets) {
+    for(auto const& offset : chebyshev<ChkCoord>) {
         if(!is_chunk_loaded(pos + offset)) {
             chunk_requests.emplace(pos + offset);
             can_build = false;
@@ -321,20 +305,14 @@ static bool try_build_mesh(ChkPos const& pos) {
 static void build_mat_mesh(MatMesh& mesh, Chunk const& chunk, ChkPos const& chk_pos) {
     Arr<MatMesh::Vert, CHK_VOL * 4> verts;
 
-    constexpr F32 tx_0 = 0.001f;
-    constexpr F32 tx_1 = 0.999f;
-    constexpr Vec2F tex_quad[4] =
-        {{tx_0, tx_0}, {tx_1, tx_0}, {tx_0, tx_1}, {tx_1, tx_1}};
-
     for(ChkIdx i = 0; i < CHK_VOL; ++i) {
         TileBp const& tile_bp = db_tile_bp(chunk.id[i]);
-        constexpr MapPos neighbor_offsets[4] =
-            {{0, -1}, {1, 0}, {0, 1}, {-1, 0}};
         U8 neighbors = 0;
         Vec2F offset = {0, 0};
         if(tile_bp.connected_tex) {
             for(Uns n = 0; n < 4; ++n) {
-                MapPos map_pos = to_map_pos(chk_pos, i) + neighbor_offsets[n];
+                MapPos map_pos = to_map_pos(chk_pos, i) +
+                    manhattan_hollow<MapCoord>[n];
                 if(get_chunk(to_chk_pos(map_pos)).id[to_chk_idx(map_pos)] ==
                    chunk.id[i]) {
                     neighbors |= 1 << n;
@@ -359,9 +337,10 @@ static void build_mat_mesh(MatMesh& mesh, Chunk const& chunk, ChkPos const& chk_
                 case 0b1000: offset = {3, 3}; break;
             }
         }
+        constexpr F32 tx_edge = 0.001f;
         for(Uns j = 0; j < 4; ++j) {
-            verts[i * 4 + j].tex_pos =
-                (Vec2F)tile_bp.tex_pos + offset + tex_quad[j];
+            verts[i * 4 + j].tex_pos = (Vec2F)tile_bp.tex_pos + offset +
+                u_quad<F32>[j] - glm::sign(quad<F32>[j]) * tx_edge;
         }
     }
 
