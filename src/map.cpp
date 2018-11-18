@@ -70,7 +70,7 @@ VecMap<ChkPos, Chunk>     chunks;
 VecMap<ChkPos, ChunkMesh> meshes;
 VecSet<ChkPos>            chunk_requests;
 
-static void try_build_mesh(ChkPos const& pos);
+static bool try_build_mesh(ChkPos const& pos);
 static void build_mat_mesh(MatMesh& mesh, Chunk const& chunk, ChkPos const& chk_pos);
 static void build_light_mesh(LightMesh& mesh, Chunk const& chunk, ChkPos const& chk_pos);
 
@@ -151,27 +151,34 @@ void map_init() {
     ui_nodes[ui_light].render = &light_render;
 }
 
-static void map_render(U32, Transform const& tr) {
-    U32 RENDER_DIST =
+static void get_render_list(DynArr<ChkPos>* render_list) {
+    //@TODO the calculation seems off? (+2.f??)
+    U32 render_dist =
         (glm::compMax(rcp(ui_nodes[ui_world].tr.scale) / (F32)CHK_SIZE)) + 2.f;
 
     Vec2F player_pos = -ui_nodes[ui_camera].tr.pos;
-    static DynArr<ChkPos> render_list;
-    render_list.reserve(std::pow(2 * RENDER_DIST - 1, 2));
+    render_list->clear();
+    render_list->reserve(std::pow(2 * render_dist - 1, 2));
 
     ChkPos center = to_chk_pos(player_pos);
     ChkPos iter;
-    for(iter.y  = center.y - RENDER_DIST;
-        iter.y <= center.y + RENDER_DIST;
+    for(iter.y  = center.y - render_dist;
+        iter.y <= center.y + render_dist;
         iter.y++) {
-        for(iter.x  = center.x - RENDER_DIST;
-            iter.x <= center.x + RENDER_DIST;
+        for(iter.x  = center.x - render_dist;
+            iter.x <= center.x + render_dist;
             iter.x++) {
-            if(meshes.count(iter) > 0) render_list.emplace_back(iter);
-            else try_build_mesh(iter);
+            if(meshes.count(iter) > 0 || try_build_mesh(iter)) {
+                render_list->emplace_back(iter);
+            }
         }
     }
 
+}
+
+static void map_render(U32, Transform const& tr) {
+    static DynArr<ChkPos> render_list;
+    get_render_list(&render_list);
     glUseProgram(tile_program);
     set_uniform("scale", tile_program, glUniform2fv,
                 1, glm::value_ptr(tr.scale));
@@ -188,33 +195,11 @@ static void map_render(U32, Transform const& tr) {
         glDrawElements(GL_TRIANGLES, CHK_VOL * 6, GL_UNSIGNED_INT, 0);
         mesh.context.unbind();
     }
-
-    render_list.clear();
 }
 
 static void light_render(U32, Transform const& tr) {
-    //@TODO merge with tile render
-    //@TODO no caps
-    //@TODO the calculation seems off? (+2.f??)
-    U32 RENDER_DIST =
-        (glm::compMax(rcp(ui_nodes[ui_world].tr.scale) / (F32)CHK_SIZE)) + 2.f;
-
     static DynArr<ChkPos> render_list;
-    render_list.reserve(std::pow(2 * RENDER_DIST - 1, 2));
-
-    Vec2F player_pos = -ui_nodes[ui_camera].tr.pos;
-    ChkPos center = to_chk_pos(player_pos);
-    ChkPos iter;
-    for(iter.y  = center.y - RENDER_DIST;
-        iter.y <= center.y + RENDER_DIST;
-        iter.y++) {
-        for(iter.x  = center.x - RENDER_DIST;
-            iter.x <= center.x + RENDER_DIST;
-            iter.x++) {
-            if(meshes.count(iter) > 0) render_list.emplace_back(iter);
-            else try_build_mesh(iter);
-        }
-    }
+    get_render_list(&render_list);
     glUseProgram(light_program);
     glEnable(GL_BLEND);
     glBlendFunc(GL_ZERO, GL_SRC_COLOR);
@@ -232,8 +217,6 @@ static void light_render(U32, Transform const& tr) {
         mesh.context.unbind();
     }
     glDisable(GL_BLEND);
-
-    render_list.clear();
 }
 
 void map_reload_program() {
@@ -263,8 +246,15 @@ void tiles_update(ChkPos const& pos, NetSsSgnl::Tiles::Chunk const& net_chunk) {
     std::memcpy(chunk.wall.raw_data, net_chunk.wall.raw_data,
                 sizeof(net_chunk.wall));
     std::memset(chunk.light_lvl, 0, sizeof(chunk.light_lvl));
-    if(meshes.count(pos) > 0) {
-        build_mat_mesh(meshes.at(pos).mat, chunk, pos);
+    constexpr ChkPos offsets[9] =
+        {{-1, -1}, { 0, -1}, { 1, -1},
+         {-1,  0}, { 0,  0}, { 1,  0},
+         {-1,  1}, { 0,  1}, { 1,  1}};
+    for(auto const& offset : offsets) {
+        ChkPos off_pos = pos + offset;
+        if(is_chunk_loaded(off_pos) && meshes.count(off_pos) > 0) {
+            build_mat_mesh(meshes.at(off_pos).mat, chunks.at(off_pos), off_pos);
+        }
     }
 }
 
@@ -277,8 +267,18 @@ void light_update(ChkPos const& pos,
     Chunk& chunk = chunks.at(pos);
     std::memcpy(chunk.light_lvl, net_chunk.light_lvl,
                 CHK_VOL * sizeof(LightLvl));
-    if(meshes.count(pos) > 0) {
-        build_light_mesh(meshes.at(pos).light, chunk, pos);
+    //@TODO we could probably generalize those "offsets" arrays, for example
+    //moore neighborhood, von neumann neighborhood etc.
+    constexpr ChkPos offsets[9] =
+        {{-1, -1}, { 0, -1}, { 1, -1},
+         {-1,  0}, { 0,  0}, { 1,  0},
+         {-1,  1}, { 0,  1}, { 1,  1}};
+    for(auto const& offset : offsets) {
+        ChkPos off_pos = pos + offset;
+        if(is_chunk_loaded(off_pos) && meshes.count(off_pos) > 0) {
+            build_light_mesh(meshes.at(off_pos).light,
+                             chunks.at(off_pos), off_pos);
+        }
     }
 }
 
@@ -287,7 +287,7 @@ Chunk const& get_chunk(ChkPos const& pos) {
     return chunks.at(pos);
 }
 
-static void try_build_mesh(ChkPos const& pos) {
+static bool try_build_mesh(ChkPos const& pos) {
     constexpr ChkPos offsets[9] =
         {{-1, -1}, { 0, -1}, { 1, -1},
          {-1,  0}, { 0,  0}, { 1,  0},
@@ -299,8 +299,9 @@ static void try_build_mesh(ChkPos const& pos) {
             can_build = false;
         }
     }
-    if(!can_build) return;
+    if(!can_build) return false;
 
+    LUX_ASSERT(meshes.count(pos) == 0);
     MatMesh& mat_mesh = meshes[pos].mat;
     mat_mesh.v_buff.init();
     mat_mesh.context.init({geometry_mesh.v_buff, mat_mesh.v_buff},
@@ -314,6 +315,7 @@ static void try_build_mesh(ChkPos const& pos) {
 
     light_mesh.context.init({light_mesh.v_buff}, light_vert_fmt);
     build_light_mesh(light_mesh, get_chunk(pos), pos);
+    return true;
 }
 
 static void build_mat_mesh(MatMesh& mesh, Chunk const& chunk, ChkPos const& chk_pos) {
