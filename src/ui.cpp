@@ -475,7 +475,10 @@ static void dbg_shapes_render(U32, Transform const& tr) {
 
     glUseProgram(dbg_shapes_system.program);
     glEnable(GL_BLEND);
+#if defined(LUX_GL_3_3)
+    //@TODO perhaps we should render those as quads?
     glPointSize(DBG_POINT_SIZE);
+#endif
     glLineWidth(DBG_LINE_WIDTH);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     SizeT triangles_sz = idxs.size() - triangles_start;
@@ -495,7 +498,9 @@ static void dbg_shapes_render(U32, Transform const& tr) {
     }
     glDisable(GL_BLEND);
     glLineWidth(1.f);
+#if defined(LUX_GL_3_3)
     glPointSize(1.f);
+#endif
     dbg_shapes_system.context.unbind();
 }
 

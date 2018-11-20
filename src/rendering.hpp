@@ -21,6 +21,7 @@ F32 get_aim_rotation();
 template<typename F, typename... Args>
 void set_uniform(char const* name, GLuint program_id,
                  F const& gl_fun, Args const &...args) {
+    //@TODO optimize, we don't need to retrieve the loc every time
     gl_fun(glGetUniformLocation(program_id, name), args...);
 }
 
@@ -130,7 +131,6 @@ void VertFmt::init(GLuint program_id,
         SizeT attrib_sz;
         switch(attrib.type) {
             case GL_FLOAT:          attrib_sz = sizeof(F32); break;
-            case GL_DOUBLE:         attrib_sz = sizeof(F64); break;
             case GL_BYTE:           attrib_sz = sizeof(I8);  break;
             case GL_UNSIGNED_BYTE:  attrib_sz = sizeof(U8);  break;
             case GL_SHORT:          attrib_sz = sizeof(I16); break;

@@ -9,9 +9,15 @@
 
 struct Chunk {
     Arr<LightLvl, CHK_VOL> light_lvl = {};
-    Arr<TileId  , CHK_VOL> floor;
-    Arr<TileId  , CHK_VOL> wall;
-    Arr<TileId  , CHK_VOL> roof;
+    union {
+        struct {
+            //@TODO interleaved pattern?
+            Arr<TileId, CHK_VOL> floor;
+            Arr<TileId, CHK_VOL> wall;
+            Arr<TileId, CHK_VOL> roof;
+        };
+        Arr<Arr<TileId, CHK_VOL>, 3> layer;
+    };
 };
 
 extern VecSet<ChkPos> chunk_requests;

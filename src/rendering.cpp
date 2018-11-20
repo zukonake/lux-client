@@ -117,11 +117,15 @@ GLuint load_shader(GLenum type, char const* path) {
     GLuint id = glCreateShader(type);
     char constexpr VERSION_DIRECTIVE[] = "#version "
 #if defined(LUX_GL_3_3)
-        "330 core"
+        "330 core\n"
+        "#define IN  in\n"
+        "#define OUT out\n";
 #elif defined(LUX_GLES_2_0)
-        "100"
+        "100\n"
+        "#define IN  attribute\n"
+        "#define OUT varying\n"
+        "precision lowp float;\n";
 #endif
-        "\n";
     constexpr SizeT VERSION_LEN = sizeof(VERSION_DIRECTIVE) - 1;
     char* str;
     {   std::ifstream file(path);
@@ -148,7 +152,7 @@ GLuint load_shader(GLenum type, char const* path) {
             static constexpr SizeT OPENGL_LOG_SIZE = 512;
             char log[OPENGL_LOG_SIZE];
             glGetShaderInfoLog(id, OPENGL_LOG_SIZE, nullptr, log);
-            LUX_FATAL("shader compilation error: \n%s", log);
+            LUX_FATAL("shader %s compilation error: \n%s", path, log);
         }
     }
     return id;
@@ -265,7 +269,7 @@ void VertContext::bind_attribs() const {
 }
 
 void VertContext::unbind_all() {
-#if defined(LUX_GL_3_3)
+#if defined(LUX_GL_VAO)
     glBindVertexArray(0);
 #endif
 }
