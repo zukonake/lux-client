@@ -18,6 +18,8 @@
 #include "map.hpp"
 
 UiId ui_map;
+UiId ui_light;
+UiId ui_roof;
 
 GLuint light_program;
 GLuint tile_program;
@@ -130,6 +132,8 @@ static void map_load_programs() {
 }
 
 static void map_render(U32, Transform const&);
+static void light_render(U32, Transform const&);
+static void roof_render(U32, Transform const&);
 
 void map_init() {
     map_load_programs();
@@ -138,10 +142,16 @@ void map_init() {
     ui_nodes[ui_map].render = &map_render;
     ui_nodes[ui_map].mouse  = &map_mouse;
     ui_nodes[ui_map].scroll = &map_scroll;
+    ui_light = ui_create(ui_camera, 0x80);
+    ui_nodes[ui_light].render = &light_render;
+    ui_roof = ui_create(ui_camera, 0x80);
+    ui_nodes[ui_roof].render = &roof_render;
 }
 
+static DynArr<ChkPos> render_list;
+
 static void map_render(U32, Transform const& tr) {
-    static DynArr<ChkPos> render_list;
+    //@TODO this should happen elsewhere
     //@TODO the calculation seems off? (+2.f??)
     U32 render_dist =
         (glm::compMax(rcp(ui_nodes[ui_world].tr.scale) / (F32)CHK_SIZE)) + 2.f;
@@ -187,13 +197,22 @@ static void map_render(U32, Transform const& tr) {
             mesh.context[i].unbind();
         }
     }
+    glDisable(GL_BLEND);
+}
 
+static void light_render(U32, Transform const& tr) {
+    Vec3F ambient_light =
+        glm::mix(Vec3F(1.f, 1.f, 1.f), Vec3F(0.1f, 0.1f, 0.6f),
+                 std::cos(glfwGetTime() * 0.1f));
+    glEnable(GL_BLEND);
     glBlendFunc(GL_ZERO, GL_SRC_COLOR);
     glUseProgram(light_program);
     set_uniform("scale", light_program, glUniform2fv,
                 1, glm::value_ptr(tr.scale));
     set_uniform("camera_pos", light_program, glUniform2fv,
                 1, glm::value_ptr(tr.pos));
+    set_uniform("ambient_light", light_program, glUniform3fv,
+                1, glm::value_ptr(ambient_light));
     for(auto const& chk_pos : render_list) {
         Vec2F chk_translation = (Vec2F)(chk_pos * ChkPos(CHK_SIZE));
         set_uniform("chk_pos", light_program, glUniform2fv, 1,
@@ -205,16 +224,20 @@ static void map_render(U32, Transform const& tr) {
         glDrawElements(GL_TRIANGLES, CHK_VOL * 6, GL_UNSIGNED_INT, 0);
         mesh.context.unbind();
     }
+    glDisable(GL_BLEND);
+}
 
+static void roof_render(U32, Transform const& tr) {
+    Vec3F ambient_light =
+        glm::mix(Vec3F(1.f, 1.f, 1.f), Vec3F(0.1f, 0.1f, 0.6f),
+                 std::cos(glfwGetTime() * 0.1f));
+    glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glUseProgram(roof_program);
     set_uniform("scale", roof_program, glUniform2fv,
                 1, glm::value_ptr(tr.scale));
     set_uniform("camera_pos", roof_program, glUniform2fv,
                 1, glm::value_ptr(tr.pos));
-    Vec3F ambient_light =
-        glm::mix(Vec3F(1.f, 1.f, 1.f), Vec3F(0.1f, 0.1f, 0.6f),
-                 std::sin(glfwGetTime() * 0.1f));
     set_uniform("ambient_light", roof_program, glUniform3fv,
                 1, glm::value_ptr(ambient_light));
 
