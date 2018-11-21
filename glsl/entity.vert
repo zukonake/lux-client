@@ -1,14 +1,7 @@
-#if   __VERSION__ == 100
-attribute vec2 pos;
-attribute vec2 tex_pos;
+IN vec2 pos;
+IN vec2 tex_pos;
 
-varying vec2 f_tex_pos;
-#elif __VERSION__ == 330
-in vec2 pos;
-in vec2 tex_pos;
-
-varying vec2 f_tex_pos;
-#endif
+OUT vec2 f_tex_pos;
 
 uniform vec2 scale;
 uniform vec2 translation;

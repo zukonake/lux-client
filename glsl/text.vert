@@ -1,22 +1,11 @@
-#if   __VERSION__ == 100
-attribute vec2 pos;
-attribute vec2 font_pos;
-attribute vec4 fg_col;
-attribute vec4 bg_col;
+IN vec2 pos;
+IN vec2 font_pos;
+IN vec4 fg_col;
+IN vec4 bg_col;
 
-varying vec2 f_font_pos;
-varying vec4 f_fg_col;
-varying vec4 f_bg_col;
-#elif __VERSION__ == 330
-in vec2 pos;
-in vec2 font_pos;
-in vec4 fg_col;
-in vec4 bg_col;
-
-out vec2 f_font_pos;
-out vec4 f_fg_col;
-out vec4 f_bg_col;
-#endif
+OUT vec2 f_font_pos;
+OUT vec4 f_fg_col;
+OUT vec4 f_bg_col;
 
 uniform vec2 font_pos_scale;
 

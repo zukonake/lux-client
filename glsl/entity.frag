@@ -1,10 +1,4 @@
-#if __VERSION__ == 100
-precision lowp float;
-
-varying vec2 f_tex_pos;
-#elif __VERSION__ == 330
-in vec2 f_tex_pos;
-#endif
+IN vec2 f_tex_pos;
 
 uniform sampler2D tileset;
 

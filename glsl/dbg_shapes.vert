@@ -1,14 +1,7 @@
-#if   __VERSION__ == 100
-attribute vec2 pos;
-attribute vec4 col;
+IN vec2 pos;
+IN vec4 col;
 
-varying vec4 f_col;
-#elif __VERSION__ == 330
-in vec2 pos;
-in vec4 col;
-
-out vec4 f_col;
-#endif
+OUT vec4 f_col;
 
 void main()
 {

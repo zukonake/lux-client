@@ -1,14 +1,6 @@
-#if __VERSION__ == 100
-precision lowp float;
-
-varying vec2 f_font_pos;
-varying vec4 f_fg_col;
-varying vec4 f_bg_col;
-#elif __VERSION__ == 330
-in vec2 f_font_pos;
-in vec4 f_fg_col;
-in vec4 f_bg_col;
-#endif
+IN vec2 f_font_pos;
+IN vec4 f_fg_col;
+IN vec4 f_bg_col;
 
 uniform sampler2D font;
 
