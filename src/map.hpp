@@ -7,6 +7,9 @@
 #include <lux_shared/map.hpp>
 #include <lux_shared/net/data.hpp>
 
+//@TODO move to shared
+TileId constexpr void_tile = 0;
+
 struct Chunk {
     Arr<LightLvl, CHK_VOL> light_lvl = {};
     union {

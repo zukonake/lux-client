@@ -104,7 +104,7 @@ int main(int argc, char** argv) {
             clock.start();
             glfwPollEvents();
             glClearColor(0, 0, 0, 1);
-            glClear(GL_COLOR_BUFFER_BIT);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             mouse_button_cb(glfw_window, 0, 0, 0);
             if(client_tick(glfw_window) != LUX_OK) {
                 LUX_FATAL("game state corrupted");

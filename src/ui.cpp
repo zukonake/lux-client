@@ -199,8 +199,8 @@ void ui_init() {
         {"pos"     , 2, GL_FLOAT, false, false},
         {"bg_col"  , 4, GL_FLOAT, true , false}});
 
-    dbg_shapes_system.program = load_program("glsl/dbg_shapes.vert",
-                                             "glsl/dbg_shapes.frag");
+    dbg_shapes_system.program = load_program("glsl/color_shape.vert",
+                                             "glsl/color_shape.frag");
     glUseProgram(dbg_shapes_system.program);
     dbg_shapes_system.vert_fmt.init(dbg_shapes_system.program, {
         {"pos", 2, GL_FLOAT, false, false},
@@ -329,8 +329,9 @@ static void dbg_shapes_render(U32, Transform const& tr) {
     idxs.clear();
     Uns lines_start;
     Uns triangles_start;
+    //@TODO replace this?
 #define ADD_VERT(off) \
-        verts.push_back({(tr.pos + off) * tr.scale, shape.col})
+        verts.push_back({off, shape.col});
     for(auto const& shape : ss_tick.dbg_inf.shapes) {
         switch(shape.tag) {
             case NetSsTick::DbgInf::Shape::POINT: {
@@ -474,6 +475,10 @@ static void dbg_shapes_render(U32, Transform const& tr) {
     dbg_shapes_system.i_buff.write(idxs.size(), idxs.data(), GL_DYNAMIC_DRAW);
 
     glUseProgram(dbg_shapes_system.program);
+    set_uniform("scale", dbg_shapes_system.program,
+                glUniform2fv, 1, glm::value_ptr(tr.scale));
+    set_uniform("translation", dbg_shapes_system.program,
+                glUniform2fv, 1, glm::value_ptr(tr.pos));
     glEnable(GL_BLEND);
 #if defined(LUX_GL_3_3)
     //@TODO perhaps we should render those as quads?
@@ -533,12 +538,14 @@ static void ui_render(UiId id, Transform const& tr) {
     if(ui->render != nullptr) {
         (*ui->render)(ui->ext_id, {(ui->tr.pos + tr.pos) / ui->tr.scale,
                       total_scale});
+        ui = ui_nodes.at(id);
     }
     for(auto it = ui->children.begin(); it != ui->children.end();) {
         if(!ui_nodes.contains(*it)) {
             it = ui->children.erase(it);
         } else {
             ui_render(*it, {(ui->tr.pos + tr.pos) / ui->tr.scale, total_scale});
+            ui = ui_nodes.at(id);
             ++it;
         }
     }

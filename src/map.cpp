@@ -20,6 +20,7 @@
 UiId ui_map;
 UiId ui_light;
 UiId ui_roof;
+UiId ui_fov;
 
 GLuint light_program;
 GLuint tile_program;
@@ -28,6 +29,18 @@ GLuint tileset;
 
 gl::VertFmt light_vert_fmt;
 gl::VertFmt tile_vert_fmt[3];
+struct FovSystem {
+#pragma pack(push, 1)
+    struct Vert {
+        Vec3F pos;
+    };
+#pragma pack(pop)
+    GLuint program;
+    gl::VertFmt  vert_fmt;
+    gl::VertBuff v_buff;
+    gl::IdxBuff  i_buff;
+    gl::VertContext context;
+} static fov_system;
 
 struct LightMesh {
 #pragma pack(push, 1)
@@ -95,6 +108,7 @@ static void map_load_programs() {
     tile_program  = load_program("glsl/tile.vert" , "glsl/tile.frag");
     roof_program  = load_program("glsl/roof.vert" , "glsl/roof.frag");
     light_program = load_program("glsl/light.vert", "glsl/light.frag");
+    fov_system.program = load_program("glsl/fov.vert", "glsl/fov.frag");
     Vec2U tileset_size;
     tileset = load_texture(tileset_path, tileset_size);
     Vec2F tex_scale = (Vec2F)tile_size / (Vec2F)tileset_size;
@@ -129,11 +143,19 @@ static void map_load_programs() {
     light_vert_fmt.init(light_program,
         {{"pos"  , 2, GL_UNSIGNED_BYTE, false, false},
          {"light", 3, GL_UNSIGNED_BYTE, true , false}});
+
+    glUseProgram(fov_system.program);
+    fov_system.vert_fmt.init(fov_system.program,
+        {{"pos", 3, GL_FLOAT, false, false}});
+    fov_system.v_buff.init();
+    fov_system.i_buff.init();
+    fov_system.context.init({fov_system.v_buff}, fov_system.vert_fmt);
 }
 
 static void map_render(U32, Transform const&);
 static void light_render(U32, Transform const&);
 static void roof_render(U32, Transform const&);
+static void fov_render(U32, Transform const&);
 
 void map_init() {
     map_load_programs();
@@ -146,6 +168,8 @@ void map_init() {
     ui_nodes[ui_light].render = &light_render;
     ui_roof = ui_create(ui_camera, 0x80);
     ui_nodes[ui_roof].render = &roof_render;
+    ui_fov = ui_create(ui_camera, 0x90);
+    ui_nodes[ui_fov].render = &fov_render;
 }
 
 static DynArr<ChkPos> render_list;
@@ -227,6 +251,71 @@ static void light_render(U32, Transform const& tr) {
     glDisable(GL_BLEND);
 }
 
+static void fov_render(U32, Transform const& tr) {
+    glEnable(GL_BLEND);
+    glEnable(GL_DEPTH_TEST);
+    glBlendFunc(GL_DST_COLOR, GL_ZERO);
+    glUseProgram(fov_system.program);
+    set_uniform("scale", fov_system.program, glUniform2fv,
+                1, glm::value_ptr(tr.scale));
+    set_uniform("translation", fov_system.program, glUniform2fv,
+                1, glm::value_ptr(tr.pos));
+    static DynArr<FovSystem::Vert> verts;
+    static DynArr<U32>             idxs;
+    verts.clear();
+    idxs.clear();
+    F32 constexpr fov_range = 64.f;
+    Vec2F camera_pos = -tr.pos;
+    for(auto const& chk_pos : render_list) {
+        Vec2F chk_off = chk_pos * ChkPos(CHK_SIZE);
+        for(Uns i = 0; i < CHK_VOL; i++) {
+            if(get_chunk(chk_pos).wall[i] != void_tile) {
+                Vec2F idx_pos = to_idx_pos(i);
+                Vec2F map_pos = to_map_pos(chk_pos, i);
+                Vec2I dir = -glm::sign(map_pos - camera_pos);
+                if(dir.x == 0) dir.x = 1;
+                if(dir.y == 0) dir.y = 1;
+                Uns edge_idx;
+                if(dir.x == -1 && dir.y == -1) {
+                    edge_idx = 0;
+                } else if(dir.x == 1 && dir.y == -1) {
+                    edge_idx = 1;
+                } else if(dir.x == 1 && dir.y == 1) {
+                    edge_idx = 2;
+                } else if(dir.x == -1 && dir.y == 1) {
+                    edge_idx = 3;
+                } else LUX_UNREACHABLE();
+                Vec2F edges[3];
+                for(Int j = -1; j <= 1; j++) {
+                    edges[j + 1] = u_quad<F32>[(edge_idx + j) % 4] + map_pos;
+                }
+                for(auto const& idx : {2, 1, 0, 2, 4, 3, 1, 4, 2}) {
+                    idxs.push_back(verts.size() + idx);
+                }
+                if(edges[0] == camera_pos || edges[2] == camera_pos) continue;
+                Vec2F rays[2] = {
+                    glm::normalize(edges[0] - camera_pos) * fov_range,
+                    glm::normalize(edges[2] - camera_pos) * fov_range};
+                verts.push_back({{edges[0], 0.5f}});
+                verts.push_back({{camera_pos + rays[0], 0.5f}});
+                //@TODO modular arithmetic class?
+                verts.push_back({{edges[1], 0.5f}});
+                verts.push_back({{edges[2], 0.5f}});
+                verts.push_back({{camera_pos + rays[1], 0.5f}});
+            }
+        }
+    }
+    fov_system.context.bind();
+    fov_system.v_buff.bind();
+    fov_system.v_buff.write(verts.size(), verts.data(), GL_DYNAMIC_DRAW);
+    fov_system.i_buff.bind();
+    fov_system.i_buff.write(idxs.size(), idxs.data(), GL_DYNAMIC_DRAW);
+    glDrawElements(GL_TRIANGLES, idxs.size(), GL_UNSIGNED_INT, 0);
+    fov_system.context.unbind();
+    glDisable(GL_BLEND);
+    glDisable(GL_DEPTH_TEST);
+}
+
 static void roof_render(U32, Transform const& tr) {
     Vec3F ambient_light =
         glm::mix(Vec3F(1.f, 1.f, 1.f), Vec3F(0.1f, 0.1f, 0.6f),
@@ -258,6 +347,7 @@ static void roof_render(U32, Transform const& tr) {
 }
 
 void map_reload_program() {
+    //@TODO we need to reload attrib locations here
     LUX_LOG("reloading map program");
     glDeleteTextures(1, &tileset);
     glDeleteProgram(tile_program);
