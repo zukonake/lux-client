@@ -6,6 +6,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/component_wise.hpp>
+#include <glm/gtx/rotate_vector.hpp>
 //
 #include <lux_shared/common.hpp>
 #include <lux_shared/map.hpp>
@@ -257,10 +258,23 @@ static void fov_render(U32, Transform const& tr) {
     verts.clear();
     idxs.clear();
     //@TODO just render to unscaled -1 etc.
+    //@CONSIDER making this a vector
     F32 fov_range = ((1.f / glm::compMin(ui_nodes[ui_world].tr.scale)) + 1.f) *
                     std::sqrt(2.f);
-    LUX_LOG("%.2f", fov_range);
     Vec2F camera_pos = -tr.pos;
+    F32 aim_angle = get_aim_rotation();
+    for(auto const& idx : {0, 1, 2, 0, 3, 4, 0, 2, 4}) {
+        idxs.push_back(verts.size() + idx);
+    }
+    verts.push_back({camera_pos});
+    verts.push_back({camera_pos +
+                    glm::rotate(Vec2F(-1.f, -0.1f), aim_angle) * fov_range});
+    verts.push_back({camera_pos +
+                    glm::rotate(Vec2F(-1.f, 1.f), aim_angle) * fov_range});
+    verts.push_back({camera_pos +
+                    glm::rotate(Vec2F( 1.f, -0.1f), aim_angle) * fov_range});
+    verts.push_back({camera_pos +
+                    glm::rotate(Vec2F( 1.f, 1.f), aim_angle) * fov_range});
     for(auto const& chk_pos : render_list) {
         for(Uns i = 0; i < CHK_VOL; i++) {
             if(get_chunk(chk_pos).wall[i] != void_tile) {

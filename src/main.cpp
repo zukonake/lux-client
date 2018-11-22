@@ -85,11 +85,11 @@ int main(int argc, char** argv) {
     glfwSetScrollCallback(glfw_window, scroll_cb);
     glfwSetKeyCallback(glfw_window, key_cb);
     UiPaneId coord_pane =
-        ui_pane_create(ui_hud, {{-1.f, -1.f}, {0.5f, 0.1f}},
+        ui_pane_create(ui_hud, {{-1.f, -1.f}, {0.5f, 0.2f}},
                        {0.5f, 0.5f, 0.5f, 0.5f});
     UiTextId coord_txt =
         ui_text_create(ui_panes[coord_pane].ui,
-                       {{0.f, 0.f}, {0.07f, 0.5f}}, "");
+                       {{0.f, 0.f}, {0.07f, 1.f / 3.f}}, "");
     UiPaneId eq_pane =
         ui_pane_create(ui_hud, {{-1.f, 0.f}, {0.7f, 1.f}},
                        {0.5f, 0.5f, 0.5f, 0.5f});
@@ -125,7 +125,8 @@ int main(int argc, char** argv) {
             }
             DynStr coord_str =
                  "x: " + std::to_string(last_player_pos.x) +
-             "\\\ny: " + std::to_string(last_player_pos.y);
+             "\\\ny: " + std::to_string(last_player_pos.y) +
+             "\\\nt: " + std::to_string(ss_tick.day_cycle);
             ui_texts[coord_txt].buff.resize(coord_str.size());
             std::memcpy(ui_texts[coord_txt].buff.data(),
                         coord_str.data(), coord_str.size());

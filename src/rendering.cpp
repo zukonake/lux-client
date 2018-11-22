@@ -206,7 +206,11 @@ GLuint load_texture(char const* path, Vec2U& size_out) {
 
 F32 get_aim_rotation() {
     Vec2D mouse_pos = get_mouse_pos() * (Vec2D)get_window_size();
-    return std::atan2(-mouse_pos.y, mouse_pos.x) - glm::half_pi<F32>();
+    F32 raw = std::atan2(-mouse_pos.y, mouse_pos.x) - tau / 4.f;
+    raw /= tau;
+    raw  = glm::fract(raw);
+    if(raw > 0.5f) raw = raw - 1.f;
+    return raw * tau;
 }
 
 //@TODO more abstractions + above
