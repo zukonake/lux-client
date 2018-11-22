@@ -32,7 +32,7 @@ gl::VertFmt tile_vert_fmt[3];
 struct FovSystem {
 #pragma pack(push, 1)
     struct Vert {
-        Vec3F pos;
+        Vec2F pos;
     };
 #pragma pack(pop)
     GLuint program;
@@ -146,7 +146,7 @@ static void map_load_programs() {
 
     glUseProgram(fov_system.program);
     fov_system.vert_fmt.init(fov_system.program,
-        {{"pos", 3, GL_FLOAT, false, false}});
+        {{"pos", 2, GL_FLOAT, false, false}});
     fov_system.v_buff.init();
     fov_system.i_buff.init();
     fov_system.context.init({fov_system.v_buff}, fov_system.vert_fmt);
@@ -167,7 +167,7 @@ void map_init() {
     ui_light = ui_create(ui_camera, 0x80);
     ui_nodes[ui_light].render = &light_render;
     ui_roof = ui_create(ui_camera, 0x80);
-    ui_nodes[ui_roof].render = &roof_render;
+    //ui_nodes[ui_roof].render = &roof_render;
     ui_fov = ui_create(ui_camera, 0x90);
     ui_nodes[ui_fov].render = &fov_render;
 }
@@ -252,25 +252,18 @@ static void light_render(U32, Transform const& tr) {
 }
 
 static void fov_render(U32, Transform const& tr) {
-    glEnable(GL_BLEND);
-    glEnable(GL_DEPTH_TEST);
-    glBlendFunc(GL_DST_COLOR, GL_ZERO);
-    glUseProgram(fov_system.program);
-    set_uniform("scale", fov_system.program, glUniform2fv,
-                1, glm::value_ptr(tr.scale));
-    set_uniform("translation", fov_system.program, glUniform2fv,
-                1, glm::value_ptr(tr.pos));
     static DynArr<FovSystem::Vert> verts;
     static DynArr<U32>             idxs;
     verts.clear();
     idxs.clear();
-    F32 constexpr fov_range = 64.f;
+    //@TODO just render to unscaled -1 etc.
+    F32 fov_range = ((1.f / glm::compMin(ui_nodes[ui_world].tr.scale)) + 1.f) *
+                    std::sqrt(2.f);
+    LUX_LOG("%.2f", fov_range);
     Vec2F camera_pos = -tr.pos;
     for(auto const& chk_pos : render_list) {
-        Vec2F chk_off = chk_pos * ChkPos(CHK_SIZE);
         for(Uns i = 0; i < CHK_VOL; i++) {
             if(get_chunk(chk_pos).wall[i] != void_tile) {
-                Vec2F idx_pos = to_idx_pos(i);
                 Vec2F map_pos = to_map_pos(chk_pos, i);
                 Vec2I dir = -glm::sign(map_pos - camera_pos);
                 if(dir.x == 0) dir.x = 1;
@@ -296,20 +289,28 @@ static void fov_render(U32, Transform const& tr) {
                 Vec2F rays[2] = {
                     glm::normalize(edges[0] - camera_pos) * fov_range,
                     glm::normalize(edges[2] - camera_pos) * fov_range};
-                verts.push_back({{edges[0], 0.5f}});
-                verts.push_back({{camera_pos + rays[0], 0.5f}});
+                verts.push_back({edges[0]});
+                verts.push_back({camera_pos + rays[0]});
                 //@TODO modular arithmetic class?
-                verts.push_back({{edges[1], 0.5f}});
-                verts.push_back({{edges[2], 0.5f}});
-                verts.push_back({{camera_pos + rays[1], 0.5f}});
+                verts.push_back({edges[1]});
+                verts.push_back({edges[2]});
+                verts.push_back({camera_pos + rays[1]});
             }
         }
     }
+    glUseProgram(fov_system.program);
+    set_uniform("scale", fov_system.program, glUniform2fv,
+                1, glm::value_ptr(tr.scale));
+    set_uniform("translation", fov_system.program, glUniform2fv,
+                1, glm::value_ptr(tr.pos));
     fov_system.context.bind();
     fov_system.v_buff.bind();
     fov_system.v_buff.write(verts.size(), verts.data(), GL_DYNAMIC_DRAW);
     fov_system.i_buff.bind();
     fov_system.i_buff.write(idxs.size(), idxs.data(), GL_DYNAMIC_DRAW);
+    glEnable(GL_BLEND);
+    glEnable(GL_DEPTH_TEST);
+    glBlendFunc(GL_DST_COLOR, GL_ZERO);
     glDrawElements(GL_TRIANGLES, idxs.size(), GL_UNSIGNED_INT, 0);
     fov_system.context.unbind();
     glDisable(GL_BLEND);
