@@ -226,8 +226,8 @@ static void map_render(U32, Transform const& tr) {
 
 static void light_render(U32, Transform const& tr) {
     Vec3F ambient_light =
-        glm::mix(Vec3F(1.f, 1.f, 1.f), Vec3F(0.1f, 0.1f, 0.6f),
-                 std::cos(glfwGetTime() * 0.1f));
+        glm::mix(Vec3F(0.1f, 0.1f, 0.6f), Vec3F(1.f, 1.f, 0.9f),
+                 (ss_tick.day_cycle + 1.f) / 2.f);
     glEnable(GL_BLEND);
     glBlendFunc(GL_ZERO, GL_SRC_COLOR);
     glUseProgram(light_program);
@@ -319,8 +319,8 @@ static void fov_render(U32, Transform const& tr) {
 
 static void roof_render(U32, Transform const& tr) {
     Vec3F ambient_light =
-        glm::mix(Vec3F(1.f, 1.f, 1.f), Vec3F(0.1f, 0.1f, 0.6f),
-                 std::cos(glfwGetTime() * 0.1f));
+        glm::mix(Vec3F(0.1f, 0.1f, 0.6f), Vec3F(1.f, 1.f, 0.9f),
+                 (ss_tick.day_cycle + 1.f) / 2.f);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glUseProgram(roof_program);
