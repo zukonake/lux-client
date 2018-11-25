@@ -16,6 +16,7 @@
 #include <lux_shared/net/data.hpp>
 #include <lux_shared/net/data.inl>
 #include <lux_shared/net/enet.hpp>
+#include <lux_shared/rasen.hpp>
 //
 #include <map.hpp>
 #include <console.hpp>
@@ -301,28 +302,47 @@ LUX_MAY_FAIL client_tick(GLFWwindow* glfw_window) {
     }
 
     if(!console_is_active()) {
-        Vec2F dir(0.f);
+        enum {
+            NO_DIR,
+            FORWARD,
+            BACKWARD,
+        } dir = NO_DIR;
+        enum {
+            NO_ANGLE,
+            RIGHT,
+            LEFT,
+        } angle = NO_ANGLE;
         if(glfwGetKey(glfw_window, GLFW_KEY_W) == GLFW_PRESS) {
-            dir.y = -1.f;
+            dir = FORWARD;
         } else if(glfwGetKey(glfw_window, GLFW_KEY_S) == GLFW_PRESS) {
-            dir.y = 1.f;
+            dir = BACKWARD;
         }
-        static F32 angle = 0.f;//get_aim_rotation();
         if(glfwGetKey(glfw_window, GLFW_KEY_A) == GLFW_PRESS) {
-            angle -= 0.05f;
+            angle = LEFT;
         } else if(glfwGetKey(glfw_window, GLFW_KEY_D) == GLFW_PRESS) {
-            angle += 0.05f;
+            angle = RIGHT;
         }
-        //this should get replaced by UI world callback that sets the angle
-        //based on the player world position, not the screen center
-        //@TODO cs_tick.player_aim_angle = angle;
-        if(dir.x != 0.f || dir.y != 0.f) {
-            dir = glm::normalize(dir);
-            dir = glm::rotate(dir, angle);
+        if(dir != NO_DIR) {
             auto& action = cs_tick.actions.emplace_back();
-            action.tag = NetCsTick::Action::MOVE;
-            action.target.tag = NetCsTick::Action::Target::DIR;
-            action.target.dir = dir;
+            U8 forward = dir == FORWARD;
+            action.bytecode = {
+                RN_PUSHV(forward       ),
+                RN_LOADV(0xff   , RN_R0),
+                RN_PUSH(RN_R0),
+                RN_XCALL(RN_XC_ENTITY_MOVE),
+                RN_XCALL(RN_XC_HALT),
+            };
+        }
+        if(angle != NO_ANGLE) {
+            auto& action = cs_tick.actions.emplace_back();
+            U8 right = angle == RIGHT;
+            action.bytecode = {
+                RN_PUSHV(right       ),
+                RN_LOADV(0xff , RN_R0),
+                RN_PUSH(RN_R0),
+                RN_XCALL(RN_XC_ENTITY_ROTATE),
+                RN_XCALL(RN_XC_HALT),
+            };
         }
     }
     if(send_net_data(client.peer, &cs_tick, TICK_CHANNEL) != LUX_OK) {

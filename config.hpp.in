@@ -12,8 +12,6 @@
     #error "more than one version of opengl defined"
 #endif
 
-#pragma once
-
 #if defined(LUX_GLES_2_0)
     #define GLFW_INCLUDE_ES2
 #elif defined(LUX_GL_3_3)
