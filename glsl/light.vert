@@ -1,5 +1,5 @@
 IN vec2 pos;
-IN vec3 light;
+IN vec2 lvl;
 
 OUT vec3 f_light;
 
@@ -12,5 +12,5 @@ void main()
 {
     gl_Position = vec4((pos + vec2(0.5, 0.5) + chk_pos + camera_pos) *
                        scale, 0.0, 1.0);
-    f_light = light * ambient_light;
+    f_light = mix(ambient_light * lvl.y, vec3(1.0), lvl.x);
 }

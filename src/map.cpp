@@ -48,7 +48,7 @@ struct LightMesh {
     struct Vert {
         ///this refers to the middle of a tile
         Vec2<U8> pos;
-        Vec3<U8> light;
+        Vec2<U8> lvl;
     };
 #pragma pack(pop)
     gl::VertBuff    v_buff;
@@ -142,8 +142,8 @@ static void map_load_programs() {
 
     glUseProgram(light_program);
     light_vert_fmt.init(light_program,
-        {{"pos"  , 2, GL_UNSIGNED_BYTE, false, false},
-         {"light", 3, GL_UNSIGNED_BYTE, true , false}});
+        {{"pos", 2, GL_UNSIGNED_BYTE, false, false},
+         {"lvl", 2, GL_UNSIGNED_BYTE, true , false}});
 
     glUseProgram(fov_system.program);
     fov_system.vert_fmt.init(fov_system.program,
@@ -227,7 +227,7 @@ static void map_render(U32, Transform const& tr) {
 
 static void light_render(U32, Transform const& tr) {
     Vec3F ambient_light =
-        glm::mix(Vec3F(0.1f, 0.1f, 0.6f), Vec3F(1.f, 1.f, 0.9f),
+        glm::mix(Vec3F(0.025f, 0.025f, 0.6f), Vec3F(1.f, 1.f, 1.0f),
                  (ss_tick.day_cycle + 1.f) / 2.f);
     glEnable(GL_BLEND);
     glBlendFunc(GL_ZERO, GL_SRC_COLOR);
@@ -499,10 +499,9 @@ static void build_light_mesh(LightMesh& mesh, ChkPos const& chk_pos) {
         } else {
             light_lvl = chunk.light_lvl[chk_idx];
         }
-        verts[i].light = (Vec3<U8>)glm::round(
-            Vec3F((light_lvl >> 11) & 0x1F,
-                  (light_lvl >>  6) & 0x1F,
-                  (light_lvl >>  1) & 0x1F) * (255.f / 31.f));
+        verts[i].lvl = (Vec2<U8>)glm::round(
+            Vec2F((light_lvl >> 12) & 0xF,
+                  (light_lvl >>  8) & 0xF) * 17.f);
     }
     Uns idx_off = 0;
     for(ChkIdx i = 0; i < std::pow(CHK_SIZE + 1, 2); ++i) {
@@ -512,10 +511,10 @@ static void build_light_mesh(LightMesh& mesh, ChkPos const& chk_pos) {
                 {0, 1, CHK_SIZE + 1, CHK_SIZE + 1, CHK_SIZE + 2, 1};
             U32 constexpr flipped_idx_order[6] =
                 {0, CHK_SIZE + 1, CHK_SIZE + 2, CHK_SIZE + 2, 1, 0};
-            if(glm::length((Vec3F)verts[i + 1].light) +
-               glm::length((Vec3F)verts[i + CHK_SIZE + 1].light) >
-               glm::length((Vec3F)verts[i + 0].light) +
-               glm::length((Vec3F)verts[i + CHK_SIZE + 2].light)) {
+            if(glm::length((Vec2F)verts[i + 1].lvl) +
+               glm::length((Vec2F)verts[i + CHK_SIZE + 1].lvl) >
+               glm::length((Vec2F)verts[i + 0].lvl) +
+               glm::length((Vec2F)verts[i + CHK_SIZE + 2].lvl)) {
                 for(Uns j = 0; j < 6; ++j) {
                     idxs[idx_off * 6 + j] = i + idx_order[j];
                 }
