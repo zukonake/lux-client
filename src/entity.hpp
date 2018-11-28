@@ -16,7 +16,8 @@ struct EntityComps {
         Vec2F quad_sz;
     };
     struct Orientation {
-        F32 angle; ///in radians
+        Vec2F origin;
+        F32   angle; ///in radians
     };
     struct Container {
         DynArr<EntityId> items;
@@ -30,6 +31,7 @@ struct EntityComps {
     IdMap<EntityId, Visible>     visible;
     IdMap<EntityId, Container>   container;
     IdMap<EntityId, Orientation> orientation;
+    IdMap<EntityId, EntityId>    parent;
     IdMap<EntityId, Text>        text;
 };
 

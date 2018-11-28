@@ -70,10 +70,32 @@ static void entity_render(U32, Transform const& tr) {
            comps.visible.count(id) > 0) {
             Vec2F pos = Vec2F(comps.pos.at(id));
             Vec2F quad_sz = comps.visible.at(id).quad_sz;
-            F32 angle = 0;
+            Vec2F origin = {0.f, 0.f};
+            F32   angle = 0.f;
+            F32   origin_angle = 0.f;
             if(comps.orientation.count(id) > 0) {
-                angle = comps.orientation.at(id).angle;
+                angle  = comps.orientation.at(id).angle;
+                origin = comps.orientation.at(id).origin;
             }
+            EntityId p_id = id;
+            while(comps.parent.count(p_id) > 0) {
+                p_id = comps.parent.at(p_id);
+                F32   parent_angle = 0.f;
+                Vec2F parent_origin = {0.f, 0.f};
+                if(comps.orientation.count(p_id) > 0) {
+                    parent_angle = comps.orientation.at(p_id).angle;
+                    parent_origin = comps.orientation.at(p_id).origin;
+                    angle += parent_angle;
+                    origin_angle += parent_angle;
+                    pos = glm::rotate(pos, parent_angle);
+                    pos += parent_origin;
+                    pos -= glm::rotate(parent_origin, parent_angle);
+                }
+                if(comps.pos.count(p_id) > 0) {
+                    pos += comps.pos.at(p_id);
+                }
+            }
+
             for(auto const& idx : quad_idxs<U32>) {
                 idxs.emplace_back(verts.size() + idx);
             }
@@ -81,7 +103,8 @@ static void entity_render(U32, Transform const& tr) {
                 db_entity_sprite(comps.visible.at(id).visible_id);
             for(Uns i = 0; i < 4; ++i) {
                 verts.emplace_back(Vert
-                    {glm::rotate(quad_sz * quad<F32>[i], angle) + pos,
+                    {glm::rotate((quad_sz * quad<F32>[i]) - origin, angle) +
+                    glm::rotate(origin, origin_angle) + pos,
                      u_quad<U8>[i] * sprite.sz + sprite.pos});
             }
             //@TODO we need to remove when entity is removed
@@ -140,7 +163,11 @@ void set_net_entity_comps(NetSsTick::EntityComps const& net_comps) {
         comps.container[container.first].items = container.second.items;
     }
     for(auto const& orientation : net_comps.orientation) {
-        comps.orientation[orientation.first] = {orientation.second.angle};
+        comps.orientation[orientation.first] =
+            {orientation.second.origin, orientation.second.angle};
+    }
+    for(auto const& parent : net_comps.parent) {
+        comps.parent[parent.first] = parent.second;
     }
     for(auto it = comps.text.begin(); it != comps.text.end();) {
         auto const& id = it->first;
