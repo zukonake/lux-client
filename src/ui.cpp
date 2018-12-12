@@ -34,9 +34,10 @@ static void dbg_shapes_render(U32, Transform const&);
 
 UiId ui_create(UiId parent, U8 priority) {
     UiId id = ui_nodes.emplace();
+    LUX_LOG_DBG("creating UI #%u", id);
     ui_nodes[id].priority = priority;
     LUX_ASSERT(ui_nodes.contains(parent));
-    ui_nodes[parent].children.emplace_back(id);
+    ui_nodes[parent].children.emplace(id);
     std::sort(ui_nodes[parent].children.begin(),
               ui_nodes[parent].children.end(),
               [](UiId const& a, UiId const& b) {
@@ -49,6 +50,7 @@ UiId ui_create(UiId parent, U8 priority) {
 }
 
 void ui_erase(UiId id) {
+    LUX_LOG_DBG("erasing UI #%u", id);
     LUX_ASSERT(ui_nodes.contains(id));
     auto& ui = ui_nodes[id];
     for(UiId child : ui.children) {
@@ -93,7 +95,7 @@ struct TextSystem {
     gl::VertFmt vert_fmt;
 } static text_system;
 
-UiTextId ui_text_create(UiId parent, Transform const& tr, const char* str) {
+UiTextId ui_text_create(UiId parent, Transform const& tr, Str const& str) {
     UiTextId id = ui_texts.emplace();
     auto& text  = ui_texts[id];
     text.ui     = ui_create(parent);
@@ -106,9 +108,7 @@ UiTextId ui_text_create(UiId parent, Transform const& tr, const char* str) {
     ui.tr     = tr;
     ui.ext_id = id;
     ui.fixed_aspect = true;
-    SizeT str_sz = std::strlen(str);
-    text.buff.resize(str_sz);
-    std::memcpy(text.buff.data(), str, str_sz);
+    text.buff = str;
     return id;
 }
 
@@ -212,13 +212,13 @@ void ui_init() {
 
     ui_screen = ui_nodes.emplace();
     ui_nodes[ui_screen].tr.scale = {1.f, -1.f};
-    ui_dbg_shapes = ui_create(ui_world, 0x80);
-    ui_nodes[ui_dbg_shapes].render = &dbg_shapes_render;
     //@TODO calculate (config?)
     ui_world  = ui_create(ui_screen);
     ui_nodes[ui_world].tr.scale = {1.f / 5.f, 1.f / 5.f};
     ui_nodes[ui_world].fixed_aspect = true;
     ui_camera = ui_create(ui_world);
+    ui_dbg_shapes = ui_create(ui_camera, 0x80);
+    ui_nodes[ui_dbg_shapes].render = &dbg_shapes_render;
 
     ui_hud = ui_create(ui_screen);
     ui_nodes[ui_hud].tr.scale = {1.f, 1.f};
@@ -235,8 +235,8 @@ static void text_render(U32 id, Transform const& tr) {
     auto& text = ui_texts[id];
     static DynArr<TextSystem::Vert> verts;
     static DynArr<U32>               idxs;
-    idxs.resize(text.buff.size() * 6);
-    verts.resize(text.buff.size() * 4);
+    idxs.resize(text.buff.len * 6);
+    verts.resize(text.buff.len * 4);
     Vec4<U8> fg_col = {0xFF, 0xFF, 0xFF, 0xFF};
     Vec4<U8> bg_col = {0x00, 0x00, 0x00, 0x00};
     bool fg = false;
@@ -307,9 +307,9 @@ static void text_render(U32 id, Transform const& tr) {
     }
     text.context.bind();
     text.v_buff.bind();
-    text.v_buff.write(quad_len * 4, verts.data(), GL_DYNAMIC_DRAW);
+    text.v_buff.write(quad_len * 4, verts.beg, GL_DYNAMIC_DRAW);
     text.i_buff.bind();
-    text.i_buff.write(quad_len * 6, idxs.data(), GL_DYNAMIC_DRAW);
+    text.i_buff.write(quad_len * 6, idxs.beg, GL_DYNAMIC_DRAW);
 
     glUseProgram(text_system.program);
     glBindTexture(GL_TEXTURE_2D, text_system.font_texture);
@@ -331,24 +331,24 @@ static void dbg_shapes_render(U32, Transform const& tr) {
     Uns triangles_start;
     //@TODO replace this?
 #define ADD_VERT(off) \
-        verts.push_back({off, shape.col});
+        verts.push({off, shape.col});
     for(auto const& shape : ss_tick.dbg_inf.shapes) {
         switch(shape.tag) {
             case NetSsTick::DbgInf::Shape::POINT: {
-                idxs.emplace_back(verts.size());
+                idxs.emplace(verts.len);
                 ADD_VERT(shape.point.pos);
                 break;
             }
             default: break;
         }
     }
-    lines_start = idxs.size();
+    lines_start = idxs.len;
     for(auto const& shape : ss_tick.dbg_inf.shapes) {
         switch(shape.tag) {
             case NetSsTick::DbgInf::Shape::LINE: {
                 constexpr U32 order[] = {0, 1};
                 for(auto const& idx : order) {
-                    idxs.emplace_back(idx + verts.size());
+                    idxs.emplace(idx + verts.len);
                 }
                 ADD_VERT(shape.line.beg);
                 ADD_VERT(shape.line.end);
@@ -358,7 +358,7 @@ static void dbg_shapes_render(U32, Transform const& tr) {
                 if(shape.arrow.beg == shape.arrow.end) break;
                 constexpr U32 order[] = {0, 1, 1, 2, 1, 3};
                 for(auto const& idx : order) {
-                    idxs.emplace_back(idx + verts.size());
+                    idxs.emplace(idx + verts.len);
                 }
                 ADD_VERT(shape.arrow.beg);
                 ADD_VERT(shape.arrow.end);
@@ -372,7 +372,7 @@ static void dbg_shapes_render(U32, Transform const& tr) {
             case NetSsTick::DbgInf::Shape::CROSS: {
                 constexpr U32 order[] = {0, 1, 2, 3};
                 for(auto const& idx : order) {
-                    idxs.emplace_back(idx + verts.size());
+                    idxs.emplace(idx + verts.len);
                 }
                 constexpr Vec2F cross[4] =
                     {{-1.f, -1.f}, {1.f, 1.f}, {1.f, -1.f}, {-1.f, 1.f}};
@@ -386,7 +386,7 @@ static void dbg_shapes_render(U32, Transform const& tr) {
                 constexpr U32 order[] = {0, 1, 1, 2, 2, 3, 3, 4,
                                          4, 5, 5, 6, 6, 7, 7, 0};
                 for(auto const& idx : order) {
-                    idxs.emplace_back(idx + verts.size());
+                    idxs.emplace(idx + verts.len);
                 }
                 constexpr F32 diag = std::sqrt(2.f) / 2.f;
                 constexpr Vec2F octagon[] =
@@ -401,7 +401,7 @@ static void dbg_shapes_render(U32, Transform const& tr) {
                 if(!shape.border) break;
                 constexpr U32 order[] = {0, 1, 1, 2, 2, 0};
                 for(auto const& idx : order) {
-                    idxs.emplace_back(idx + verts.size());
+                    idxs.emplace(idx + verts.len);
                 }
                 for(Uns i = 0; i < 3; ++i) {
                     ADD_VERT(shape.triangle.verts[i]);
@@ -412,7 +412,7 @@ static void dbg_shapes_render(U32, Transform const& tr) {
                 if(!shape.border) break;
                 constexpr U32 order[] = {0, 1, 1, 2, 2, 3, 3, 0};
                 for(auto const& idx : order) {
-                    idxs.emplace_back(idx + verts.size());
+                    idxs.emplace(idx + verts.len);
                 }
                 //@TODO rect_points from server
                 for(auto const& vert : quad<F32>) {
@@ -424,14 +424,14 @@ static void dbg_shapes_render(U32, Transform const& tr) {
             default: break;
         }
     }
-    triangles_start = idxs.size();
+    triangles_start = idxs.len;
     for(auto const& shape : ss_tick.dbg_inf.shapes) {
         switch(shape.tag) {
             case NetSsTick::DbgInf::Shape::SPHERE: {
                 constexpr U32 order[] = {0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 5,
                                          0, 5, 6, 0, 6, 7, 0, 7, 8, 0, 8, 1};
                 for(auto const& idx : order) {
-                    idxs.emplace_back(idx + verts.size());
+                    idxs.emplace(idx + verts.len);
                 }
                 constexpr F32 diag = std::sqrt(2.f) / 2.f;
                 constexpr Vec2F octagon[] = {{0.f, 0.f},
@@ -446,7 +446,7 @@ static void dbg_shapes_render(U32, Transform const& tr) {
                 if(!shape.border) break;
                 constexpr U32 order[] = {0, 1, 2};
                 for(auto const& idx : order) {
-                    idxs.emplace_back(idx + verts.size());
+                    idxs.emplace(idx + verts.len);
                 }
                 for(Uns i = 0; i < 3; ++i) {
                     ADD_VERT(shape.triangle.verts[i]);
@@ -456,7 +456,7 @@ static void dbg_shapes_render(U32, Transform const& tr) {
             case NetSsTick::DbgInf::Shape::RECT: {
                 constexpr U32 order[] = {0, 1, 2, 2, 3, 0};
                 for(auto const& idx : order) {
-                    idxs.emplace_back(idx + verts.size());
+                    idxs.emplace(idx + verts.len);
                 }
                 for(auto const& vert : quad<F32>) {
                     ADD_VERT(shape.rect.pos +
@@ -470,9 +470,9 @@ static void dbg_shapes_render(U32, Transform const& tr) {
 #undef ADD_VERT
     dbg_shapes_system.context.bind();
     dbg_shapes_system.v_buff.bind();
-    dbg_shapes_system.v_buff.write(verts.size(), verts.data(), GL_DYNAMIC_DRAW);
+    dbg_shapes_system.v_buff.write(verts.len, verts.beg, GL_DYNAMIC_DRAW);
     dbg_shapes_system.i_buff.bind();
-    dbg_shapes_system.i_buff.write(idxs.size(), idxs.data(), GL_DYNAMIC_DRAW);
+    dbg_shapes_system.i_buff.write(idxs.len, idxs.beg, GL_DYNAMIC_DRAW);
 
     glUseProgram(dbg_shapes_system.program);
     set_uniform("scale", dbg_shapes_system.program,
@@ -486,7 +486,7 @@ static void dbg_shapes_render(U32, Transform const& tr) {
 #endif
     glLineWidth(DBG_LINE_WIDTH);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    SizeT triangles_sz = idxs.size() - triangles_start;
+    SizeT triangles_sz = idxs.len - triangles_start;
     if(triangles_sz != 0) {
         glDrawElements(GL_TRIANGLES, triangles_sz, GL_UNSIGNED_INT,
                        (void*)(sizeof(U32) * triangles_start));
@@ -540,14 +540,9 @@ static void ui_render(UiId id, Transform const& tr) {
                       total_scale});
         ui = ui_nodes.at(id);
     }
-    for(auto it = ui->children.begin(); it != ui->children.end();) {
-        if(!ui_nodes.contains(*it)) {
-            it = ui->children.erase(it);
-        } else {
-            ui_render(*it, {(ui->tr.pos + tr.pos) / ui->tr.scale, total_scale});
-            ui = ui_nodes.at(id);
-            ++it;
-        }
+    for(auto it = ui->children.begin(); it != ui->children.end(); ++it) {
+        ui_render(*it, {(ui->tr.pos + tr.pos) / ui->tr.scale, total_scale});
+        ui = ui_nodes.at(id);
     }
 }
 
@@ -561,15 +556,10 @@ static bool ui_mouse(UiId id, Transform const& tr, int button,
             return true;
         }
     }
-    for(auto it = ui->children.begin(); it != ui->children.end();) {
-        if(!ui_nodes.contains(*it)) {
-            it = ui->children.erase(it);
-        } else {
-            if(ui_mouse(*it, {(ui->tr.pos + tr.pos) / ui->tr.scale,
-                        total_scale}, action, button)) {
-                return true;
-            }
-            ++it;
+    for(auto it = ui->children.begin(); it != ui->children.end(); ++it) {
+        if(ui_mouse(*it, {(ui->tr.pos + tr.pos) / ui->tr.scale,
+                    total_scale}, action, button)) {
+            return true;
         }
     }
     return false;
@@ -584,16 +574,12 @@ static bool ui_scroll(UiId id, Transform const& tr, F64 off) {
             return true;
         }
     }
-    for(auto it = ui->children.begin(); it != ui->children.end();) {
-        if(!ui_nodes.contains(*it)) {
-            it = ui->children.erase(it);
-        } else {
-            if(ui_scroll(*it, {(ui->tr.pos + tr.pos) / ui->tr.scale,
-                        total_scale}, off)) {
-                return true;
-            }
-            ++it;
+    for(auto it = ui->children.begin(); it != ui->children.end(); ++it) {
+        if(ui_scroll(*it, {(ui->tr.pos + tr.pos) / ui->tr.scale,
+                    total_scale}, off)) {
+            return true;
         }
+        ++it;
     }
     return false;
 }

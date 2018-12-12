@@ -54,6 +54,8 @@ void entity_init() {
 }
 
 static void entity_render(U32, Transform const& tr) {
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glUseProgram(program);
     set_uniform("scale", program, glUniform2fv,
                 1, glm::value_ptr(tr.scale));
@@ -95,31 +97,31 @@ static void entity_render(U32, Transform const& tr) {
                     pos += comps.pos.at(p_id);
                 }
             }
+            Vec2F rot_shift = glm::rotate(origin, angle);
+            add_dbg_arrow({pos, pos + rot_shift}, {0.f, 0.f, 1.f, 1.f});
 
             for(auto const& idx : quad_idxs<U32>) {
-                idxs.emplace_back(verts.size() + idx);
+                idxs.emplace(verts.len + idx);
             }
             EntitySprite const& sprite =
                 db_entity_sprite(comps.visible.at(id).visible_id);
             for(Uns i = 0; i < 4; ++i) {
-                verts.emplace_back(Vert
+                verts.emplace(Vert
                     {glm::rotate((quad_sz * quad<F32>[i]) - origin, angle) +
                     glm::rotate(origin, origin_angle) + pos,
                      u_quad<U8>[i] * sprite.sz + sprite.pos});
+            }
+            if(comps.text.count(id) > 0 && comps.name.count(id) == 0) {
+                ui_erase(comps.text.at(id).text);
+                comps.text.erase(id);
             }
             //@TODO we need to remove when entity is removed
             if(comps.name.count(id) > 0) {
                 auto const& name = comps.name.at(id);
                 if(comps.text.count(id) == 0) {
-                    DynStr name_str(name.cbegin(), name.cend());
-                    if(id == ss_tick.player_id) {
-                        name_str = "\\f2" + name_str;
-                    } else {
-                        name_str = "\\f7" + name_str;
-                    }
                     comps.text[id] = {
                         ui_text_create(ui_entity, {{0, 0}, {1.f, 1.f}},
-                                       name_str.c_str())};
+                                       name)};
                 }
                 UiText* text = ui_texts.at(comps.text.at(id).text);
                 if(text == nullptr) {
@@ -127,7 +129,7 @@ static void entity_render(U32, Transform const& tr) {
                 } else {
                     //@TODO what if UI was deleted as well?
                     ui_nodes[text->ui].tr.pos =
-                        pos - Vec2F(name.size() / 2.f, 2.f);
+                        pos - Vec2F(name.len / 2.f, 2.f);
                 }
             }
         }
@@ -135,13 +137,14 @@ static void entity_render(U32, Transform const& tr) {
 
     context.bind();
     v_buff.bind();
-    v_buff.write(verts.size(), verts.data(), GL_DYNAMIC_DRAW);
+    v_buff.write(verts.len, verts.beg, GL_DYNAMIC_DRAW);
     i_buff.bind();
-    i_buff.write(idxs.size(), idxs.data(), GL_DYNAMIC_DRAW);
+    i_buff.write(idxs.len, idxs.beg, GL_DYNAMIC_DRAW);
 
     glBindTexture(GL_TEXTURE_2D, tileset);
-    glDrawElements(GL_TRIANGLES, idxs.size(), GL_UNSIGNED_INT, 0);
+    glDrawElements(GL_TRIANGLES, idxs.len, GL_UNSIGNED_INT, 0);
     context.unbind();
+    glDisable(GL_BLEND);
 }
 
 void set_net_entity_comps(NetSsTick::EntityComps const& net_comps) {
@@ -168,17 +171,5 @@ void set_net_entity_comps(NetSsTick::EntityComps const& net_comps) {
     }
     for(auto const& parent : net_comps.parent) {
         comps.parent[parent.first] = parent.second;
-    }
-    for(auto it = comps.text.begin(); it != comps.text.end();) {
-        auto const& id = it->first;
-        if(comps.name.count(id) == 0 ||
-           comps.pos.count(id) == 0 ||
-           comps.visible.count(id) == 0) {
-            auto* text = ui_texts.at(it->second.text);
-            if(text != nullptr && ui_nodes.contains(text->ui)) {
-                ui_erase(text->ui);
-            }
-            it = comps.text.erase(it);
-        } else ++it;
     }
 }

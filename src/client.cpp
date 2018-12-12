@@ -19,7 +19,6 @@
 #include <lux_shared/rasen.hpp>
 //
 #include <map.hpp>
-#include <console.hpp>
 #include <rendering.hpp>
 #include <entity.hpp>
 #include "client.hpp"
@@ -28,8 +27,8 @@ struct {
     ENetHost* host;
     ENetPeer* peer;
 
-    DynStr server_name  = "unnamed";
-    bool   should_close = false;
+    StrBuff server_name  = "unnamed"_l;
+    bool    should_close = false;
     VecSet<ChkPos> sent_requests;
 } static client;
 
@@ -51,8 +50,8 @@ bool client_should_close() {
     return client.should_close;
 }
 
-static void get_user_name(U8* buff) {
-    constexpr U8 unknown[] = "unknown";
+static void get_user_name(char* buff) {
+    constexpr char unknown[] = "unknown";
     static_assert(sizeof(unknown) - 1 <= CLIENT_NAME_LEN);
     std::memset(buff, 0, CLIENT_NAME_LEN);
 #if defined(__unix__)
@@ -206,11 +205,11 @@ LUX_MAY_FAIL static connect_to_server(char const* hostname, U16 port) {
             LUX_RETHROW(deserialize_packet(in_pack, &ss_init),
                 "failed to receive init packet");
 
-            client.server_name = DynStr((char const*)ss_init.name);
+            client.server_name = (Str)ss_init.name;
             tick_rate = ss_init.tick_rate;
         }
-        LUX_LOG("successfully connected to server %s",
-                client.server_name.c_str());
+        LUX_LOG("successfully connected to server \"%.*s\"",
+                (int)client.server_name.len, client.server_name.beg);
         LUX_LOG("tick rate %2.f", tick_rate);
     }
     return LUX_OK;
@@ -226,7 +225,7 @@ LUX_MAY_FAIL static handle_tick(ENetPacket* in_pack) {
     }
     entities.clear();
     for(auto const& id : ss_tick.entities) {
-        entities.emplace_back(id);
+        entities.emplace(id);
     }
     set_net_entity_comps(ss_tick.entity_comps);
     return LUX_OK;
@@ -249,7 +248,7 @@ LUX_MAY_FAIL static handle_signal(ENetPacket* in_pack) {
                 }
             } break;
             case NetSsSgnl::MSG: {
-                console_print(ss_sgnl.msg.contents.data());
+                //@TODO console_print(ss_sgnl.msg.contents.data());
             } break;
             default: LUX_UNREACHABLE();
         }
@@ -301,7 +300,7 @@ LUX_MAY_FAIL client_tick(GLFWwindow* glfw_window) {
         }
     }
 
-    if(!console_is_active()) {
+    //@TODO if(!console_is_active()) {
         enum {
             NO_DIR,
             FORWARD,
@@ -322,29 +321,30 @@ LUX_MAY_FAIL client_tick(GLFWwindow* glfw_window) {
         } else if(glfwGetKey(glfw_window, GLFW_KEY_D) == GLFW_PRESS) {
             angle = RIGHT;
         }
+        /*
         if(dir != NO_DIR) {
-            auto& action = cs_tick.actions.emplace_back();
+            auto& action = cs_tick.actions.emplace();
             U8 forward = dir == FORWARD;
             action.bytecode = {
-                RN_PUSHV(forward       ),
-                RN_LOADV(0xff   , RN_R0),
-                RN_PUSH(RN_R0),
+                RN_PUSHV(forward),
+                RN_LOADV(0xff, RN_R0),
+                RN_PUSH (RN_R0),
                 RN_XCALL(RN_XC_ENTITY_MOVE),
                 RN_XCALL(RN_XC_HALT),
             };
         }
         if(angle != NO_ANGLE) {
-            auto& action = cs_tick.actions.emplace_back();
+            auto& action = cs_tick.actions.emplace();
             U8 right = angle == RIGHT;
             action.bytecode = {
-                RN_PUSHV(right       ),
-                RN_LOADV(0xff , RN_R0),
-                RN_PUSH(RN_R0),
+                RN_PUSHV(right),
+                RN_LOADV(0xff, RN_R0),
+                RN_PUSH (RN_R0),
                 RN_XCALL(RN_XC_ENTITY_ROTATE),
                 RN_XCALL(RN_XC_HALT),
             };
-        }
-    }
+        }*/
+    //}
     if(send_net_data(client.peer, &cs_tick, TICK_CHANNEL) != LUX_OK) {
         LUX_LOG("failed to send tick");
     }
@@ -367,4 +367,53 @@ LUX_MAY_FAIL send_command(char const* beg) {
             "failed to send command");
     }
     return LUX_OK;
+}
+
+void add_dbg_point(NetSsTick::DbgInf::Shape::Point const& val,
+                   Vec4F col, bool border) {
+    ss_tick.dbg_inf.shapes.emplace(NetSsTick::DbgInf::Shape{
+        .tag = NetSsTick::DbgInf::Shape::POINT, .point = val,
+        .col = col, .border = border});
+}
+
+void add_dbg_line(NetSsTick::DbgInf::Shape::Line const& val,
+                   Vec4F col, bool border) {
+    ss_tick.dbg_inf.shapes.emplace(NetSsTick::DbgInf::Shape{
+        .tag = NetSsTick::DbgInf::Shape::LINE, .line = val,
+        .col = col, .border = border});
+}
+
+void add_dbg_arrow(NetSsTick::DbgInf::Shape::Arrow const& val,
+                   Vec4F col, bool border) {
+    ss_tick.dbg_inf.shapes.emplace(NetSsTick::DbgInf::Shape{
+        .tag = NetSsTick::DbgInf::Shape::ARROW, .arrow = val,
+        .col = col, .border = border});
+}
+
+void add_dbg_cross(NetSsTick::DbgInf::Shape::Cross const& val,
+                   Vec4F col, bool border) {
+    ss_tick.dbg_inf.shapes.emplace(NetSsTick::DbgInf::Shape{
+        .tag = NetSsTick::DbgInf::Shape::CROSS, .cross = val,
+        .col = col, .border = border});
+}
+
+void add_dbg_sphere(NetSsTick::DbgInf::Shape::Sphere const& val,
+                   Vec4F col, bool border) {
+    ss_tick.dbg_inf.shapes.emplace(NetSsTick::DbgInf::Shape{
+        .tag = NetSsTick::DbgInf::Shape::SPHERE, .sphere = val,
+        .col = col, .border = border});
+}
+
+void add_dbg_triangle(NetSsTick::DbgInf::Shape::Triangle const& val,
+                   Vec4F col, bool border) {
+    ss_tick.dbg_inf.shapes.emplace(NetSsTick::DbgInf::Shape{
+        .tag = NetSsTick::DbgInf::Shape::TRIANGLE, .triangle = val,
+        .col = col, .border = border});
+}
+
+void add_dbg_rect(NetSsTick::DbgInf::Shape::Rect const& val,
+                   Vec4F col, bool border) {
+    ss_tick.dbg_inf.shapes.emplace(NetSsTick::DbgInf::Shape{
+        .tag = NetSsTick::DbgInf::Shape::RECT, .rect = val,
+        .col = col, .border = border});
 }

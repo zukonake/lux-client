@@ -11,7 +11,6 @@
 //
 #include <db.hpp>
 #include <map.hpp>
-#include <console.hpp>
 #include <rendering.hpp>
 #include <client.hpp>
 #include <entity.hpp>
@@ -34,7 +33,6 @@ void window_resize_cb(GLFWwindow*, int win_w, int win_h)
     static Vec2U old_sz = {1.f, 1.f};
     LUX_LOG("window size change to %ux%u", win_w, win_h);
     glViewport(0, 0, win_w, win_h);
-    console_window_sz_cb({win_w, win_h});
     ui_window_sz_cb(old_sz, {win_w, win_h});
     old_sz = {win_w, win_h};
 }
@@ -42,7 +40,6 @@ void window_resize_cb(GLFWwindow*, int win_w, int win_h)
 void key_cb(GLFWwindow*, int key, int scancode, int action, int mods)
 {
     //@CONSIDER a centralized input system
-    console_key_cb(key, scancode, action, mods);
 }
 
 int main(int argc, char** argv) {
@@ -76,8 +73,6 @@ int main(int argc, char** argv) {
     LUX_DEFER { rendering_deinit(); };
     ui_init();
     map_init();
-    console_init();
-    LUX_DEFER { console_deinit(); };
     entity_init();
     check_opengl_error();
     glfwSetWindowSizeCallback(glfw_window, window_resize_cb);
@@ -89,7 +84,7 @@ int main(int argc, char** argv) {
                        {0.5f, 0.5f, 0.5f, 0.5f});
     UiTextId coord_txt =
         ui_text_create(ui_panes[coord_pane].ui,
-                       {{0.f, 0.f}, {0.07f, 1.f / 3.f}}, "");
+                       {{0.f, 0.f}, {0.07f, 1.f / 3.f}}, ""_l);
     UiPaneId eq_pane =
         ui_pane_create(ui_hud, {{-1.f, 0.f}, {0.7f, 1.f}},
                        {0.5f, 0.5f, 0.5f, 0.5f});
@@ -115,21 +110,18 @@ int main(int argc, char** argv) {
                     if(entity_comps.name.count(item) > 0 &&
                        entity_comps.text.count(item) == 0) {
                         auto const& name = entity_comps.name.at(item);
-                        DynStr name_str(name.cbegin(), name.cend());
                         entity_comps.text[item].text =
                             ui_text_create(ui_panes[eq_pane].ui,
-                                {{0.f, off}, {0.08f, 0.1f}}, name_str.c_str());
+                                {{0.f, off}, {0.08f, 0.1f}}, name);
                         off += 0.1f;
                     }
                 }
             }
-            DynStr coord_str =
-                 "x: " + std::to_string(last_player_pos.x) +
+            DynStr coord_str = "unimplemented"_l;
+                 /*"x: " + std::to_string(last_player_pos.x) +
              "\\\ny: " + std::to_string(last_player_pos.y) +
-             "\\\nt: " + std::to_string(ss_tick.day_cycle);
-            ui_texts[coord_txt].buff.resize(coord_str.size());
-            std::memcpy(ui_texts[coord_txt].buff.data(),
-                        coord_str.data(), coord_str.size());
+             "\\\nt: " + std::to_string(ss_tick.day_cycle);*/
+            ui_texts[coord_txt].buff = coord_str;
             ui_nodes[ui_camera].tr.pos = -Vec2F(last_player_pos);
             ui_render();
             check_opengl_error();

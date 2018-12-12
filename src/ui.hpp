@@ -41,7 +41,7 @@ extern UiId ui_hud;
 
 struct UiText {
     UiId ui;
-    DynArr<char> buff;
+    StrBuff buff;
 
     gl::VertBuff    v_buff;
     gl::IdxBuff     i_buff;
@@ -60,7 +60,7 @@ struct UiPane {
 UiId ui_create(UiId parent, U8 priority = 0);
 void ui_erase(UiId handle);
 
-UiTextId ui_text_create(UiId parent, Transform const& tr, const char* str);
+UiTextId ui_text_create(UiId parent, Transform const& tr, Str const& str);
 UiPaneId ui_pane_create(UiId parent, Transform const& tr, Vec4F const& bg_col);
 
 void ui_window_sz_cb(Vec2U const& old_window_sz, Vec2U const& window_sz);

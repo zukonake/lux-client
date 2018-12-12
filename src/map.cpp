@@ -169,7 +169,7 @@ void map_init() {
     ui_nodes[ui_light].render = &light_render;
     ui_roof = ui_create(ui_camera, 0x80);
     //ui_nodes[ui_roof].render = &roof_render;
-    ui_fov = ui_create(ui_camera, 0x90);
+    ui_fov = ui_create(ui_camera, 0x70);
     ui_nodes[ui_fov].render = &fov_render;
 }
 
@@ -183,7 +183,7 @@ static void map_render(U32, Transform const& tr) {
 
     Vec2F player_pos = -ui_nodes[ui_camera].tr.pos;
     render_list.clear();
-    render_list.reserve(std::pow(2 * render_dist - 1, 2));
+    render_list.reserve_at_least(std::pow(2 * render_dist - 1, 2));
 
     ChkPos center = to_chk_pos(player_pos);
     ChkPos iter;
@@ -194,7 +194,7 @@ static void map_render(U32, Transform const& tr) {
             iter.x <= center.x + render_dist;
             iter.x++) {
             if(meshes.count(iter) > 0 || try_build_mesh(iter)) {
-                render_list.emplace_back(iter);
+                render_list.emplace(iter);
             }
         }
     }
@@ -264,16 +264,16 @@ static void fov_render(U32, Transform const& tr) {
     Vec2F camera_pos = -tr.pos;
     F32 aim_angle = get_aim_rotation();
     for(auto const& idx : {0, 1, 2, 0, 3, 4, 0, 2, 4}) {
-        idxs.push_back(verts.size() + idx);
+        idxs.push(verts.len + idx);
     }
-    verts.push_back({camera_pos});
-    verts.push_back({camera_pos +
+    verts.push({camera_pos});
+    verts.push({camera_pos +
                     glm::rotate(Vec2F(-1.f, -0.1f), aim_angle) * fov_range});
-    verts.push_back({camera_pos +
+    verts.push({camera_pos +
                     glm::rotate(Vec2F(-1.f, 1.f), aim_angle) * fov_range});
-    verts.push_back({camera_pos +
+    verts.push({camera_pos +
                     glm::rotate(Vec2F( 1.f, -0.1f), aim_angle) * fov_range});
-    verts.push_back({camera_pos +
+    verts.push({camera_pos +
                     glm::rotate(Vec2F( 1.f, 1.f), aim_angle) * fov_range});
     for(auto const& chk_pos : render_list) {
         for(Uns i = 0; i < CHK_VOL; i++) {
@@ -297,18 +297,18 @@ static void fov_render(U32, Transform const& tr) {
                     edges[j + 1] = u_quad<F32>[(edge_idx + j) % 4] + map_pos;
                 }
                 for(auto const& idx : {2, 1, 0, 2, 4, 3, 1, 4, 2}) {
-                    idxs.push_back(verts.size() + idx);
+                    idxs.push(verts.len + idx);
                 }
                 if(edges[0] == camera_pos || edges[2] == camera_pos) continue;
                 Vec2F rays[2] = {
                     glm::normalize(edges[0] - camera_pos) * fov_range,
                     glm::normalize(edges[2] - camera_pos) * fov_range};
-                verts.push_back({edges[0]});
-                verts.push_back({camera_pos + rays[0]});
+                verts.push({edges[0]});
+                verts.push({camera_pos + rays[0]});
                 //@TODO modular arithmetic class?
-                verts.push_back({edges[1]});
-                verts.push_back({edges[2]});
-                verts.push_back({camera_pos + rays[1]});
+                verts.push({edges[1]});
+                verts.push({edges[2]});
+                verts.push({camera_pos + rays[1]});
             }
         }
     }
@@ -319,13 +319,13 @@ static void fov_render(U32, Transform const& tr) {
                 1, glm::value_ptr(tr.pos));
     fov_system.context.bind();
     fov_system.v_buff.bind();
-    fov_system.v_buff.write(verts.size(), verts.data(), GL_DYNAMIC_DRAW);
+    fov_system.v_buff.write(verts.len, verts.beg, GL_DYNAMIC_DRAW);
     fov_system.i_buff.bind();
-    fov_system.i_buff.write(idxs.size(), idxs.data(), GL_DYNAMIC_DRAW);
+    fov_system.i_buff.write(idxs.len, idxs.beg, GL_DYNAMIC_DRAW);
     glEnable(GL_BLEND);
     glEnable(GL_DEPTH_TEST);
     glBlendFunc(GL_DST_COLOR, GL_ZERO);
-    glDrawElements(GL_TRIANGLES, idxs.size(), GL_UNSIGNED_INT, 0);
+    glDrawElements(GL_TRIANGLES, idxs.len, GL_UNSIGNED_INT, 0);
     fov_system.context.unbind();
     glDisable(GL_BLEND);
     glDisable(GL_DEPTH_TEST);
