@@ -1,4 +1,4 @@
-IN vec2 f_tex_pos;
+in vec2 f_tex_pos;
 
 uniform sampler2D tileset;
 

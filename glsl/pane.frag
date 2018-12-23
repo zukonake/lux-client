@@ -1,4 +1,4 @@
-IN vec4 f_bg_col;
+in vec4 f_bg_col;
 
 void main()
 {

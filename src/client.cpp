@@ -16,7 +16,6 @@
 #include <lux_shared/net/data.hpp>
 #include <lux_shared/net/data.inl>
 #include <lux_shared/net/enet.hpp>
-#include <lux_shared/rasen.hpp>
 //
 #include <map.hpp>
 #include <rendering.hpp>
@@ -207,11 +206,34 @@ LUX_MAY_FAIL static connect_to_server(char const* hostname, U16 port) {
 
             client.server_name = (Str)ss_init.name;
             tick_rate = ss_init.tick_rate;
+            for(auto const& label : ss_init.rasen_labels) {
+                LUX_RETHROW(ui_add_rasen_label(label));
+            }
         }
         LUX_LOG("successfully connected to server \"%.*s\"",
                 (int)client.server_name.len, client.server_name.beg);
         LUX_LOG("tick rate %2.f", tick_rate);
     }
+
+    if(ui_has_rasen_label("entity_move"_l)) {
+        Arr<U8, 2> stack = {1, 0};
+        ui_add_continuous_binding("entity_move"_l, GLFW_KEY_W, stack);
+        stack[0] = -1;
+        ui_add_continuous_binding("entity_move"_l, GLFW_KEY_S, stack);
+    } else {
+        LUX_LOG_WARN("no \"entity_move\" label loaded, couldn't create default "
+            "key bindings");
+    }
+    if(ui_has_rasen_label("entity_rotate"_l)) {
+        Arr<U8, 1> stack = {1};
+        ui_add_continuous_binding("entity_rotate"_l, GLFW_KEY_D, stack);
+        stack[0] = -1;
+        ui_add_continuous_binding("entity_rotate"_l, GLFW_KEY_A, stack);
+    } else {
+        LUX_LOG_WARN("no \"entity_rotate\" label loaded, couldn't create "
+            "default key bindings");
+    }
+
     return LUX_OK;
 }
 
@@ -249,6 +271,9 @@ LUX_MAY_FAIL static handle_signal(ENetPacket* in_pack) {
             } break;
             case NetSsSgnl::MSG: {
                 //@TODO console_print(ss_sgnl.msg.contents.data());
+            } break;
+            case NetSsSgnl::RASEN_LABEL: {
+                ui_add_rasen_label(ss_sgnl.rasen_label);
             } break;
             default: LUX_UNREACHABLE();
         }
@@ -367,6 +392,13 @@ LUX_MAY_FAIL send_command(char const* beg) {
             "failed to send command");
     }
     return LUX_OK;
+}
+
+LUX_MAY_FAIL client_send_assembly(Str const& label, Str const& contents) {
+    cs_sgnl.tag = NetCsSgnl::RASEN_ASM;
+    cs_sgnl.rasen_asm.str_id   = label;
+    cs_sgnl.rasen_asm.contents = contents;
+    return send_net_data(client.peer, &cs_sgnl, SIGNAL_CHANNEL);
 }
 
 void add_dbg_point(NetSsTick::DbgInf::Shape::Point const& val,

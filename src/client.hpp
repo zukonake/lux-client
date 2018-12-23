@@ -20,6 +20,7 @@ LUX_MAY_FAIL client_tick(GLFWwindow* glfw_window);
 void client_quit();
 bool client_should_close();
 LUX_MAY_FAIL send_command(char const* str);
+LUX_MAY_FAIL client_send_assembly(Str const& label, Str const& contents);
 
 void add_dbg_point(NetSsTick::DbgInf::Shape::Point const& val,
     Vec4F col = {1.f, 0.f, 1.f, 0.5f}, bool border = true);

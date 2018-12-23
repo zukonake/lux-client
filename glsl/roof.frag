@@ -1,5 +1,5 @@
-IN vec2  f_tex_pos;
-IN float f_alpha;
+in vec2  f_tex_pos;
+in float f_alpha;
 
 uniform sampler2D tileset;
 uniform vec3      ambient_light;

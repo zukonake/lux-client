@@ -5,6 +5,9 @@
 #include <cstring>
 //
 #include <enet/enet.h>
+#include <imgui/imgui.h>
+#include <imgui/imgui_impl_opengl3.h>
+#include <imgui/imgui_impl_glfw.h>
 //
 #include <lux_shared/common.hpp>
 #include <lux_shared/util/tick_clock.hpp>
@@ -20,16 +23,17 @@ struct {
     Vec2U window_size = {800, 600};
 } conf;
 
-void scroll_cb(GLFWwindow* window, F64, F64 off) {
-    ui_scroll(get_mouse_pos(), off);
+void scroll_cb(GLFWwindow* window, F64 d_x, F64 d_y) {
+    ImGui_ImplGlfw_ScrollCallback(window, d_x, d_y);
+    ui_scroll(get_mouse_pos(), d_y);
 }
 
-void mouse_button_cb(GLFWwindow*, int button, int action, int) {
+void mouse_button_cb(GLFWwindow* window, int button, int action, int mods) {
+    ImGui_ImplGlfw_MouseButtonCallback(window, button, action, mods);
     ui_mouse(get_mouse_pos(), button, action);
 }
 
-void window_resize_cb(GLFWwindow*, int win_w, int win_h)
-{
+void window_resize_cb(GLFWwindow*, int win_w, int win_h) {
     static Vec2U old_sz = {1.f, 1.f};
     LUX_LOG("window size change to %ux%u", win_w, win_h);
     glViewport(0, 0, win_w, win_h);
@@ -37,9 +41,19 @@ void window_resize_cb(GLFWwindow*, int win_w, int win_h)
     old_sz = {win_w, win_h};
 }
 
-void key_cb(GLFWwindow*, int key, int scancode, int action, int mods)
-{
-    //@CONSIDER a centralized input system
+void key_cb(GLFWwindow* window, int key, int scancode, int action, int mods) {
+    ImGui_ImplGlfw_KeyCallback(window, key, scancode, action, mods);
+    ui_key(key, action);
+}
+
+void char_cb(GLFWwindow* window, unsigned int ch) {
+    ImGui_ImplGlfw_CharCallback(window, ch);
+}
+
+void show_error(const char* str) {
+    ImGui::Begin("error");
+    ImGui::Text("error: %s", str);
+    ImGui::End();
 }
 
 int main(int argc, char** argv) {
@@ -79,12 +93,7 @@ int main(int argc, char** argv) {
     glfwSetMouseButtonCallback(glfw_window, mouse_button_cb);
     glfwSetScrollCallback(glfw_window, scroll_cb);
     glfwSetKeyCallback(glfw_window, key_cb);
-    UiPaneId coord_pane =
-        ui_pane_create(ui_hud, {{-1.f, -1.f}, {0.5f, 0.2f}},
-                       {0.5f, 0.5f, 0.5f, 0.5f});
-    UiTextId coord_txt =
-        ui_text_create(ui_panes[coord_pane].ui,
-                       {{0.f, 0.f}, {0.07f, 1.f / 3.f}}, ""_l);
+    glfwSetCharCallback(glfw_window, char_cb);
     UiPaneId eq_pane =
         ui_pane_create(ui_hud, {{-1.f, 0.f}, {0.7f, 1.f}},
                        {0.5f, 0.5f, 0.5f, 0.5f});
@@ -98,9 +107,9 @@ int main(int argc, char** argv) {
         while(!client_should_close()) {
             clock.start();
             glfwPollEvents();
+
             glClearColor(0, 0, 0, 1);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-            mouse_button_cb(glfw_window, 0, 0, 0);
             if(client_tick(glfw_window) != LUX_OK) {
                 LUX_FATAL("game state corrupted");
             }
@@ -117,13 +126,8 @@ int main(int argc, char** argv) {
                     }
                 }
             }
-            DynStr coord_str = "unimplemented"_l;
-                 /*"x: " + std::to_string(last_player_pos.x) +
-             "\\\ny: " + std::to_string(last_player_pos.y) +
-             "\\\nt: " + std::to_string(ss_tick.day_cycle);*/
-            ui_texts[coord_txt].buff = coord_str;
             ui_nodes[ui_camera].tr.pos = -Vec2F(last_player_pos);
-            ui_render();
+            ui_io_tick();
             check_opengl_error();
             glfwSwapBuffers(glfw_window);
 

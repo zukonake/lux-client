@@ -1,8 +1,8 @@
-IN vec2 pos;
-IN vec2 tex_pos;
+in vec2 pos;
+in vec2 tex_pos;
 
-OUT vec2  f_tex_pos;
-OUT float f_alpha;
+out vec2  f_tex_pos;
+out float f_alpha;
 
 uniform float reveal_rad;
 uniform vec2 cursor_pos;

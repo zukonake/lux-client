@@ -1,7 +1,7 @@
-IN vec2 pos;
-IN vec2 tex_pos;
+in vec2 pos;
+in vec2 tex_pos;
 
-OUT vec2 f_tex_pos;
+out vec2 f_tex_pos;
 
 uniform vec2 scale;
 uniform vec2 translation;

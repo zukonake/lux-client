@@ -82,27 +82,6 @@ static bool try_build_mesh(ChkPos const& pos);
 static void build_tile_mesh(TileMesh& mesh, ChkPos const& chk_pos);
 static void build_light_mesh(LightMesh& mesh, ChkPos const& chk_pos);
 
-bool map_mouse(U32, Vec2F pos, int, int) {
-    /*auto& action = cs_tick.actions.emplace_back();
-    action.tag = NetCsTick::Action::BREAK;
-    action.target.tag = NetCsTick::Action::Target::POINT;
-    action.target.point = pos;*/
-    glUseProgram(roof_program);
-    set_uniform("cursor_pos", roof_program, glUniform2fv,
-                1, glm::value_ptr(pos));
-    return true;
-}
-
-bool map_scroll(U32, Vec2F, F64 off) {
-    auto& world = ui_nodes[ui_world];
-    F32 old_ratio = world.tr.scale.x / world.tr.scale.y;
-    //@TODO this shouldn't be exponential/hyperbolic like it is now
-    world.tr.scale.y += off * 0.01f;
-    world.tr.scale.y = glm::clamp(world.tr.scale.y, 1.f / 50.f, 1.f);
-    world.tr.scale.x = world.tr.scale.y * old_ratio;
-    return true;
-}
-
 static void map_load_programs() {
     char const* tileset_path = "tileset.png";
     Vec2U const tile_size = {8, 8};
@@ -153,29 +132,40 @@ static void map_load_programs() {
     fov_system.context.init({fov_system.v_buff}, fov_system.vert_fmt);
 }
 
-static void map_render(U32, Transform const&);
-static void light_render(U32, Transform const&);
-static void roof_render(U32, Transform const&);
-static void fov_render(U32, Transform const&);
+static void map_io_tick(  U32, Transform const&, IoContext&);
+static void light_io_tick(U32, Transform const&, IoContext&);
+static void roof_io_tick( U32, Transform const&, IoContext&);
+static void fov_io_tick(  U32, Transform const&, IoContext&);
 
 void map_init() {
     map_load_programs();
 
     ui_map = ui_create(ui_camera);
-    ui_nodes[ui_map].render = &map_render;
-    ui_nodes[ui_map].mouse  = &map_mouse;
-    ui_nodes[ui_map].scroll = &map_scroll;
+    ui_nodes[ui_map].io_tick = &map_io_tick;
     ui_light = ui_create(ui_camera, 0x80);
-    ui_nodes[ui_light].render = &light_render;
+    ui_nodes[ui_light].io_tick = &light_io_tick;
     ui_roof = ui_create(ui_camera, 0x80);
-    //ui_nodes[ui_roof].render = &roof_render;
+    //ui_nodes[ui_roof].io_tick = &roof_io_tick;
     ui_fov = ui_create(ui_camera, 0x70);
-    ui_nodes[ui_fov].render = &fov_render;
+    ui_nodes[ui_fov].io_tick = &fov_io_tick;
 }
 
 static DynArr<ChkPos> render_list;
 
-static void map_render(U32, Transform const& tr) {
+static void map_io_tick(U32, Transform const& tr, IoContext& context) {
+    /*glUseProgram(roof_program);
+    set_uniform("cursor_pos", roof_program, glUniform2fv,
+                1, glm::value_ptr(pos));*/
+    auto& world = ui_nodes[ui_world];
+    F32 old_ratio = world.tr.scale.x / world.tr.scale.y;
+    for(auto const& event : context.scroll_events) {
+        //@TODO this shouldn't be exponential/hyperbolic like it is now
+        world.tr.scale.y += event.off * 0.01f;
+        world.tr.scale.y = glm::clamp(world.tr.scale.y, 1.f / 50.f, 1.f);
+        world.tr.scale.x = world.tr.scale.y * old_ratio;
+    }
+    context.scroll_events.clear();
+
     //@TODO this should happen elsewhere
     //@TODO the calculation seems off? (+2.f??)
     U32 render_dist =
@@ -219,13 +209,12 @@ static void map_render(U32, Transform const& tr) {
             mesh.context[i].bind();
             mesh.i_buff.bind();
             glDrawElements(GL_TRIANGLES, CHK_VOL * 6, GL_UNSIGNED_INT, 0);
-            mesh.context[i].unbind();
         }
     }
     glDisable(GL_BLEND);
 }
 
-static void light_render(U32, Transform const& tr) {
+static void light_io_tick(U32, Transform const& tr, IoContext&) {
     Vec3F ambient_light =
         glm::mix(Vec3F(0.025f, 0.025f, 0.6f), Vec3F(1.f, 1.f, 1.0f),
                  (ss_tick.day_cycle + 1.f) / 2.f);
@@ -247,12 +236,11 @@ static void light_render(U32, Transform const& tr) {
         mesh.context.bind();
         mesh.i_buff.bind();
         glDrawElements(GL_TRIANGLES, CHK_VOL * 6, GL_UNSIGNED_INT, 0);
-        mesh.context.unbind();
     }
     glDisable(GL_BLEND);
 }
 
-static void fov_render(U32, Transform const& tr) {
+static void fov_io_tick(U32, Transform const& tr, IoContext&) {
     static DynArr<FovSystem::Vert> verts;
     static DynArr<U32>             idxs;
     verts.clear();
@@ -262,6 +250,7 @@ static void fov_render(U32, Transform const& tr) {
     F32 fov_range = ((1.f / glm::compMin(ui_nodes[ui_world].tr.scale)) + 1.f) *
                     std::sqrt(2.f);
     Vec2F camera_pos = -tr.pos;
+    //@TODO use IoContext mouse pos
     F32 aim_angle = get_aim_rotation();
     for(auto const& idx : {0, 1, 2, 0, 3, 4, 0, 2, 4}) {
         idxs.push(verts.len + idx);
@@ -326,12 +315,11 @@ static void fov_render(U32, Transform const& tr) {
     glEnable(GL_DEPTH_TEST);
     glBlendFunc(GL_DST_COLOR, GL_ZERO);
     glDrawElements(GL_TRIANGLES, idxs.len, GL_UNSIGNED_INT, 0);
-    fov_system.context.unbind();
     glDisable(GL_BLEND);
     glDisable(GL_DEPTH_TEST);
 }
 
-static void roof_render(U32, Transform const& tr) {
+static void roof_io_tick(U32, Transform const& tr, IoContext&) {
     Vec3F ambient_light =
         glm::mix(Vec3F(0.1f, 0.1f, 0.6f), Vec3F(1.f, 1.f, 0.9f),
                  (ss_tick.day_cycle + 1.f) / 2.f);
@@ -356,7 +344,6 @@ static void roof_render(U32, Transform const& tr) {
         mesh.context[2].bind();
         mesh.i_buff.bind();
         glDrawElements(GL_TRIANGLES, CHK_VOL * 6, GL_UNSIGNED_INT, 0);
-        mesh.context[2].unbind();
     }
     glDisable(GL_BLEND);
 }

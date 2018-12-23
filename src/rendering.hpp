@@ -84,7 +84,6 @@ struct VertContext {
     void init(Arr<VertBuff, len> const& _vert_buffs, VertFmt const& _vert_fmt);
     void deinit();
     void bind() const;
-    void unbind() const;
     void bind_attribs() const;
     static void unbind_all();
     GLuint vao_id;
@@ -155,11 +154,9 @@ void VertContext::init(Arr<VertBuff, len> const& _vert_buffs,
                        VertFmt const& _vert_fmt) {
     vert_buffs = _vert_buffs;
     vert_fmt   = &_vert_fmt;
-#if defined(LUX_GL_VAO)
     glGenVertexArrays(1, &vao_id);
     bind();
     bind_attribs();
-#endif
 }
 
 } //namespace gl

@@ -1,4 +1,4 @@
-IN vec3 f_light;
+in vec3 f_light;
 
 void main()
 {

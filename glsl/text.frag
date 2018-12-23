@@ -1,6 +1,6 @@
-IN vec2 f_font_pos;
-IN vec4 f_fg_col;
-IN vec4 f_bg_col;
+in vec2 f_font_pos;
+in vec4 f_fg_col;
+in vec4 f_bg_col;
 
 uniform sampler2D font;
 

@@ -1,4 +1,4 @@
-IN vec2 pos;
+in vec2 pos;
 
 uniform vec2 scale;
 uniform vec2 translation;

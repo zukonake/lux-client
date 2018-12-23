@@ -1,7 +1,7 @@
-IN vec2 pos;
-IN vec2 lvl;
+in vec2 pos;
+in vec2 lvl;
 
-OUT vec3 f_light;
+out vec3 f_light;
 
 uniform vec2 scale;
 uniform vec2 chk_pos;

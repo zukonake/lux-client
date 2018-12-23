@@ -8,6 +8,9 @@
 #include <GLFW/glfw3.h>
 #include <glm/gtc/constants.hpp>
 #include <lodepng.h>
+#include <imgui/imgui.h>
+#include <imgui/imgui_impl_opengl3.h>
+#include <imgui/imgui_impl_glfw.h>
 //
 #include <lux_shared/common.hpp>
 //
@@ -37,17 +40,9 @@ void rendering_init() {
         glfwInit();
         glfwSetErrorCallback(glfw_error_cb);
         LUX_LOG("initializing GLFW window");
-#if defined(LUX_GL_3_3)
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-#elif defined(LUX_GLES_2_0)
-        glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-        glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_ANY_PROFILE);
-#endif
         glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
         glfw_window = glfwCreateWindow(WINDOW_SIZE.x, WINDOW_SIZE.y,
@@ -61,11 +56,7 @@ void rendering_init() {
 
     { ///GLAD
         LUX_LOG("initializing GLAD");
-#if defined(LUX_GL_3_3)
         if(gladLoadGLLoader((GLADloadproc)glfwGetProcAddress) == 0)
-#elif defined(LUX_GLES_2_0)
-        if(gladLoadGLES2Loader((GLADloadproc)glfwGetProcAddress) == 0)
-#endif
         {
             LUX_FATAL("couldn't initialize GLAD");
         }
@@ -115,17 +106,7 @@ void check_opengl_error()
 
 GLuint load_shader(GLenum type, char const* path) {
     GLuint id = glCreateShader(type);
-    char constexpr VERSION_DIRECTIVE[] = "#version "
-#if defined(LUX_GL_3_3)
-        "330 core\n"
-        "#define IN  in\n"
-        "#define OUT out\n";
-#elif defined(LUX_GLES_2_0)
-        "100\n"
-        "#define IN  attribute\n"
-        "#define OUT varying\n"
-        "precision lowp float;\n";
-#endif
+    char constexpr VERSION_DIRECTIVE[] = "#version 330 core\n";
     constexpr SizeT VERSION_LEN = sizeof(VERSION_DIRECTIVE) - 1;
     char* str;
     {   std::ifstream file(path);
@@ -237,25 +218,11 @@ void IdxBuff::bind() const {
 }
 
 void VertContext::deinit() {
-#if defined(LUX_GL_VAO)
     glDeleteVertexArrays(1, &vao_id);
-#endif
 }
 
 void VertContext::bind() const {
-#if defined(LUX_GL_VAO)
     glBindVertexArray(vao_id);
-#else
-    bind_attribs();
-#endif
-}
-
-void VertContext::unbind() const {
-#if !defined(LUX_GL_VAO)
-    for(auto const& attrib : vert_fmt->attribs) {
-        glDisableVertexAttribArray(attrib.pos);
-    }
-#endif
 }
 
 void VertContext::bind_attribs() const {
@@ -273,9 +240,7 @@ void VertContext::bind_attribs() const {
 }
 
 void VertContext::unbind_all() {
-#if defined(LUX_GL_VAO)
     glBindVertexArray(0);
-#endif
 }
 
 }

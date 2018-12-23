@@ -1,7 +1,7 @@
-IN vec2 pos;
-IN vec4 bg_col;
+in vec2 pos;
+in vec4 bg_col;
 
-OUT vec4 f_bg_col;
+out vec4 f_bg_col;
 
 void main()
 {

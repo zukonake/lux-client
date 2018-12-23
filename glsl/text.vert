@@ -1,11 +1,11 @@
-IN vec2 pos;
-IN vec2 font_pos;
-IN vec4 fg_col;
-IN vec4 bg_col;
+in vec2 pos;
+in vec2 font_pos;
+in vec4 fg_col;
+in vec4 bg_col;
 
-OUT vec2 f_font_pos;
-OUT vec4 f_fg_col;
-OUT vec4 f_bg_col;
+out vec2 f_font_pos;
+out vec4 f_fg_col;
+out vec4 f_bg_col;
 
 uniform vec2 font_pos_scale;
 

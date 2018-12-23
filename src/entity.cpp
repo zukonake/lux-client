@@ -29,7 +29,7 @@ static gl::IdxBuff     i_buff;
 static gl::VertContext context;
 static gl::VertFmt     vert_fmt;
 
-static void entity_render(U32, Transform const&);
+static void entity_io_tick(U32, Transform const&, IoContext&);
 
 void entity_init() {
     constexpr Vec2U tile_sz = {8, 8};
@@ -50,10 +50,10 @@ void entity_init() {
     i_buff.init();
     context.init({v_buff}, vert_fmt);
     ui_entity = ui_create(ui_camera, 50);
-    ui_nodes[ui_entity].render = &entity_render;
+    ui_nodes[ui_entity].io_tick = &entity_io_tick;
 }
 
-static void entity_render(U32, Transform const& tr) {
+static void entity_io_tick(U32, Transform const& tr, IoContext&) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glUseProgram(program);
@@ -143,7 +143,6 @@ static void entity_render(U32, Transform const& tr) {
 
     glBindTexture(GL_TEXTURE_2D, tileset);
     glDrawElements(GL_TRIANGLES, idxs.len, GL_UNSIGNED_INT, 0);
-    context.unbind();
     glDisable(GL_BLEND);
 }
 

@@ -1,7 +1,7 @@
-IN vec2 pos;
-IN vec4 col;
+in vec2 pos;
+in vec4 col;
 
-OUT vec4 f_col;
+out vec4 f_col;
 
 uniform vec2 scale;
 uniform vec2 translation;

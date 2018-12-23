@@ -4,19 +4,5 @@
 #define LUX_CLIENT_VERSION_MINOR @LUX_CLIENT_VERSION_MINOR@
 #define LUX_CLIENT_VERSION_PATCH @LUX_CLIENT_VERSION_PATCH@
 
-#if !defined(LUX_GL_3_3) && !defined(LUX_GLES_2_0)
-    #error "no opengl version selected"
-#endif
-
-#if defined(LUX_GL_3_3) + defined(LUX_GLES_2_0) > 1
-    #error "more than one version of opengl defined"
-#endif
-
-#if defined(LUX_GLES_2_0)
-    #define GLFW_INCLUDE_ES2
-#elif defined(LUX_GL_3_3)
-    #define LUX_GL_VAO
-#endif
-
 #define GLM_FORCE_PURE
 #define GLM_ENABLE_EXPERIMENTAL
