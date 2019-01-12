@@ -94,9 +94,9 @@ int main(int argc, char** argv) {
     glfwSetScrollCallback(glfw_window, scroll_cb);
     glfwSetKeyCallback(glfw_window, key_cb);
     glfwSetCharCallback(glfw_window, char_cb);
-    UiPaneId eq_pane =
-        ui_pane_create(ui_hud, {{-1.f, 0.f}, {0.7f, 1.f}},
-                       {0.5f, 0.5f, 0.5f, 0.5f});
+    /*UiPaneId eq_pane =
+        ui_pane_create(ui_hud, {{-1.f, 0.f, 0.f}, {0.7f, 1.f, 1.f}},
+                       {0.5f, 0.5f, 0.5f, 0.5f});*/
 
     Vec2<int> win_size;
     glfwGetWindowSize(glfw_window, &win_size.x, &win_size.y);
@@ -108,12 +108,17 @@ int main(int argc, char** argv) {
             clock.start();
             glfwPollEvents();
 
-            glClearColor(0, 0, 0, 1);
+            Vec3F sky_col =
+                glm::mix(Vec3F(0.01f, 0.015f, 0.02f),
+                         Vec3F(111.f, 184.f, 238.f) / 255.f,
+                         (ss_tick.day_cycle + 1.f) / 2.f);
+
+            glClearColor(sky_col.r, sky_col.g, sky_col.b, 1);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             if(client_tick(glfw_window) != LUX_OK) {
                 LUX_FATAL("game state corrupted");
             }
-            if(entity_comps.container.count(ss_tick.player_id) > 0) {
+            /*if(entity_comps.container.count(ss_tick.player_id) > 0) {
                 F32 off = 0.f;
                 for(auto const& item : entity_comps.container.at(ss_tick.player_id).items) {
                     if(entity_comps.name.count(item) > 0 &&
@@ -121,12 +126,12 @@ int main(int argc, char** argv) {
                         auto const& name = entity_comps.name.at(item);
                         entity_comps.text[item].text =
                             ui_text_create(ui_panes[eq_pane].ui,
-                                {{0.f, off}, {0.08f, 0.1f}}, name);
+                                {{0.f, off, 0.f}, {0.08f, 0.1f, 1.f}}, name);
                         off += 0.1f;
                     }
                 }
-            }
-            ui_nodes[ui_camera].tr.pos = -Vec2F(last_player_pos);
+            }*/
+            ui_nodes[ui_camera].tr.pos = -Vec3F(last_player_pos);
             ui_io_tick();
             check_opengl_error();
             glfwSwapBuffers(glfw_window);

@@ -50,7 +50,7 @@ void entity_init() {
     i_buff.init();
     context.init({v_buff}, vert_fmt);
     ui_entity = ui_create(ui_camera, 50);
-    ui_nodes[ui_entity].io_tick = &entity_io_tick;
+    //ui_nodes[ui_entity].io_tick = &entity_io_tick;
 }
 
 static void entity_io_tick(U32, Transform const& tr, IoContext&) {
@@ -70,7 +70,8 @@ static void entity_io_tick(U32, Transform const& tr, IoContext&) {
     for(auto const& id : entities) {
         if(comps.pos.count(id) > 0 &&
            comps.visible.count(id) > 0) {
-            Vec2F pos = Vec2F(comps.pos.at(id));
+            EntityVec pos = comps.pos.at(id);
+            Vec2F pos2 = (Vec2F)pos;
             Vec2F quad_sz = comps.visible.at(id).quad_sz;
             Vec2F origin = {0.f, 0.f};
             F32   angle = 0.f;
@@ -79,7 +80,7 @@ static void entity_io_tick(U32, Transform const& tr, IoContext&) {
                 angle  = comps.orientation.at(id).angle;
                 origin = comps.orientation.at(id).origin;
             }
-            EntityId p_id = id;
+            /*EntityId p_id = id;
             while(comps.parent.count(p_id) > 0) {
                 p_id = comps.parent.at(p_id);
                 F32   parent_angle = 0.f;
@@ -96,9 +97,9 @@ static void entity_io_tick(U32, Transform const& tr, IoContext&) {
                 if(comps.pos.count(p_id) > 0) {
                     pos += comps.pos.at(p_id);
                 }
-            }
+            }*/
             Vec2F rot_shift = glm::rotate(origin, angle);
-            add_dbg_arrow({pos, pos + rot_shift}, {0.f, 0.f, 1.f, 1.f});
+            add_dbg_arrow({pos2, pos2 + rot_shift}, {0.f, 0.f, 1.f, 1.f});
 
             for(auto const& idx : quad_idxs<U32>) {
                 idxs.emplace(verts.len + idx);
@@ -108,7 +109,7 @@ static void entity_io_tick(U32, Transform const& tr, IoContext&) {
             for(Uns i = 0; i < 4; ++i) {
                 verts.emplace(Vert
                     {glm::rotate((quad_sz * quad<F32>[i]) - origin, angle) +
-                    glm::rotate(origin, origin_angle) + pos,
+                    glm::rotate(origin, origin_angle) + pos2,
                      u_quad<U8>[i] * sprite.sz + sprite.pos});
             }
             if(comps.text.count(id) > 0 && comps.name.count(id) == 0) {
@@ -120,7 +121,7 @@ static void entity_io_tick(U32, Transform const& tr, IoContext&) {
                 auto const& name = comps.name.at(id);
                 if(comps.text.count(id) == 0) {
                     comps.text[id] = {
-                        ui_text_create(ui_entity, {{0, 0}, {1.f, 1.f}},
+                        ui_text_create(ui_entity, {{0, 0, 0}, {1, 1, 1}},
                                        name)};
                 }
                 UiText* text = ui_texts.at(comps.text.at(id).text);
@@ -129,7 +130,7 @@ static void entity_io_tick(U32, Transform const& tr, IoContext&) {
                 } else {
                     //@TODO what if UI was deleted as well?
                     ui_nodes[text->ui].tr.pos =
-                        pos - Vec2F(name.len / 2.f, 2.f);
+                        pos - Vec3F(name.len / 2.f, 2.f, 0.f);
                 }
             }
         }

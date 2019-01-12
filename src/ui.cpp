@@ -47,6 +47,7 @@ static void imgui_io_tick(U32, Transform const&, IoContext&);
 UiId ui_create(UiId parent, U8 priority) {
     UiId id = ui_nodes.emplace();
     LUX_LOG_DBG("creating UI #%u", id);
+    //@TODO priority might be deprecated along with the addition of Z-levels
     ui_nodes[id].priority = priority;
     LUX_ASSERT(ui_nodes.contains(parent));
     ui_nodes[parent].children.emplace(id);
@@ -223,19 +224,19 @@ void ui_init() {
                                    dbg_shapes_system.vert_fmt);
 
     ui_screen = ui_nodes.emplace();
-    ui_nodes[ui_screen].tr.scale = {1.f, -1.f};
+    ui_nodes[ui_screen].tr.scale = {1.f, -1.f, 1.f};
     ui_imgui  = ui_create(ui_screen, 0xff);
     ui_nodes[ui_imgui].io_tick = &imgui_io_tick;
     //@TODO calculate (config?)
     ui_world  = ui_create(ui_screen);
-    ui_nodes[ui_world].tr.scale = {1.f / 5.f, 1.f / 5.f};
+    ui_nodes[ui_world].tr.scale = {1.f / 15.f, 1.f / 15.f, -1.f / 16.f};
     ui_nodes[ui_world].fixed_aspect = true;
     ui_camera = ui_create(ui_world);
     ui_dbg_shapes = ui_create(ui_camera, 0x80);
     ui_nodes[ui_dbg_shapes].io_tick = &dbg_shapes_io_tick;
 
     ui_hud = ui_create(ui_screen);
-    ui_nodes[ui_hud].tr.scale = {1.f, 1.f};
+    ui_nodes[ui_hud].tr.scale = {1.f, 1.f, 1.f};
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -318,7 +319,7 @@ static void text_io_tick(U32 id, Transform const& tr, IoContext& context) {
         }
         for(Uns i = 0; i < 4; ++i) {
             verts[quad_len * 4 + i] = {
-                (tr.pos + u_quad<F32>[i] + off) * tr.scale,
+                ((Vec2F)tr.pos + u_quad<F32>[i] + off) * (Vec2F)tr.scale,
                 Vec2<U8>(character % 16, character / 16) + u_quad<U8>[i],
                 fg_col, bg_col};
         }
@@ -535,7 +536,8 @@ static void pane_io_tick(U32 id, Transform const& tr, IoContext& context) {
     Arr<U32             , 6> idxs;
     auto& pane = ui_panes[id];
     for(Uns i = 0; i < 4; ++i) {
-        verts[i] ={(tr.pos + u_quad<F32>[i]) * tr.scale, pane.bg_col};
+        verts[i] =
+            {((Vec2F)tr.pos + u_quad<F32>[i]) * (Vec2F)tr.scale, pane.bg_col};
     }
     for(Uns i = 0; i < 6; ++i) {
         idxs[i] = quad_idxs<U32>[i];
@@ -569,6 +571,11 @@ static void imgui_io_tick(U32, Transform const&, IoContext& context) {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
+    {   ImGui::Begin("debug info");
+        ImGui::Text("pos: {%.2f, %.2f, %.2f}",
+            last_player_pos.x, last_player_pos.y, last_player_pos.z);
+        ImGui::End();
+    }
     {   ImGui::Begin("assembly editor");
         static char label[32] = {};
         ImGui::InputText("label", label, arr_len(label));
@@ -682,7 +689,7 @@ void ui_key(int key, int action) {
 
 static void ui_io_tick(UiId id, Transform const& tr) {
     UiNode* ui = ui_nodes.at(id);
-    Vec2F total_scale = tr.scale * ui->tr.scale;
+    Vec3F total_scale = tr.scale * ui->tr.scale;
     if(ui->io_tick != nullptr) {
         //@TODO mouse needs a negative translation in transform??
         //@TODO mouse gets untransformed coords btw...
@@ -695,7 +702,10 @@ static void ui_io_tick(UiId id, Transform const& tr) {
 }
 
 void ui_io_tick() {
-    ui_io_tick(ui_screen, {{0.f, 0.f}, {1.f, 1.f}});
+    Vec2<F64> mouse_pos;
+    glfwGetCursorPos(glfw_window, &mouse_pos.x, &mouse_pos.y);
+    io_context.mouse_pos = (Vec2F)mouse_pos;
+    ui_io_tick(ui_screen, {{0, 0, 0}, {1, 1, 1}});
     ui_nodes.free_slots();
     ui_texts.free_slots();
     ui_panes.free_slots();

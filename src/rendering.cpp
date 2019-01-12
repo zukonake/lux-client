@@ -62,6 +62,7 @@ void rendering_init() {
         }
     }
     glViewport(0, 0, WINDOW_SIZE.x, WINDOW_SIZE.y);
+    /*
     Vec2<unsigned> cursor_size;
     std::vector<U8> cursor_img_data;
     const char* cursor_path = "cursor.png";
@@ -79,7 +80,8 @@ void rendering_init() {
     if(cursor == nullptr) {
         LUX_FATAL("couldn't create cursor");
     }
-    glfwSetCursor(glfw_window, cursor);
+    glfwSetCursor(glfw_window, cursor);*/
+    glfwSetInputMode(glfw_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 }
 
 void rendering_deinit() {

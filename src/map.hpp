@@ -6,21 +6,13 @@
 //
 #include <lux_shared/map.hpp>
 #include <lux_shared/net/data.hpp>
-
-//@TODO move to shared
-TileId constexpr void_tile = 0;
+//
+#include <db.hpp>
 
 struct Chunk {
+    bool loaded = false;
     Arr<LightLvl, CHK_VOL> light_lvl = {};
-    union {
-        struct {
-            //@TODO interleaved pattern?
-            Arr<TileId, CHK_VOL> floor;
-            Arr<TileId, CHK_VOL> wall;
-            Arr<TileId, CHK_VOL> roof;
-        };
-        Arr<Arr<TileId, CHK_VOL>, 3> layer;
-    };
+    Arr<BlockId, CHK_VOL> blocks;
 };
 
 extern VecSet<ChkPos> chunk_requests;
@@ -28,8 +20,11 @@ extern VecSet<ChkPos> chunk_requests;
 void map_init();
 void map_reload_program();
 bool is_chunk_loaded(ChkPos const& pos);
-void tiles_update(ChkPos const& pos,
-                  NetSsSgnl::Tiles::Chunk const& net_chunk);
+void blocks_update(ChkPos const& pos,
+                   NetSsSgnl::Blocks::Chunk const& net_chunk);
 void light_update(ChkPos const& pos,
                   NetSsSgnl::Light::Chunk const& net_chunk);
-Chunk const& get_chunk(ChkPos const& pos);
+///@NOTE: if you modify the chunk, you probably have to rebuild the mesh
+Chunk& get_chunk(ChkPos const& pos);
+BlockId get_block(MapPos const& pos);
+BlockBp const& get_block_bp(MapPos const& pos);

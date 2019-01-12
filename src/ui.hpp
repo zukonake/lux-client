@@ -41,8 +41,8 @@ extern SparseDynArr<UiPane, U16> ui_panes;
 typedef decltype(ui_panes)::Id UiPaneId;
 
 struct Transform {
-    Vec2F pos;
-    Vec2F scale = {1.f, 1.f};
+    Vec3F pos;
+    Vec3F scale = {1.f, 1.f, 1.f};
 };
 
 struct UiNode {

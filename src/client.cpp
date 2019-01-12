@@ -31,7 +31,7 @@ struct {
     VecSet<ChkPos> sent_requests;
 } static client;
 
-EntityVec last_player_pos = {0, 0};
+EntityVec last_player_pos = {0, 0, 0};
 F64 tick_rate = 0.f;
 
 NetCsTick cs_tick;
@@ -77,6 +77,7 @@ LUX_MAY_FAIL client_init(char const* server_hostname, U16 server_port) {
 
     { ///init client
         client.host = enet_host_create(nullptr, 1, CHANNEL_NUM, 0, 0);
+        //@TODO enet_host_compress_with_range_coder(client.host);
         if(client.host == nullptr) {
             LUX_LOG("couldn't initialize ENet host");
             return LUX_FAIL;
@@ -259,9 +260,9 @@ LUX_MAY_FAIL static handle_signal(ENetPacket* in_pack) {
 
     { ///parse the packet
         switch(ss_sgnl.tag) {
-            case NetSsSgnl::TILES: {
-                for(auto const& chunk : ss_sgnl.tiles.chunks) {
-                    tiles_update(chunk.first, chunk.second);
+            case NetSsSgnl::BLOCKS: {
+                for(auto const& chunk : ss_sgnl.blocks.chunks) {
+                    blocks_update(chunk.first, chunk.second);
                 }
             } break;
             case NetSsSgnl::LIGHT: {
