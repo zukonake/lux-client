@@ -262,6 +262,7 @@ LUX_MAY_FAIL static handle_signal(ENetPacket* in_pack) {
         switch(ss_sgnl.tag) {
             case NetSsSgnl::BLOCKS: {
                 for(auto const& chunk : ss_sgnl.blocks.chunks) {
+                    client.sent_requests.erase(chunk.first);
                     blocks_update(chunk.first, chunk.second);
                 }
             } break;
@@ -310,7 +311,7 @@ LUX_MAY_FAIL client_tick(GLFWwindow* glfw_window) {
     }
     ///send map request signal
     {   cs_sgnl.tag = NetCsSgnl::MAP_REQUEST;
-        for(auto it  = chunk_requests.cbegin(); it != chunk_requests.cend();) {
+        for(auto it = chunk_requests.cbegin(); it != chunk_requests.cend();) {
             if(client.sent_requests.count(*it) == 0) {
                 LUX_LOG("requesting chunk {%zd, %zd}", it->x, it->y);
                 cs_sgnl.map_request.requests.emplace(*it);

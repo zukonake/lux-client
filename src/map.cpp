@@ -198,7 +198,7 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
 
     ChkPos chk_diff           = chk_pos - last_player_chk_pos;
     ChkCoord render_dist_diff = render_dist - last_render_dist;
-    chk_diff += render_dist_diff;
+    chk_diff -= render_dist_diff;
     if(chk_diff != ChkPos(0)) {
         SizeT chunks_num = glm::pow(load_size, 3);
         SizeT meshes_num = glm::pow(mesh_load_size, 3);
@@ -226,9 +226,12 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
                     ChkPos dst = src - chk_diff;
                     new_chunks[get_idx(dst, load_size)] =
                         std::move(chunks[src_idx]);
+                    chunks[src_idx].loaded = false;
                 }
             }
         }
+        //@TODO swap instead (we would have 2 buffers)
+        chunks = std::move(new_chunks);
         //@TODO unite loops?
         DynArr<Mesh> new_meshes(meshes_num);
         for(ChkCoord z =  chk_diff.z > 0 ? chk_diff.z : 0;
@@ -248,11 +251,16 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
                     ChkPos dst = src - chk_diff;
                     new_meshes[get_idx(dst, mesh_load_size)] =
                         std::move(meshes[src_idx]);
+                    meshes[src_idx].is_built = false;
                 }
             }
         }
+        for(Uns i = 0; i < meshes.len; ++i) {
+            if(meshes[i].is_built) {
+                mesh_destroy(&meshes[i]);
+            }
+        }
         //@TODO swap instead (we would have 2 buffers)
-        chunks = std::move(new_chunks);
         meshes = std::move(new_meshes);
     }
 
@@ -471,6 +479,7 @@ static Mesh& get_mesh(ChkPos const& pos) {
 }
 
 void blocks_update(ChkPos const& pos, NetSsSgnl::Blocks::Chunk const& net_chunk) {
+    LUX_LOG("updating chunk {%zd, %zd, %zd}", pos.x, pos.y, pos.z);
     Int idx = get_fov_idx(pos, render_dist + 1);
     if(idx < 0) {
         LUX_LOG_WARN("received chunk {%zd, %zd, %zd} out of load range",
@@ -508,6 +517,13 @@ void light_update(ChkPos const& pos,
     }
 }
 
+static void mesh_destroy(Mesh* mesh) {
+    mesh->block.v_buff.deinit();
+    mesh->block.i_buff.deinit();
+    mesh->block.context.deinit();
+    mesh->is_built = true;
+}
+
 static bool try_build_mesh(ChkPos const& pos) {
     bool can_build = true;
     for(auto const& offset : chebyshev<ChkCoord>) {
@@ -525,7 +541,6 @@ static bool try_build_mesh(ChkPos const& pos) {
     Mesh& mesh = meshes[idx];
     LUX_ASSERT(!mesh.is_built);
 
-    //@URGENT dealloc
     mesh.block.v_buff.init();
     mesh.block.i_buff.init();
     mesh.block.context.init({mesh.block.v_buff}, block_vert_fmt);
@@ -943,6 +958,7 @@ int polygonise(GridCell grid, F32 isolevel, Triangle *triangles)
 }
 
 static void build_block_mesh(BlockMesh& mesh, ChkPos const& chk_pos) {
+    LUX_LOG("building mesh {%zd, %zd, %zd}", chk_pos.x, chk_pos.y, chk_pos.z);
     Chunk const& chunk = get_chunk(chk_pos);
     Arr<BlockMesh::Vert, CHK_VOL * 5 * 3> verts;
     Arr<U32            , CHK_VOL * 5 * 3> idxs;
