@@ -11,7 +11,6 @@
 
 struct Chunk {
     bool loaded = false;
-    Arr<LightLvl, CHK_VOL> light_lvl = {};
     Arr<BlockId, CHK_VOL> blocks;
 };
 
@@ -22,8 +21,6 @@ void map_reload_program();
 bool is_chunk_loaded(ChkPos const& pos);
 void blocks_update(ChkPos const& pos,
                    NetSsSgnl::Blocks::Chunk const& net_chunk);
-void light_update(ChkPos const& pos,
-                  NetSsSgnl::Light::Chunk const& net_chunk);
 ///@NOTE: if you modify the chunk, you probably have to rebuild the mesh
 Chunk& get_chunk(ChkPos const& pos);
 BlockId get_block(MapPos const& pos);

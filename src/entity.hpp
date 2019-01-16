@@ -19,9 +19,6 @@ struct EntityComps {
         Vec2F origin;
         F32   angle; ///in radians
     };
-    struct Container {
-        DynArr<EntityId> items;
-    };
     struct Text {
         UiTextId text;
     };
@@ -29,7 +26,6 @@ struct EntityComps {
     IdMap<EntityId, Pos>         pos;
     IdMap<EntityId, Name>        name;
     IdMap<EntityId, Visible>     visible;
-    IdMap<EntityId, Container>   container;
     IdMap<EntityId, Orientation> orientation;
     IdMap<EntityId, EntityId>    parent;
     IdMap<EntityId, Text>        text;

@@ -22,14 +22,9 @@ static HashMap<StrBuff, U16>   rasen_labels_id;
 static HashMap<int, NetAction> rasen_tick_bindings;
 static HashMap<int, NetAction> rasen_sgnl_bindings;
 
-F32 constexpr DBG_POINT_SIZE = 5.f;
-F32 constexpr DBG_LINE_WIDTH = 2.f;
-F32 constexpr DBG_ARROW_HEAD_LEN = 0.2f;
-
 UiId ui_screen;
 UiId ui_world;
 UiId ui_camera;
-UiId ui_dbg_shapes;
 UiId ui_hud;
 UiId ui_imgui;
 
@@ -41,7 +36,6 @@ static void text_io_tick(U32, Transform const&, IoContext&);
 static void text_deinit(U32);
 static void pane_io_tick(U32, Transform const&, IoContext&);
 static void pane_deinit(U32);
-static void dbg_shapes_io_tick(U32, Transform const&, IoContext&);
 static void imgui_io_tick(U32, Transform const&, IoContext&);
 
 UiId ui_create(UiId parent, U8 priority) {
@@ -74,24 +68,6 @@ void ui_erase(UiId id) {
     }
     ui_nodes.erase(id);
 }
-
-struct DbgShapesSystem {
-#pragma pack(push, 1)
-    struct Vert {
-        Vec2F pos;
-        Vec4F col;
-    };
-#pragma pack(pop)
-
-    GLuint program;
-    gl::VertBuff    v_buff;
-    gl::IdxBuff     i_buff;
-    gl::VertContext context;
-    gl::VertFmt     vert_fmt;
-
-    DynArr<Vert> verts;
-    DynArr<U32>  idxs;
-} static dbg_shapes_system;
 
 struct TextSystem {
 #pragma pack(push, 1)
@@ -212,17 +188,6 @@ void ui_init() {
         {"pos"     , 2, GL_FLOAT, false, false},
         {"bg_col"  , 4, GL_FLOAT, true , false}});
 
-    dbg_shapes_system.program = load_program("glsl/color_shape.vert",
-                                             "glsl/color_shape.frag");
-    glUseProgram(dbg_shapes_system.program);
-    dbg_shapes_system.vert_fmt.init(dbg_shapes_system.program, {
-        {"pos", 2, GL_FLOAT, false, false},
-        {"col", 4, GL_FLOAT, true , false}});
-    dbg_shapes_system.v_buff.init();
-    dbg_shapes_system.i_buff.init();
-    dbg_shapes_system.context.init({dbg_shapes_system.v_buff},
-                                   dbg_shapes_system.vert_fmt);
-
     ui_screen = ui_nodes.emplace();
     ui_nodes[ui_screen].tr.scale = {1.f, -1.f, 1.f};
     ui_imgui  = ui_create(ui_screen, 0xff);
@@ -232,8 +197,6 @@ void ui_init() {
     ui_nodes[ui_world].tr.scale = {1.f / 15.f, 1.f / 15.f, -1.f / 16.f};
     ui_nodes[ui_world].fixed_aspect = true;
     ui_camera = ui_create(ui_world);
-    ui_dbg_shapes = ui_create(ui_camera, 0x80);
-    ui_nodes[ui_dbg_shapes].io_tick = &dbg_shapes_io_tick;
 
     ui_hud = ui_create(ui_screen);
     ui_nodes[ui_hud].tr.scale = {1.f, 1.f, 1.f};
@@ -343,194 +306,6 @@ static void text_io_tick(U32 id, Transform const& tr, IoContext& context) {
     glDisable(GL_BLEND);
 }
 
-static void dbg_shapes_io_tick(U32, Transform const& tr, IoContext& context) {
-    //@IMPROVE we could optimize by sharing verts between borders and fills
-    //@CONSIDER static buffs as in text rendering
-    auto& verts = dbg_shapes_system.verts;
-    auto& idxs  = dbg_shapes_system.idxs;
-    verts.clear();
-    idxs.clear();
-    Uns lines_start;
-    Uns triangles_start;
-    //@TODO replace this?
-#define ADD_VERT(off) \
-        verts.push({off, shape.col});
-    for(auto const& shape : ss_tick.dbg_inf.shapes) {
-        switch(shape.tag) {
-            case NetSsTick::DbgInf::Shape::POINT: {
-                idxs.emplace(verts.len);
-                ADD_VERT(shape.point.pos);
-                break;
-            }
-            default: break;
-        }
-    }
-    lines_start = idxs.len;
-    for(auto const& shape : ss_tick.dbg_inf.shapes) {
-        switch(shape.tag) {
-            case NetSsTick::DbgInf::Shape::LINE: {
-                constexpr U32 order[] = {0, 1};
-                for(auto const& idx : order) {
-                    idxs.emplace(idx + verts.len);
-                }
-                ADD_VERT(shape.line.beg);
-                ADD_VERT(shape.line.end);
-                break;
-            }
-            case NetSsTick::DbgInf::Shape::ARROW: {
-                if(shape.arrow.beg == shape.arrow.end) break;
-                constexpr U32 order[] = {0, 1, 1, 2, 1, 3};
-                for(auto const& idx : order) {
-                    idxs.emplace(idx + verts.len);
-                }
-                ADD_VERT(shape.arrow.beg);
-                ADD_VERT(shape.arrow.end);
-                Vec2F d = glm::normalize(shape.arrow.beg - shape.arrow.end);
-                ADD_VERT(shape.arrow.end +
-                    glm::rotate(d, tau / -8.f) * DBG_ARROW_HEAD_LEN);
-                ADD_VERT(shape.arrow.end +
-                    glm::rotate(d, tau /  8.f) * DBG_ARROW_HEAD_LEN);
-                break;
-            }
-            case NetSsTick::DbgInf::Shape::CROSS: {
-                constexpr U32 order[] = {0, 1, 2, 3};
-                for(auto const& idx : order) {
-                    idxs.emplace(idx + verts.len);
-                }
-                constexpr Vec2F cross[4] =
-                    {{-1.f, -1.f}, {1.f, 1.f}, {1.f, -1.f}, {-1.f, 1.f}};
-                for(auto const& vert : cross) {
-                    ADD_VERT(shape.cross.pos + vert * shape.cross.sz);
-                }
-                break;
-            }
-            case NetSsTick::DbgInf::Shape::SPHERE: {
-                if(!shape.border) break;
-                constexpr U32 order[] = {0, 1, 1, 2, 2, 3, 3, 4,
-                                         4, 5, 5, 6, 6, 7, 7, 0};
-                for(auto const& idx : order) {
-                    idxs.emplace(idx + verts.len);
-                }
-                constexpr F32 diag = std::sqrt(2.f) / 2.f;
-                constexpr Vec2F octagon[] =
-                   {{0.f, -1.f}, {diag, -diag}, { 1.f, 0.f}, { diag,  diag},
-                    {0.f,  1.f}, {-diag, diag}, {-1.f, 0.f}, {-diag, -diag}};
-                for(auto const& vert : octagon) {
-                    ADD_VERT(shape.sphere.pos + vert * shape.sphere.rad);
-                }
-                break;
-            }
-            case NetSsTick::DbgInf::Shape::TRIANGLE: {
-                if(!shape.border) break;
-                constexpr U32 order[] = {0, 1, 1, 2, 2, 0};
-                for(auto const& idx : order) {
-                    idxs.emplace(idx + verts.len);
-                }
-                for(Uns i = 0; i < 3; ++i) {
-                    ADD_VERT(shape.triangle.verts[i]);
-                }
-                break;
-            }
-            case NetSsTick::DbgInf::Shape::RECT: {
-                if(!shape.border) break;
-                constexpr U32 order[] = {0, 1, 1, 2, 2, 3, 3, 0};
-                for(auto const& idx : order) {
-                    idxs.emplace(idx + verts.len);
-                }
-                //@TODO rect_points from server
-                for(auto const& vert : quad<F32>) {
-                    ADD_VERT(shape.rect.pos +
-                        glm::rotate(vert, shape.rect.angle) * shape.rect.sz);
-                }
-                break;
-            }
-            default: break;
-        }
-    }
-    triangles_start = idxs.len;
-    for(auto const& shape : ss_tick.dbg_inf.shapes) {
-        switch(shape.tag) {
-            case NetSsTick::DbgInf::Shape::SPHERE: {
-                constexpr U32 order[] = {0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 5,
-                                         0, 5, 6, 0, 6, 7, 0, 7, 8, 0, 8, 1};
-                for(auto const& idx : order) {
-                    idxs.emplace(idx + verts.len);
-                }
-                constexpr F32 diag = std::sqrt(2.f) / 2.f;
-                constexpr Vec2F octagon[] = {{0.f, 0.f},
-                    {0.f, -1.f}, {diag, -diag}, { 1.f, 0.f}, { diag,  diag},
-                    {0.f,  1.f}, {-diag, diag}, {-1.f, 0.f}, {-diag, -diag}};
-                for(auto const& vert : octagon) {
-                    ADD_VERT(shape.sphere.pos + vert * shape.sphere.rad);
-                }
-                break;
-            }
-            case NetSsTick::DbgInf::Shape::TRIANGLE: {
-                if(!shape.border) break;
-                constexpr U32 order[] = {0, 1, 2};
-                for(auto const& idx : order) {
-                    idxs.emplace(idx + verts.len);
-                }
-                for(Uns i = 0; i < 3; ++i) {
-                    ADD_VERT(shape.triangle.verts[i]);
-                }
-                break;
-            }
-            case NetSsTick::DbgInf::Shape::RECT: {
-                constexpr U32 order[] = {0, 1, 2, 2, 3, 0};
-                for(auto const& idx : order) {
-                    idxs.emplace(idx + verts.len);
-                }
-                for(auto const& vert : quad<F32>) {
-                    ADD_VERT(shape.rect.pos +
-                        glm::rotate(vert, shape.rect.angle) * shape.rect.sz);
-                }
-                break;
-            }
-            default: break;
-        }
-    }
-#undef ADD_VERT
-    dbg_shapes_system.context.bind();
-    dbg_shapes_system.v_buff.bind();
-    dbg_shapes_system.v_buff.write(verts.len, verts.beg, GL_DYNAMIC_DRAW);
-    dbg_shapes_system.i_buff.bind();
-    dbg_shapes_system.i_buff.write(idxs.len, idxs.beg, GL_DYNAMIC_DRAW);
-
-    glUseProgram(dbg_shapes_system.program);
-    set_uniform("scale", dbg_shapes_system.program,
-                glUniform2fv, 1, glm::value_ptr(tr.scale));
-    set_uniform("translation", dbg_shapes_system.program,
-                glUniform2fv, 1, glm::value_ptr(tr.pos));
-    glEnable(GL_BLEND);
-#if defined(LUX_GL_3_3)
-    //@TODO perhaps we should render those as quads?
-    glPointSize(DBG_POINT_SIZE);
-#endif
-    glLineWidth(DBG_LINE_WIDTH);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    SizeT triangles_sz = idxs.len - triangles_start;
-    if(triangles_sz != 0) {
-        glDrawElements(GL_TRIANGLES, triangles_sz, GL_UNSIGNED_INT,
-                       (void*)(sizeof(U32) * triangles_start));
-    }
-    //@TODO this number might be too high, check it
-    SizeT lines_sz = triangles_start;
-    if(lines_sz != 0) {
-        glDrawElements(GL_LINES, lines_sz, GL_UNSIGNED_INT,
-                       (void*)(sizeof(U32) * lines_start));
-    }
-    SizeT points_sz = lines_start;
-    if(points_sz != 0) {
-        glDrawElements(GL_POINTS, points_sz, GL_UNSIGNED_INT, 0);
-    }
-    glDisable(GL_BLEND);
-    glLineWidth(1.f);
-#if defined(LUX_GL_3_3)
-    glPointSize(1.f);
-#endif
-}
-
 static void pane_io_tick(U32 id, Transform const& tr, IoContext& context) {
     Arr<PaneSystem::Vert, 4> verts;
     Arr<U32             , 6> idxs;
@@ -568,9 +343,6 @@ static void imgui_io_tick(U32, Transform const&, IoContext& context) {
             cs_tick.actions.emplace(binding.second);
         }
     }
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui_ImplGlfw_NewFrame();
-    ImGui::NewFrame();
     {   ImGui::Begin("debug info");
         ImGui::Text("pos: {%.2f, %.2f, %.2f}",
             last_player_pos.x, last_player_pos.y, last_player_pos.z);
@@ -670,9 +442,6 @@ static void imgui_io_tick(U32, Transform const&, IoContext& context) {
         }
         ImGui::End();
     }
-
-    ImGui::Render();
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
 void ui_mouse(Vec2F pos, int button, int action) {
@@ -702,6 +471,19 @@ static void ui_io_tick(UiId id, Transform const& tr) {
 }
 
 void ui_io_tick() {
+    static bool cursor_disabled = true;
+    //@TODO placeholder
+    if(glfwGetKey(glfw_window, GLFW_KEY_TAB)) {
+        if(cursor_disabled) {
+            glfwSetInputMode(glfw_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        } else {
+            glfwSetInputMode(glfw_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        }
+        cursor_disabled = !cursor_disabled;
+    }
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
     Vec2<F64> mouse_pos;
     glfwGetCursorPos(glfw_window, &mouse_pos.x, &mouse_pos.y);
     io_context.mouse_pos = (Vec2F)mouse_pos;
@@ -712,6 +494,8 @@ void ui_io_tick() {
     io_context.mouse_events.clear();
     io_context.scroll_events.clear();
     io_context.key_events.clear();
+    ImGui::Render();
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
 LUX_MAY_FAIL ui_add_rasen_label(NetRasenLabel const& label) {

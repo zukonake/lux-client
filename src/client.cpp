@@ -8,13 +8,10 @@
 #include <cstring>
 //
 #include <enet/enet.h>
-#include <glm/gtx/rotate_vector.hpp>
 //
 #include <lux_shared/common.hpp>
 #include <lux_shared/net/common.hpp>
-#include <lux_shared/net/serial.hpp>
 #include <lux_shared/net/data.hpp>
-#include <lux_shared/net/data.inl>
 #include <lux_shared/net/enet.hpp>
 //
 #include <map.hpp>
@@ -53,6 +50,7 @@ static void get_user_name(char* buff) {
     constexpr char unknown[] = "unknown";
     static_assert(sizeof(unknown) - 1 <= CLIENT_NAME_LEN);
     std::memset(buff, 0, CLIENT_NAME_LEN);
+    //@TODO LUX_* defines
 #if defined(__unix__)
     if(getlogin_r((char*)buff, CLIENT_NAME_LEN) != 0) {
         std::memcpy(buff, unknown, sizeof(unknown) - 1);
@@ -83,6 +81,7 @@ LUX_MAY_FAIL client_init(char const* server_hostname, U16 server_port) {
             return LUX_FAIL;
         }
     }
+    net_compression_init(client.host);
 
     return connect_to_server(server_hostname, server_port);
 }
@@ -216,6 +215,7 @@ LUX_MAY_FAIL static connect_to_server(char const* hostname, U16 port) {
         LUX_LOG("tick rate %2.f", tick_rate);
     }
 
+    //@TODO abstract this out
     if(ui_has_rasen_label("entity_move"_l)) {
         Arr<U8, 2> stack = {1, 0};
         ui_add_continuous_binding("entity_move"_l, GLFW_KEY_W, stack);
@@ -242,7 +242,6 @@ LUX_MAY_FAIL static handle_tick(ENetPacket* in_pack) {
     LUX_RETHROW(deserialize_packet(in_pack, &ss_tick),
         "failed to deserialize tick");
 
-    //@TODO if we have no position, we should not render the map
     if(ss_tick.entity_comps.pos.count(ss_tick.player_id) > 0) {
         last_player_pos = ss_tick.entity_comps.pos.at(ss_tick.player_id);
     }
@@ -266,13 +265,8 @@ LUX_MAY_FAIL static handle_signal(ENetPacket* in_pack) {
                     blocks_update(chunk.first, chunk.second);
                 }
             } break;
-            case NetSsSgnl::LIGHT: {
-                for(auto const& chunk : ss_sgnl.light.chunks) {
-                    light_update(chunk.first, chunk.second);
-                }
-            } break;
             case NetSsSgnl::MSG: {
-                //@TODO console_print(ss_sgnl.msg.contents.data());
+                LUX_UNIMPLEMENTED();
             } break;
             case NetSsSgnl::RASEN_LABEL: {
                 ui_add_rasen_label(ss_sgnl.rasen_label);
@@ -284,6 +278,7 @@ LUX_MAY_FAIL static handle_signal(ENetPacket* in_pack) {
 }
 
 LUX_MAY_FAIL client_tick(GLFWwindow* glfw_window) {
+    bool received_tick = false;
     { ///handle events
         if(glfwWindowShouldClose(glfw_window)) client_quit();
         ENetEvent event;
@@ -299,15 +294,20 @@ LUX_MAY_FAIL client_tick(GLFWwindow* glfw_window) {
                         LUX_LOG("ignoring tick");
                         continue;
                     }
-                } else if(event.channelID == SIGNAL_CHANNEL) {
+                    received_tick = true;
+                } else if(event.channelID == SGNL_CHANNEL) {
                     LUX_RETHROW(handle_signal(event.packet),
                         "failed to handle signal from server");
                 } else {
                     LUX_LOG("ignoring unexpected packet");
                     LUX_LOG("    channel: %u", event.channelID);
+                    return LUX_FAIL;
                 }
             }
         }
+    }
+    if(!received_tick) {
+        LUX_LOG_WARN("lost server tick");
     }
     ///send map request signal
     {   cs_sgnl.tag = NetCsSgnl::MAP_REQUEST;
@@ -321,77 +321,13 @@ LUX_MAY_FAIL client_tick(GLFWwindow* glfw_window) {
         }
         chunk_requests.clear();
         if(cs_sgnl.map_request.requests.size() > 0) {
-            if(send_net_data(client.peer, &cs_sgnl, SIGNAL_CHANNEL) != LUX_OK) {
+            if(send_net_data(client.peer, &cs_sgnl, SGNL_CHANNEL) != LUX_OK) {
                 LUX_LOG("failed to send map requests");
             }
         }
     }
-
-    //@TODO if(!console_is_active()) {
-        enum {
-            NO_DIR,
-            FORWARD,
-            BACKWARD,
-        } dir = NO_DIR;
-        enum {
-            NO_ANGLE,
-            RIGHT,
-            LEFT,
-        } angle = NO_ANGLE;
-        if(glfwGetKey(glfw_window, GLFW_KEY_W) == GLFW_PRESS) {
-            dir = FORWARD;
-        } else if(glfwGetKey(glfw_window, GLFW_KEY_S) == GLFW_PRESS) {
-            dir = BACKWARD;
-        }
-        if(glfwGetKey(glfw_window, GLFW_KEY_A) == GLFW_PRESS) {
-            angle = LEFT;
-        } else if(glfwGetKey(glfw_window, GLFW_KEY_D) == GLFW_PRESS) {
-            angle = RIGHT;
-        }
-        /*
-        if(dir != NO_DIR) {
-            auto& action = cs_tick.actions.emplace();
-            U8 forward = dir == FORWARD;
-            action.bytecode = {
-                RN_PUSHV(forward),
-                RN_LOADV(0xff, RN_R0),
-                RN_PUSH (RN_R0),
-                RN_XCALL(RN_XC_ENTITY_MOVE),
-                RN_XCALL(RN_XC_HALT),
-            };
-        }
-        if(angle != NO_ANGLE) {
-            auto& action = cs_tick.actions.emplace();
-            U8 right = angle == RIGHT;
-            action.bytecode = {
-                RN_PUSHV(right),
-                RN_LOADV(0xff, RN_R0),
-                RN_PUSH (RN_R0),
-                RN_XCALL(RN_XC_ENTITY_ROTATE),
-                RN_XCALL(RN_XC_HALT),
-            };
-        }*/
-    //}
     if(send_net_data(client.peer, &cs_tick, TICK_CHANNEL) != LUX_OK) {
         LUX_LOG("failed to send tick");
-    }
-    return LUX_OK;
-}
-
-LUX_MAY_FAIL send_command(char const* beg) {
-    char const* end = beg;
-    while(*end != '\0') ++end;
-    ///we want to count the null terminator
-    ++end;
-    SizeT len = end - beg;
-    if(len > 0) {
-        cs_sgnl.tag = NetCsSgnl::COMMAND;
-        cs_sgnl.command.contents.resize(len);
-        for(Uns i = 0; i < len; ++i) {
-            cs_sgnl.command.contents[i] = beg[i];
-        }
-        LUX_RETHROW(send_net_data(client.peer, &cs_sgnl, SIGNAL_CHANNEL),
-            "failed to send command");
     }
     return LUX_OK;
 }
@@ -400,54 +336,5 @@ LUX_MAY_FAIL client_send_assembly(Str const& label, Str const& contents) {
     cs_sgnl.tag = NetCsSgnl::RASEN_ASM;
     cs_sgnl.rasen_asm.str_id   = label;
     cs_sgnl.rasen_asm.contents = contents;
-    return send_net_data(client.peer, &cs_sgnl, SIGNAL_CHANNEL);
-}
-
-void add_dbg_point(NetSsTick::DbgInf::Shape::Point const& val,
-                   Vec4F col, bool border) {
-    ss_tick.dbg_inf.shapes.emplace(NetSsTick::DbgInf::Shape{
-        .tag = NetSsTick::DbgInf::Shape::POINT, .point = val,
-        .col = col, .border = border});
-}
-
-void add_dbg_line(NetSsTick::DbgInf::Shape::Line const& val,
-                   Vec4F col, bool border) {
-    ss_tick.dbg_inf.shapes.emplace(NetSsTick::DbgInf::Shape{
-        .tag = NetSsTick::DbgInf::Shape::LINE, .line = val,
-        .col = col, .border = border});
-}
-
-void add_dbg_arrow(NetSsTick::DbgInf::Shape::Arrow const& val,
-                   Vec4F col, bool border) {
-    ss_tick.dbg_inf.shapes.emplace(NetSsTick::DbgInf::Shape{
-        .tag = NetSsTick::DbgInf::Shape::ARROW, .arrow = val,
-        .col = col, .border = border});
-}
-
-void add_dbg_cross(NetSsTick::DbgInf::Shape::Cross const& val,
-                   Vec4F col, bool border) {
-    ss_tick.dbg_inf.shapes.emplace(NetSsTick::DbgInf::Shape{
-        .tag = NetSsTick::DbgInf::Shape::CROSS, .cross = val,
-        .col = col, .border = border});
-}
-
-void add_dbg_sphere(NetSsTick::DbgInf::Shape::Sphere const& val,
-                   Vec4F col, bool border) {
-    ss_tick.dbg_inf.shapes.emplace(NetSsTick::DbgInf::Shape{
-        .tag = NetSsTick::DbgInf::Shape::SPHERE, .sphere = val,
-        .col = col, .border = border});
-}
-
-void add_dbg_triangle(NetSsTick::DbgInf::Shape::Triangle const& val,
-                   Vec4F col, bool border) {
-    ss_tick.dbg_inf.shapes.emplace(NetSsTick::DbgInf::Shape{
-        .tag = NetSsTick::DbgInf::Shape::TRIANGLE, .triangle = val,
-        .col = col, .border = border});
-}
-
-void add_dbg_rect(NetSsTick::DbgInf::Shape::Rect const& val,
-                   Vec4F col, bool border) {
-    ss_tick.dbg_inf.shapes.emplace(NetSsTick::DbgInf::Shape{
-        .tag = NetSsTick::DbgInf::Shape::RECT, .rect = val,
-        .col = col, .border = border});
+    return send_net_data(client.peer, &cs_sgnl, SGNL_CHANNEL);
 }

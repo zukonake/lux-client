@@ -1,9 +1,10 @@
 in vec3 pos;
 in vec2 tex_pos;
-in float col;
+in vec3 norm;
 
+out vec3  f_pos;
 out vec2  f_tex_pos;
-out float f_col;
+out vec3  f_norm;
 
 uniform vec3 scale;
 uniform vec3 chk_pos;
@@ -13,8 +14,9 @@ uniform mat4 bobo;
 
 void main()
 {
-    vec3 map_pos = pos + chk_pos - camera_pos;
-    gl_Position  = bobo * vec4(map_pos, 1.0);
+    vec3 map_pos = pos + chk_pos;
+    gl_Position  = bobo * vec4(map_pos - camera_pos, 1.0);
+    f_pos        = map_pos;
     f_tex_pos    = tex_pos * tex_scale;
-    f_col = col;
+    f_norm       = norm;
 }

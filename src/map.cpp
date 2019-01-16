@@ -12,6 +12,7 @@
 #include <lux_shared/map.hpp>
 #include <lux_shared/util/packer.hpp>
 //
+#include <imgui/imgui.h>
 #include <rendering.hpp>
 #include <db.hpp>
 #include <client.hpp>
@@ -19,47 +20,18 @@
 #include "map.hpp"
 
 UiId ui_map;
-UiId ui_light;
-UiId ui_fov;
 
-//GLuint light_program;
 GLuint block_program;
 GLuint tileset;
 
-//gl::VertFmt light_vert_fmt;
 gl::VertFmt block_vert_fmt;
-struct FovSystem {
-#pragma pack(push, 1)
-    struct Vert {
-        Vec2F pos;
-    };
-#pragma pack(pop)
-    GLuint program;
-    gl::VertFmt  vert_fmt;
-    gl::VertBuff v_buff;
-    gl::IdxBuff  i_buff;
-    gl::VertContext context;
-} static fov_system;
-
-/*struct LightMesh {
-#pragma pack(push, 1)
-    struct Vert {
-        ///this refers to the middle of a block
-        Vec2<U8> pos;
-        Vec2<U8> lvl;
-    };
-#pragma pack(pop)
-    gl::VertBuff    v_buff;
-    gl::IdxBuff     i_buff;
-    gl::VertContext context;
-};*/
 
 struct BlockMesh {
 #pragma pack(push, 1)
     struct Vert {
         Vec3F pos;
         Vec2F layer_tex;
-        F32   col;
+        Vec3F norm;
     };
 #pragma pack(pop)
     gl::VertBuff    v_buff;
@@ -69,8 +41,7 @@ struct BlockMesh {
 };
 
 struct Mesh {
-    //LightMesh light;
-    BlockMesh  block;
+    BlockMesh block;
     bool is_built = false;
 };
 
@@ -81,19 +52,17 @@ DynArr<Chunk>  chunks;
 DynArr<Mesh>   meshes;
 VecSet<ChkPos> chunk_requests;
 
-static ChkCoord render_dist = 3;
+static ChkCoord render_dist = 4;
 static ChkPos   last_player_chk_pos = to_chk_pos(glm::floor(last_player_pos));
 
+static void mesh_destroy(Mesh* mesh);
 static bool try_build_mesh(ChkPos const& pos);
 static void build_block_mesh(BlockMesh& mesh, ChkPos const& chk_pos);
-//static void build_light_mesh(LightMesh& mesh, ChkPos const& chk_pos);
 
 static void map_load_programs() {
     char const* tileset_path = "tileset.png";
     Vec2U const block_size = {8, 8};
     block_program  = load_program("glsl/block.vert" , "glsl/block.frag");
-    //light_program = load_program("glsl/light.vert", "glsl/light.frag");
-    fov_system.program = load_program("glsl/fov.vert", "glsl/fov.frag");
     Vec2U tileset_size;
     tileset = load_texture(tileset_path, tileset_size);
     Vec2F tex_scale = (Vec2F)block_size / (Vec2F)tileset_size;
@@ -104,34 +73,16 @@ static void map_load_programs() {
     block_vert_fmt.init(block_program,
         {{"pos"    , 3, GL_FLOAT, false, false},
          {"tex_pos", 2, GL_FLOAT, false, false},
-         {"col"    , 1, GL_FLOAT, false, false}});
-
-    /*glUseProgram(light_program);
-    light_vert_fmt.init(light_program,
-        {{"pos", 2, GL_UNSIGNED_BYTE, false, false},
-         {"lvl", 2, GL_UNSIGNED_BYTE, true , false}});*/
-
-    glUseProgram(fov_system.program);
-    fov_system.vert_fmt.init(fov_system.program,
-        {{"pos", 2, GL_FLOAT, false, false}});
-    fov_system.v_buff.init();
-    fov_system.i_buff.init();
-    fov_system.context.init({fov_system.v_buff}, fov_system.vert_fmt);
+         {"norm"   , 3, GL_FLOAT, false, false}});
 }
 
 static void map_io_tick(  U32, Transform const&, IoContext&);
-//static void light_io_tick(U32, Transform const&, IoContext&);
-static void fov_io_tick(  U32, Transform const&, IoContext&);
 
 void map_init() {
     map_load_programs();
 
     ui_map = ui_create(ui_camera);
     ui_nodes[ui_map].io_tick = &map_io_tick;
-    ui_light = ui_create(ui_camera, 0x80);
-    //ui_nodes[ui_light].io_tick = &light_io_tick;
-    ui_fov = ui_create(ui_camera, 0x70);
-    //ui_nodes[ui_fov].io_tick = &fov_io_tick;
 
     gl::VertContext::unbind_all();
     debug_mesh_0.v_buff.init();
@@ -144,7 +95,7 @@ void map_init() {
     for(Uns i = 0; i < 4; ++i) {
         verts[i].pos = Vec3F(u_quad<F32>[i] * (F32)CHK_SIZE, 0);
         verts[i].layer_tex = u_quad<F32>[i] + (Vec2F)dbg_block_0.tex_pos;;
-        verts[i].col = 1.f;
+        verts[i].norm = Vec3F(sqrt(3.f));
     }
 
     debug_mesh_0.v_buff.bind();
@@ -171,6 +122,12 @@ void map_init() {
 }
 
 static void map_io_tick(U32, Transform const& tr, IoContext& context) {
+    ImGui::Begin("settings");
+    static int new_render_dist = render_dist;
+    ImGui::InputInt("render_dist", &new_render_dist);
+    new_render_dist = glm::max(0, new_render_dist);
+    render_dist = new_render_dist;
+    ImGui::End();
     auto& world = ui_nodes[ui_world];
     F32 old_ratio = world.tr.scale.x / world.tr.scale.y;
     static F32 bob = 3.6f;
@@ -294,6 +251,12 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
            glm::lookAt(Vec3F(0.f), direction, Vec3F(0, 1, 0)) * bobo;
     bobo *= 0.1f;
 
+
+    Vec3F ambient_light =
+        glm::mix(Vec3F(0.01f, 0.015f, 0.02f), Vec3F(1.f, 1.f, 0.9f),
+                 (ss_tick.day_cycle + 1.f) / 2.f);
+    set_uniform("ambient_light", block_program, glUniform3fv,
+                1, glm::value_ptr(ambient_light));
     set_uniform("bobo", block_program, glUniformMatrix4fv,
                 1, GL_FALSE, glm::value_ptr(bobo));
 
@@ -310,7 +273,6 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
                        i / (mesh_load_size * mesh_load_size)};
         pos -= render_dist;
         pos += chk_pos;
-        //LUX_LOG("%zu - %d, %d, %d", i, pos.x, pos.y, pos.z);
         if(glm::distance((Vec3F)chk_pos, (Vec3F)pos) > render_dist) {
             continue;
         }
@@ -332,118 +294,11 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
     //glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }
 
-/*static void light_io_tick(U32, Transform const& tr, IoContext&) {
-    Vec3F ambient_light =
-        glm::mix(Vec3F(0.025f, 0.025f, 0.6f), Vec3F(1.f, 1.f, 1.0f),
-                 (ss_tick.day_cycle + 1.f) / 2.f);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_ZERO, GL_SRC_COLOR);
-    glUseProgram(light_program);
-    set_uniform("scale", light_program, glUniform2fv,
-                1, glm::value_ptr(tr.scale));
-    set_uniform("camera_pos", light_program, glUniform2fv,
-                1, glm::value_ptr(tr.pos));
-    set_uniform("ambient_light", light_program, glUniform3fv,
-                1, glm::value_ptr(ambient_light));
-    for(auto const& chk_pos : render_list) {
-        Vec2F chk_translation = (Vec2F)(chk_pos * ChkPos(CHK_SIZE));
-        set_uniform("chk_pos", light_program, glUniform2fv, 1,
-            glm::value_ptr(chk_translation));
-
-        LightMesh const& mesh = meshes.at(chk_pos).light;
-        mesh.context.bind();
-        mesh.i_buff.bind();
-        glDrawElements(GL_TRIANGLES, CHK_VOL * 6, GL_UNSIGNED_INT, 0);
-    }
-    glDisable(GL_BLEND);
-}*/
-
-static void fov_io_tick(U32, Transform const& tr, IoContext&) {
-    /*static DynArr<FovSystem::Vert> verts;
-    static DynArr<U32>             idxs;
-    verts.clear();
-    idxs.clear();
-    //@TODO just render to unscaled -1 etc.
-    //@CONSIDER making this a vector
-    F32 fov_range = ((1.f / glm::compMin(ui_nodes[ui_world].tr.scale)) + 1.f) *
-                    std::sqrt(2.f);
-    Vec2F camera_pos = -tr.pos;
-    //@TODO use IoContext mouse pos
-    F32 aim_angle = get_aim_rotation();
-    for(auto const& idx : {0, 1, 2, 0, 3, 4, 0, 2, 4}) {
-        idxs.push(verts.len + idx);
-    }
-    verts.push({camera_pos});
-    verts.push({camera_pos +
-                    glm::rotate(Vec2F(-1.f, -0.1f), aim_angle) * fov_range});
-    verts.push({camera_pos +
-                    glm::rotate(Vec2F(-1.f, 1.f), aim_angle) * fov_range});
-    verts.push({camera_pos +
-                    glm::rotate(Vec2F( 1.f, -0.1f), aim_angle) * fov_range});
-    verts.push({camera_pos +
-                    glm::rotate(Vec2F( 1.f, 1.f), aim_angle) * fov_range});
-    for(auto const& chk_pos : render_list) {
-        for(Uns i = 0; i < CHK_VOL; i++) {
-            if(get_chunk(chk_pos).blocks[i] != void_block) {
-                Vec2F map_pos = to_map_pos(chk_pos, i);
-                Vec2I dir = -glm::sign(map_pos - camera_pos);
-                if(dir.x == 0) dir.x = 1;
-                if(dir.y == 0) dir.y = 1;
-                Uns edge_idx;
-                if(dir.x == -1 && dir.y == -1) {
-                    edge_idx = 0;
-                } else if(dir.x == 1 && dir.y == -1) {
-                    edge_idx = 1;
-                } else if(dir.x == 1 && dir.y == 1) {
-                    edge_idx = 2;
-                } else if(dir.x == -1 && dir.y == 1) {
-                    edge_idx = 3;
-                } else LUX_UNREACHABLE();
-                Vec2F edges[3];
-                for(Int j = -1; j <= 1; j++) {
-                    edges[j + 1] = u_quad<F32>[(edge_idx + j) % 4] + map_pos;
-                }
-                for(auto const& idx : {2, 1, 0, 2, 4, 3, 1, 4, 2}) {
-                    idxs.push(verts.len + idx);
-                }
-                if(edges[0] == camera_pos || edges[2] == camera_pos) continue;
-                Vec2F rays[2] = {
-                    glm::normalize(edges[0] - camera_pos) * fov_range,
-                    glm::normalize(edges[2] - camera_pos) * fov_range};
-                verts.push({edges[0]});
-                verts.push({camera_pos + rays[0]});
-                //@TODO modular arithmetic class?
-                verts.push({edges[1]});
-                verts.push({edges[2]});
-                verts.push({camera_pos + rays[1]});
-            }
-        }
-    }
-    glUseProgram(fov_system.program);
-    set_uniform("scale", fov_system.program, glUniform2fv,
-                1, glm::value_ptr(tr.scale));
-    set_uniform("translation", fov_system.program, glUniform2fv,
-                1, glm::value_ptr(tr.pos));
-    fov_system.context.bind();
-    fov_system.v_buff.bind();
-    fov_system.v_buff.write(verts.len, verts.beg, GL_DYNAMIC_DRAW);
-    fov_system.i_buff.bind();
-    fov_system.i_buff.write(idxs.len, idxs.beg, GL_DYNAMIC_DRAW);
-    glEnable(GL_BLEND);
-    glEnable(GL_DEPTH_TEST);
-    glBlendFunc(GL_DST_COLOR, GL_ZERO);
-    glDrawElements(GL_TRIANGLES, idxs.len, GL_UNSIGNED_INT, 0);
-    glDisable(GL_BLEND);
-    glDisable(GL_DEPTH_TEST);
-    */
-}
-
 void map_reload_program() {
     //@TODO we need to reload attrib locations here
     LUX_LOG("reloading map program");
     glDeleteTextures(1, &tileset);
     glDeleteProgram(block_program);
-    //glDeleteProgram(light_program);
     map_load_programs();
 }
 
@@ -489,6 +344,7 @@ void blocks_update(ChkPos const& pos, NetSsSgnl::Blocks::Chunk const& net_chunk)
     Chunk& chunk = chunks[idx];
     std::memcpy(chunk.blocks, net_chunk.id, sizeof(chunk.blocks));
     chunk.loaded = true;
+    //@TODO this is very laggy, we rebuild whole meshes for area of 3x3x3
     for(auto const& offset : chebyshev<ChkCoord>) {
         ChkPos off_pos = pos + offset;
         Int mesh_idx = get_fov_idx(off_pos, render_dist);
@@ -496,24 +352,6 @@ void blocks_update(ChkPos const& pos, NetSsSgnl::Blocks::Chunk const& net_chunk)
            is_chunk_loaded(off_pos)) {
             build_block_mesh(meshes[mesh_idx].block, off_pos);
         }
-    }
-}
-
-void light_update(ChkPos const& pos,
-                  NetSsSgnl::Light::Chunk const& net_chunk) {
-    if(!is_chunk_loaded(pos)) {
-        LUX_LOG_WARN("chunk is not loaded");
-        return;
-    }
-    Chunk& chunk = get_chunk(pos);
-    std::memcpy(chunk.light_lvl, net_chunk.light_lvl,
-                CHK_VOL * sizeof(LightLvl));
-    for(auto const& offset : chebyshev<ChkCoord>) {
-        //@TODO
-        ChkPos off_pos = pos + offset;
-        /*if(is_chunk_loaded(off_pos) && meshes.count(off_pos) > 0) {
-            //build_light_mesh(meshes.at(off_pos).light, off_pos);
-        }*/
     }
 }
 
@@ -546,14 +384,11 @@ static bool try_build_mesh(ChkPos const& pos) {
     mesh.block.context.init({mesh.block.v_buff}, block_vert_fmt);
     build_block_mesh(mesh.block, pos);
 
-    /*mesh.light.v_buff.init();
-    mesh.light.i_buff.init();
-    mesh.light.context.init({mesh.light.v_buff}, light_vert_fmt);
-    build_light_mesh(mesh.light, pos);*/
     mesh.is_built = true;
     return true;
 }
 
+//@TODO cleanup
 typedef struct {
    Vec3F p[3];
 } Triangle;
@@ -959,7 +794,6 @@ int polygonise(GridCell grid, F32 isolevel, Triangle *triangles)
 
 static void build_block_mesh(BlockMesh& mesh, ChkPos const& chk_pos) {
     LUX_LOG("building mesh {%zd, %zd, %zd}", chk_pos.x, chk_pos.y, chk_pos.z);
-    Chunk const& chunk = get_chunk(chk_pos);
     Arr<BlockMesh::Vert, CHK_VOL * 5 * 3> verts;
     Arr<U32            , CHK_VOL * 5 * 3> idxs;
 
@@ -1001,39 +835,15 @@ static void build_block_mesh(BlockMesh& mesh, ChkPos const& chk_pos) {
                 idxs[ trigs_num * 3 + k] = trigs_num * 3 + k;
                 verts[trigs_num * 3 + k].pos = cell_trigs[j].p[k] + Vec3F(0.5f);
                 verts[trigs_num * 3 + k].layer_tex = (Vec2F)bp->tex_pos + bob[k];
-                F32 col   = 0.f;
-                F32 denom = 0.f;
-                MapPos bob_pos = glm::floor(cell_trigs[j].p[k]) + (Vec3F)(chk_pos * (ChkPos)CHK_SIZE);
-                /*for(auto const& off : chebyshev<MapCoord>) {
-                    MapPos asdf = bob_pos + off;
-                    col += get_block(asdf) != void_block;
-                    denom += 1.f;
-                }*/
-                verts[trigs_num * 3 + k].col = 1.f;// - glm::pow(col / denom, 2.f);
+            }
+            auto const& v0 = verts[trigs_num * 3 + 0].pos;
+            auto const& v1 = verts[trigs_num * 3 + 1].pos;
+            auto const& v2 = verts[trigs_num * 3 + 2].pos;
+            for(Uns k = 0; k < 3; ++k) {
+                verts[trigs_num * 3 + k].norm = glm::cross(v1 - v0, v2 - v0);
             }
             ++trigs_num;
         }
-        /*for(Uns j = 0; j < 6; j++) {
-            Vec3F idx_pos = to_idx_pos(i);
-            BlockBp const& bp = db_block_bp(chunk.layer[j / 2 == 2 ? 1 : 0][i]);
-            Uns random_off = 0;
-            random_off = lux_rand(to_map_pos(chk_pos, i), 0);
-            constexpr F32 tx_edge = 0.001f;
-            for(Uns k = 0; k < 4; k++) {
-                Vec3F vp = Vec3F(u_quad<F32>[k], 0);
-                if(j / 2 != 2) {
-                    vp = glm::rotate(vp, tau / 4.f, beb[j / 2]);
-                }
-                vp += bob[j];
-                verts[quads_num * 4 + k].pos = idx_pos + vp;
-                Uns tex_idx = (k + random_off) % 4;
-                Vec2F tex_pos = u_quad<F32>[tex_idx] -
-                    glm::sign(quad<F32>[tex_idx]) * tx_edge;
-                verts[quads_num * 4 + k].pos = idx_pos + vp;
-                verts[quads_num * 4 + k].layer_tex = (Vec2F)bp.tex_pos + tex_pos;
-            }
-            ++quads_num;
-        }*/
     }
     if(trigs_num != 0) {
         gl::VertContext::unbind_all();
@@ -1045,60 +855,15 @@ static void build_block_mesh(BlockMesh& mesh, ChkPos const& chk_pos) {
     }
 }
 
-/*static void build_light_mesh(LightMesh& mesh, ChkPos const& chk_pos) {
-    LUX_UNIMPLEMENTED();
-    Chunk const& chunk = get_chunk(chk_pos);
-    Arr<LightMesh::Vert, (CHK_SIZE + 1) * (CHK_SIZE + 1)> verts;
-    Arr<U32, CHK_VOL * 6> idxs;
-    for(ChkIdx i = 0; i < std::pow(CHK_SIZE + 1, 2); ++i) {
-        Vec2<U16> rel_pos = {i % (CHK_SIZE + 1), i / (CHK_SIZE + 1)};
-        verts[i].pos = rel_pos;
-        Vec2U overflow = glm::equal(rel_pos, Vec2<U16>(CHK_SIZE));
-        ChkPos off_pos = chk_pos + (ChkPos)overflow;
-        ChkIdx chk_idx = to_chk_idx(rel_pos & Vec3<U16>(CHK_SIZE - 1));
-        LightLvl light_lvl;
-        if(chk_pos != off_pos) {
-            light_lvl = get_chunk(off_pos).light_lvl[chk_idx];
-        } else {
-            light_lvl = chunk.light_lvl[chk_idx];
-        }
-        verts[i].lvl = (Vec2<U8>)glm::round(
-            Vec2F((light_lvl >> 12) & 0xF,
-                  (light_lvl >>  8) & 0xF) * 17.f);
-    }
-    Uns idx_off = 0;
-    for(ChkIdx i = 0; i < std::pow(CHK_SIZE + 1, 2); ++i) {
-        if(i % (CHK_SIZE + 1) != CHK_SIZE &&
-           i / (CHK_SIZE + 1) != CHK_SIZE) {
-            U32 constexpr idx_order[6] =
-                {0, 1, CHK_SIZE + 1, CHK_SIZE + 1, CHK_SIZE + 2, 1};
-            U32 constexpr flipped_idx_order[6] =
-                {0, CHK_SIZE + 1, CHK_SIZE + 2, CHK_SIZE + 2, 1, 0};
-            if(glm::length((Vec2F)verts[i + 1].lvl) +
-               glm::length((Vec2F)verts[i + CHK_SIZE + 1].lvl) >
-               glm::length((Vec2F)verts[i + 0].lvl) +
-               glm::length((Vec2F)verts[i + CHK_SIZE + 2].lvl)) {
-                for(Uns j = 0; j < 6; ++j) {
-                    idxs[idx_off * 6 + j] = i + idx_order[j];
-                }
-            } else {
-                for(Uns j = 0; j < 6; ++j) {
-                    idxs[idx_off * 6 + j] = i + flipped_idx_order[j];
-                }
-            }
-            ++idx_off;
-        }
-    }
-    gl::VertContext::unbind_all();
-
-    mesh.v_buff.bind();
-    mesh.v_buff.write(std::pow(CHK_SIZE + 1, 2), verts, GL_DYNAMIC_DRAW);
-    mesh.i_buff.bind();
-    mesh.i_buff.write(CHK_VOL * 6, idxs, GL_DYNAMIC_DRAW);
-}*/
-
 BlockId get_block(MapPos const& pos) {
-    return get_chunk(to_chk_pos(pos)).blocks[to_chk_idx(pos)] & 0xFF;
+    static ChkPos cached_chk_pos = to_chk_pos(pos);
+    static Chunk *cached_chunk = &get_chunk(cached_chk_pos);
+    ChkPos current_chk_pos = to_chk_pos(pos);
+    if(cached_chk_pos != current_chk_pos) {
+        cached_chunk   = &get_chunk(current_chk_pos);
+        cached_chk_pos = current_chk_pos;
+    }
+    return cached_chunk->blocks[to_chk_idx(pos)] & 0xFF;
 }
 
 BlockBp const& get_block_bp(MapPos const& pos) {

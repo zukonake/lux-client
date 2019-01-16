@@ -62,25 +62,6 @@ void rendering_init() {
         }
     }
     glViewport(0, 0, WINDOW_SIZE.x, WINDOW_SIZE.y);
-    /*
-    Vec2<unsigned> cursor_size;
-    std::vector<U8> cursor_img_data;
-    const char* cursor_path = "cursor.png";
-    {   auto err = lodepng::decode(cursor_img_data,
-            cursor_size.x, cursor_size.y, cursor_path);
-        if(err) LUX_FATAL("couldn't load cursor: %s", cursor_path);
-    }
-    GLFWimage cursor_img;
-    cursor_img.width  = cursor_size.x;
-    cursor_img.height = cursor_size.y;
-    cursor_img.pixels = cursor_img_data.data();
-    ///in the future we will want to have the UI store it
-    GLFWcursor* cursor = glfwCreateCursor(&cursor_img,
-        (cursor_size.x - 1) / 2, (cursor_size.y - 1) / 2);
-    if(cursor == nullptr) {
-        LUX_FATAL("couldn't create cursor");
-    }
-    glfwSetCursor(glfw_window, cursor);*/
     glfwSetInputMode(glfw_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 }
 
@@ -142,6 +123,7 @@ GLuint load_shader(GLenum type, char const* path) {
 }
 
 GLuint load_program(char const* vert_path, char const* frag_path) {
+    //@TODO geometry shader support
     GLuint vert_id = load_shader(GL_VERTEX_SHADER  , vert_path);
     GLuint frag_id = load_shader(GL_FRAGMENT_SHADER, frag_path);
 
@@ -185,15 +167,6 @@ GLuint load_texture(char const* path, Vec2U& size_out) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     return id;
-}
-
-F32 get_aim_rotation() {
-    Vec2D mouse_pos = get_mouse_pos() * (Vec2D)get_window_size();
-    F32 raw = std::atan2(-mouse_pos.y, mouse_pos.x) - tau / 4.f;
-    raw /= tau;
-    raw  = glm::fract(raw);
-    if(raw > 0.5f) raw = raw - 1.f;
-    return raw * tau;
 }
 
 //@TODO more abstractions + above

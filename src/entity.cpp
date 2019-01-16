@@ -98,9 +98,6 @@ static void entity_io_tick(U32, Transform const& tr, IoContext&) {
                     pos += comps.pos.at(p_id);
                 }
             }*/
-            Vec2F rot_shift = glm::rotate(origin, angle);
-            add_dbg_arrow({pos2, pos2 + rot_shift}, {0.f, 0.f, 1.f, 1.f});
-
             for(auto const& idx : quad_idxs<U32>) {
                 idxs.emplace(verts.len + idx);
             }
@@ -161,9 +158,6 @@ void set_net_entity_comps(NetSsTick::EntityComps const& net_comps) {
     for(auto const& visible : net_comps.visible) {
         comps.visible[visible.first] =
             {visible.second.visible_id, visible.second.quad_sz};
-    }
-    for(auto const& container : net_comps.container) {
-        comps.container[container.first].items = container.second.items;
     }
     for(auto const& orientation : net_comps.orientation) {
         comps.orientation[orientation.first] =

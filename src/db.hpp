@@ -6,11 +6,6 @@
 #include <lux_shared/map.hpp>
 
 struct BlockBp {
-    BlockBp(Str _str_id, Str _name, Vec2U _tex_pos, bool _connected_tex) :
-        str_id(_str_id),
-        name(_name),
-        tex_pos(_tex_pos),
-        connected_tex(_connected_tex) { }
     StrBuff str_id;
     StrBuff name;
     Vec2U tex_pos;

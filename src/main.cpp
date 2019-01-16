@@ -50,12 +50,6 @@ void char_cb(GLFWwindow* window, unsigned int ch) {
     ImGui_ImplGlfw_CharCallback(window, ch);
 }
 
-void show_error(const char* str) {
-    ImGui::Begin("error");
-    ImGui::Text("error: %s", str);
-    ImGui::End();
-}
-
 int main(int argc, char** argv) {
     char const* server_hostname = "localhost";
     U16 server_port = 31337;
@@ -113,6 +107,7 @@ int main(int argc, char** argv) {
                          Vec3F(111.f, 184.f, 238.f) / 255.f,
                          (ss_tick.day_cycle + 1.f) / 2.f);
 
+            //@TODO move this
             glClearColor(sky_col.r, sky_col.g, sky_col.b, 1);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             if(client_tick(glfw_window) != LUX_OK) {
