@@ -259,12 +259,14 @@ LUX_MAY_FAIL static handle_signal(ENetPacket* in_pack) {
 
     { ///parse the packet
         switch(ss_sgnl.tag) {
-            case NetSsSgnl::BLOCKS: {
-                for(auto const& chunk : ss_sgnl.blocks.chunks) {
-                    blocks_update(chunk.first, chunk.second);
+            case NetSsSgnl::CHUNK_LOAD: {
+                map_load_chunks(ss_sgnl.chunk_load);
+                for(auto const& chunk : ss_sgnl.chunk_load.chunks) {
                     client.sent_requests.erase(chunk.first);
-                    chunk_requests.erase(chunk.first);
                 }
+            } break;
+            case NetSsSgnl::CHUNK_UPDATE: {
+                map_update_chunks(ss_sgnl.chunk_update);
             } break;
             case NetSsSgnl::MSG: {
                 LUX_UNIMPLEMENTED();

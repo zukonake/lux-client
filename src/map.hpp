@@ -19,8 +19,8 @@ extern VecSet<ChkPos> chunk_requests;
 void map_init();
 void map_reload_program();
 bool is_chunk_loaded(ChkPos const& pos);
-void blocks_update(ChkPos const& pos,
-                   NetSsSgnl::Blocks::Chunk const& net_chunk);
+void map_load_chunks(NetSsSgnl::ChunkLoad const& net_chunks);
+void map_update_chunks(NetSsSgnl::ChunkUpdate const& net_chunks);
 ///@NOTE: if you modify the chunk, you probably have to rebuild the mesh
 Chunk& get_chunk(ChkPos const& pos);
 BlockId get_block(MapPos const& pos);

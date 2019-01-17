@@ -160,7 +160,7 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
         SizeT chunks_num = glm::pow(load_size, 3);
         SizeT meshes_num = glm::pow(mesh_load_size, 3);
         DynArr<Chunk> new_chunks(chunks_num);
-        LUX_LOG("%zd, %zd, %zd", chk_diff.x, chk_diff.y, chk_diff.z);
+        //@TODO this crashes sometimes
         auto get_idx = [&](ChkPos pos, ChkCoord size) {
             return pos.x +
                    pos.y * size +
@@ -333,24 +333,160 @@ static Mesh& get_mesh(ChkPos const& pos) {
     return meshes[idx];
 }
 
-void blocks_update(ChkPos const& pos, NetSsSgnl::Blocks::Chunk const& net_chunk) {
-    LUX_LOG("updating chunk {%zd, %zd, %zd}", pos.x, pos.y, pos.z);
-    Int idx = get_fov_idx(pos, render_dist + 1);
-    if(idx < 0) {
-        LUX_LOG_WARN("received chunk {%zd, %zd, %zd} out of load range",
-            pos.x, pos.y, pos.z);
-        return;
+void map_load_chunks(NetSsSgnl::ChunkLoad const& net_chunks) {
+    for(auto const& pair : net_chunks.chunks) {
+        ChkPos pos = pair.first;
+        auto const& net_chunk = pair.second;
+        LUX_LOG("loading chunk {%zd, %zd, %zd}", pos.x, pos.y, pos.z);
+        Int idx = get_fov_idx(pos, render_dist + 1);
+        if(idx < 0) {
+            LUX_LOG_WARN("received chunk {%zd, %zd, %zd} out of load range",
+                pos.x, pos.y, pos.z);
+            continue;
+        }
+        Chunk& chunk = chunks[idx];
+        std::memcpy(chunk.blocks, net_chunk.blocks, sizeof(chunk.blocks));
+        chunk.loaded = true;
+        chunk_requests.erase(pos);
     }
-    Chunk& chunk = chunks[idx];
-    std::memcpy(chunk.blocks, net_chunk.id, sizeof(chunk.blocks));
-    chunk.loaded = true;
-    //@TODO this is very laggy, we rebuild whole meshes for area of 3x3x3
-    for(auto const& offset : chebyshev<ChkCoord>) {
-        ChkPos off_pos = pos + offset;
-        Int mesh_idx = get_fov_idx(off_pos, render_dist);
-        if(mesh_idx >= 0 && meshes[mesh_idx].is_built &&
-           is_chunk_loaded(off_pos)) {
-            build_block_mesh(meshes[mesh_idx].block, off_pos);
+}
+
+void map_update_chunks(NetSsSgnl::ChunkUpdate const& net_chunks) {
+    for(auto const& pair : net_chunks.chunks) {
+        U8 updated_sides = 0b000000;
+        ChkPos pos = pair.first;
+        auto const& net_chunk = pair.second;
+        LUX_LOG("updating chunk {%zd, %zd, %zd}", pos.x, pos.y, pos.z);
+        Int idx = get_fov_idx(pos, render_dist + 1);
+        if(idx < 0 || !chunks[idx].loaded) {
+            LUX_LOG_WARN("received chunk update for unloaded chunk"
+                " {%zd, %zd, %zd}", pos.x, pos.y, pos.z);
+            continue;
+        }
+        Chunk& chunk = chunks[idx];
+        for(auto const& block_update : net_chunk.blocks) {
+            //@TODO bound check?
+            ChkIdx idx = block_update.idx;
+            chunk.blocks[idx] = block_update.id;
+            IdxPos idx_pos = to_idx_pos(idx);
+            for(Uns a = 0; a < 3; ++a) {
+                if(idx_pos[a] == 0) {
+                    updated_sides |= (0b000001 << (a * 2));
+                } else if(idx_pos[a] == CHK_SIZE - 1) {
+                    updated_sides |= (0b000010 << (a * 2));
+                }
+            }
+        }
+        auto update_mesh = [&](ChkPos r_pos) {
+            ChkPos off_pos = pos + r_pos;
+            Int mesh_idx = get_fov_idx(off_pos, render_dist);
+            if(mesh_idx >= 0 && meshes[mesh_idx].is_built &&
+               is_chunk_loaded(off_pos)) {
+                build_block_mesh(meshes[mesh_idx].block, off_pos);
+            }
+        };
+        //@TODO consider doing this in a loop
+        update_mesh({0,  0,  0});
+        if(updated_sides != 0) {
+            if(updated_sides & 0b000001) {
+                update_mesh({-1,  0,  0});
+                if(updated_sides & 0b000100) {
+                    update_mesh({-1, -1, 0});
+                    update_mesh({ 0, -1, 0});
+                    if(updated_sides & 0b010000) {
+                        update_mesh({-1, -1, -1});
+                        update_mesh({ 0, -1, -1});
+                        update_mesh({ 0,  0, -1});
+                        update_mesh({-1,  0, -1});
+                    } else if(updated_sides & 0b100000) {
+                        update_mesh({-1, -1,  1});
+                        update_mesh({ 0, -1,  1});
+                        update_mesh({ 0,  0,  1});
+                        update_mesh({-1,  0,  1});
+                    }
+                }
+                else if(updated_sides & 0b001000) {
+                    update_mesh({-1,  1, 0});
+                    update_mesh({ 0,  1, 0});
+                    if(updated_sides & 0b010000) {
+                        update_mesh({-1,  1, -1});
+                        update_mesh({ 0,  1, -1});
+                        update_mesh({ 0,  0, -1});
+                        update_mesh({-1,  0, -1});
+                    } else if(updated_sides & 0b100000) {
+                        update_mesh({-1,  1,  1});
+                        update_mesh({ 0,  1,  1});
+                        update_mesh({ 0,  0,  1});
+                        update_mesh({-1,  0,  1});
+                    }
+                } else if(updated_sides & 0b010000) {
+                    update_mesh({-1,  0, -1});
+                    update_mesh({ 0,  0, -1});
+                } else if(updated_sides & 0b100000) {
+                    update_mesh({-1,  0,  1});
+                    update_mesh({ 0,  0,  1});
+                }
+            } else if(updated_sides & 0b000010) {
+                update_mesh({ 1,  0,  0});
+                if(updated_sides & 0b000100) {
+                    update_mesh({ 1, -1, 0});
+                    update_mesh({ 0, -1, 0});
+                    if(updated_sides & 0b010000) {
+                        update_mesh({ 1, -1, -1});
+                        update_mesh({ 0, -1, -1});
+                        update_mesh({ 0,  0, -1});
+                        update_mesh({ 1,  0, -1});
+                    } else if(updated_sides & 0b100000) {
+                        update_mesh({ 1, -1,  1});
+                        update_mesh({ 0, -1,  1});
+                        update_mesh({ 0,  0,  1});
+                        update_mesh({ 1,  0,  1});
+                    }
+                }
+                else if(updated_sides & 0b001000) {
+                    update_mesh({ 1,  1, 0});
+                    update_mesh({ 0,  1, 0});
+                    if(updated_sides & 0b010000) {
+                        update_mesh({ 1,  1, -1});
+                        update_mesh({ 0,  1, -1});
+                        update_mesh({ 0,  0, -1});
+                        update_mesh({ 1,  0, -1});
+                    } else if(updated_sides & 0b100000) {
+                        update_mesh({ 1,  1,  1});
+                        update_mesh({ 0,  1,  1});
+                        update_mesh({ 0,  0,  1});
+                        update_mesh({ 1,  0,  1});
+                    }
+                } else if(updated_sides & 0b010000) {
+                    update_mesh({ 1,  0, -1});
+                    update_mesh({ 0,  0, -1});
+                } else if(updated_sides & 0b100000) {
+                    update_mesh({ 1,  0,  1});
+                    update_mesh({ 0,  0,  1});
+                }
+            } else if(updated_sides & 0b000100) {
+                update_mesh({ 0, -1, 0});
+                if(updated_sides & 0b010000) {
+                    update_mesh({ 0, -1, -1});
+                    update_mesh({ 0,  0, -1});
+                } else if(updated_sides & 0b100000) {
+                    update_mesh({ 0, -1,  1});
+                    update_mesh({ 0,  0,  1});
+                }
+            } else if(updated_sides & 0b001000) {
+                update_mesh({ 0,  1, 0});
+                if(updated_sides & 0b010000) {
+                    update_mesh({ 0,  1, -1});
+                    update_mesh({ 0,  0, -1});
+                } else if(updated_sides & 0b100000) {
+                    update_mesh({ 0,  1,  1});
+                    update_mesh({ 0,  0,  1});
+                }
+            } else if(updated_sides & 0b010000) {
+                update_mesh({ 0,  0, -1});
+            } else if(updated_sides & 0b100000) {
+                update_mesh({ 0,  0,  1});
+            }
         }
     }
 }
@@ -794,8 +930,8 @@ int polygonise(GridCell grid, F32 isolevel, Triangle *triangles)
 
 static void build_block_mesh(BlockMesh& mesh, ChkPos const& chk_pos) {
     LUX_LOG("building mesh {%zd, %zd, %zd}", chk_pos.x, chk_pos.y, chk_pos.z);
-    Arr<BlockMesh::Vert, CHK_VOL * 5 * 3> verts;
-    Arr<U32            , CHK_VOL * 5 * 3> idxs;
+    static DynArr<BlockMesh::Vert> verts(CHK_VOL * 5 * 3);
+    static DynArr<U32>             idxs( CHK_VOL * 5 * 3);
 
     U32 trigs_num = 0;
     /*BitArr<CHK_VOL> face_map;
@@ -848,9 +984,9 @@ static void build_block_mesh(BlockMesh& mesh, ChkPos const& chk_pos) {
     if(trigs_num != 0) {
         gl::VertContext::unbind_all();
         mesh.v_buff.bind();
-        mesh.v_buff.write(trigs_num * 3, verts, GL_DYNAMIC_DRAW);
+        mesh.v_buff.write(trigs_num * 3, verts.beg, GL_DYNAMIC_DRAW);
         mesh.i_buff.bind();
-        mesh.i_buff.write(trigs_num * 3, idxs, GL_DYNAMIC_DRAW);
+        mesh.i_buff.write(trigs_num * 3, idxs.beg, GL_DYNAMIC_DRAW);
         mesh.trigs_num = trigs_num;
     }
 }
