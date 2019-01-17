@@ -261,8 +261,9 @@ LUX_MAY_FAIL static handle_signal(ENetPacket* in_pack) {
         switch(ss_sgnl.tag) {
             case NetSsSgnl::BLOCKS: {
                 for(auto const& chunk : ss_sgnl.blocks.chunks) {
-                    client.sent_requests.erase(chunk.first);
                     blocks_update(chunk.first, chunk.second);
+                    client.sent_requests.erase(chunk.first);
+                    chunk_requests.erase(chunk.first);
                 }
             } break;
             case NetSsSgnl::MSG: {
@@ -311,19 +312,17 @@ LUX_MAY_FAIL client_tick(GLFWwindow* glfw_window) {
     }
     ///send map request signal
     {   cs_sgnl.tag = NetCsSgnl::MAP_REQUEST;
-        for(auto it = chunk_requests.cbegin(); it != chunk_requests.cend();) {
-            if(client.sent_requests.count(*it) == 0) {
-                LUX_LOG("requesting chunk {%zd, %zd}", it->x, it->y);
-                cs_sgnl.map_request.requests.emplace(*it);
-                client.sent_requests.emplace(*it);
-                it = chunk_requests.erase(it);
-            } else ++it;
+        for(auto const& pos : chunk_requests) {
+            if(client.sent_requests.count(pos) == 0) {
+                LUX_LOG("requesting chunk {%zd, %zd}", pos.x, pos.y);
+                cs_sgnl.map_request.requests.emplace(pos);
+                client.sent_requests.emplace(pos);
+            }
         }
         chunk_requests.clear();
         if(cs_sgnl.map_request.requests.size() > 0) {
-            if(send_net_data(client.peer, &cs_sgnl, SGNL_CHANNEL) != LUX_OK) {
-                LUX_LOG("failed to send map requests");
-            }
+            LUX_RETHROW(send_net_data(client.peer, &cs_sgnl, SGNL_CHANNEL),
+                "failed to send map requests");
         }
     }
     if(send_net_data(client.peer, &cs_tick, TICK_CHANNEL) != LUX_OK) {

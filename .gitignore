@@ -1,15 +1,11 @@
-# Ignore generated folders
 bin
 depend
 build
 Debug
-# Ignore generated files
 callgrind*
 vgcore*
 *~
 *.swp
-
-# Ignore binary files
 *.a
 *.so
 *.bin
@@ -25,5 +21,6 @@ resource.h
 *.user
 Shared.rc
 Shared.aps
-xxhsum
 imgui.ini
+*.xcf
+*.supp

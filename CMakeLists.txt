@@ -25,13 +25,11 @@ if(CMAKE_BUILD_TYPE MATCHES "Release")
 endif()
 
 configure_file("${PROJECT_SOURCE_DIR}/config.hpp.in"
-               "${PROJECT_BINARY_DIR}/include/config.hpp")
+               "${PROJECT_BINARY_DIR}/config.hpp")
 
-include_directories(SYSTEM "include")
-include_directories("deps/lux-shared/include" "src"
-                    "${PROJECT_BINARY_DIR}/include"
-                    "${PROJECT_BINARY_DIR}/deps/lux-shared/include")
-add_subdirectory("deps/lux-shared")
+include_directories(SYSTEM "deps" "src" "deps/lux_shared/deps"
+                    "${PROJECT_BINARY_DIR}" "${PROJECT_BINARY_DIR}/deps")
+add_subdirectory("deps/lux_shared")
 add_subdirectory("deps/lodepng")
 
 file(GLOB_RECURSE SOURCES "src/*.cpp")

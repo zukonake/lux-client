@@ -7,7 +7,7 @@
 #include <include_opengl.hpp>
 #include <GLFW/glfw3.h>
 #include <glm/gtc/constants.hpp>
-#include <lodepng.h>
+#include <lodepng/lodepng.h>
 #include <imgui/imgui.h>
 #include <imgui/imgui_impl_opengl3.h>
 #include <imgui/imgui_impl_glfw.h>
