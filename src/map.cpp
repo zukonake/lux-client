@@ -234,7 +234,7 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
     static Vec2F prot = {0, 0};
     prot += (last_mouse_pos - context.mouse_pos) * 0.005f;
     last_mouse_pos = context.mouse_pos;
-    prot.y = std::clamp(prot.y, -tau / 4.f + .001f, tau / 4.f - .001f);
+    prot.y = clamp(prot.y, -tau / 4.f + .001f, tau / 4.f - .001f);
 
     glm::mat4 bobo =
         {1, 0, 0, 0,
