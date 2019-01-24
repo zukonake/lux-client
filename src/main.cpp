@@ -91,6 +91,10 @@ int main(int argc, char** argv) {
     /*UiPaneId eq_pane =
         ui_pane_create(ui_hud, {{-1.f, 0.f, 0.f}, {0.7f, 1.f, 1.f}},
                        {0.5f, 0.5f, 0.5f, 0.5f});*/
+    //@TODO
+    UiPaneId crosshair =
+        ui_pane_create(ui_screen, {Vec3F(-0.025f), Vec3F(0.05f)},
+                       {0.5f, 0.5f, 0.5f, 0.5f});
 
     Vec2<int> win_size;
     glfwGetWindowSize(glfw_window, &win_size.x, &win_size.y);
@@ -100,11 +104,14 @@ int main(int argc, char** argv) {
         util::TickClock clock(tick_len);
         while(!client_should_close()) {
             clock.start();
+            ImGui_ImplOpenGL3_NewFrame();
+            ImGui_ImplGlfw_NewFrame();
+            ImGui::NewFrame();
             glfwPollEvents();
 
             Vec3F sky_col =
                 glm::mix(Vec3F(0.01f, 0.015f, 0.02f),
-                         Vec3F(111.f, 184.f, 238.f) / 255.f,
+                         Vec3F(0.6f, 0.8f, 1.f),
                          (ss_tick.day_cycle + 1.f) / 2.f);
 
             //@TODO move this
@@ -128,13 +135,15 @@ int main(int argc, char** argv) {
             }*/
             ui_nodes[ui_camera].tr.pos = -Vec3F(last_player_pos);
             ui_io_tick();
+            ImGui::Render();
+            ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
             check_opengl_error();
             glfwSwapBuffers(glfw_window);
 
             clock.stop();
             auto remaining = clock.synchronize();
             if(remaining < util::TickClock::Duration::zero()) {
-                LUX_LOG("tick overhead of %.2fs", std::abs(remaining.count()));
+                LUX_LOG("tick overhead of %.4fs", std::abs(remaining.count()));
             }
         }
     }

@@ -54,7 +54,7 @@ void entity_init() {
 }
 
 static void entity_io_tick(U32, Transform const& tr, IoContext&) {
-    glEnable(GL_BLEND);
+    /*glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glUseProgram(program);
     set_uniform("scale", program, glUniform2fv,
@@ -80,7 +80,7 @@ static void entity_io_tick(U32, Transform const& tr, IoContext&) {
                 angle  = comps.orientation.at(id).angle;
                 origin = comps.orientation.at(id).origin;
             }
-            /*EntityId p_id = id;
+            EntityId p_id = id;
             while(comps.parent.count(p_id) > 0) {
                 p_id = comps.parent.at(p_id);
                 F32   parent_angle = 0.f;
@@ -97,7 +97,7 @@ static void entity_io_tick(U32, Transform const& tr, IoContext&) {
                 if(comps.pos.count(p_id) > 0) {
                     pos += comps.pos.at(p_id);
                 }
-            }*/
+            }
             for(auto const& idx : quad_idxs<U32>) {
                 idxs.emplace(verts.len + idx);
             }
@@ -141,7 +141,7 @@ static void entity_io_tick(U32, Transform const& tr, IoContext&) {
 
     glBindTexture(GL_TEXTURE_2D, tileset);
     glDrawElements(GL_TRIANGLES, idxs.len, GL_UNSIGNED_INT, 0);
-    glDisable(GL_BLEND);
+    glDisable(GL_BLEND);*/
 }
 
 void set_net_entity_comps(NetSsTick::EntityComps const& net_comps) {
@@ -157,11 +157,11 @@ void set_net_entity_comps(NetSsTick::EntityComps const& net_comps) {
     }
     for(auto const& visible : net_comps.visible) {
         comps.visible[visible.first] =
-            {visible.second.visible_id, visible.second.quad_sz};
+            {visible.second.visible_id, {1.f, 1.f}}; //@TODO quad_sz
     }
     for(auto const& orientation : net_comps.orientation) {
         comps.orientation[orientation.first] =
-            {orientation.second.origin, orientation.second.angle};
+            {orientation.second.origin, orientation.second.angles};
     }
     for(auto const& parent : net_comps.parent) {
         comps.parent[parent.first] = parent.second;

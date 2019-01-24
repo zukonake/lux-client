@@ -8,6 +8,7 @@
 #include <cstring>
 //
 #include <enet/enet.h>
+#include <imgui/imgui.h>
 //
 #include <lux_shared/common.hpp>
 #include <lux_shared/net/common.hpp>
@@ -75,7 +76,6 @@ LUX_MAY_FAIL client_init(char const* server_hostname, U16 server_port) {
 
     { ///init client
         client.host = enet_host_create(nullptr, 1, CHANNEL_NUM, 0, 0);
-        //@TODO enet_host_compress_with_range_coder(client.host);
         if(client.host == nullptr) {
             LUX_LOG("couldn't initialize ENet host");
             return LUX_FAIL;
@@ -217,15 +217,22 @@ LUX_MAY_FAIL static connect_to_server(char const* hostname, U16 port) {
 
     //@TODO abstract this out
     if(ui_has_rasen_label("entity_move"_l)) {
-        Arr<U8, 2> stack = {1, 0};
+        Arr<U8, 2> stack;
+        stack[0] = 1;
+        stack[1] = 0;
         ui_add_continuous_binding("entity_move"_l, GLFW_KEY_W, stack);
         stack[0] = -1;
         ui_add_continuous_binding("entity_move"_l, GLFW_KEY_S, stack);
+        stack[0] = 0;
+        stack[1] = 1;
+        ui_add_continuous_binding("entity_move"_l, GLFW_KEY_A, stack);
+        stack[1] = -1;
+        ui_add_continuous_binding("entity_move"_l, GLFW_KEY_D, stack);
     } else {
         LUX_LOG_WARN("no \"entity_move\" label loaded, couldn't create default "
             "key bindings");
     }
-    if(ui_has_rasen_label("entity_rotate"_l)) {
+    /*if(ui_has_rasen_label("entity_rotate"_l)) {
         Arr<U8, 1> stack = {1};
         ui_add_continuous_binding("entity_rotate"_l, GLFW_KEY_D, stack);
         stack[0] = -1;
@@ -233,7 +240,7 @@ LUX_MAY_FAIL static connect_to_server(char const* hostname, U16 port) {
     } else {
         LUX_LOG_WARN("no \"entity_rotate\" label loaded, couldn't create "
             "default key bindings");
-    }
+    }*/
 
     return LUX_OK;
 }
@@ -285,7 +292,8 @@ LUX_MAY_FAIL client_tick(GLFWwindow* glfw_window) {
     { ///handle events
         if(glfwWindowShouldClose(glfw_window)) client_quit();
         ENetEvent event;
-        while(enet_host_service(client.host, &event, 0) > 0) {
+        //@TODO time
+        while(enet_host_service(client.host, &event, 10) > 0) {
             if(event.type == ENET_EVENT_TYPE_DISCONNECT) {
                 LUX_LOG("connection closed by server");
                 client.should_close = true;
@@ -330,6 +338,35 @@ LUX_MAY_FAIL client_tick(GLFWwindow* glfw_window) {
     if(send_net_data(client.peer, &cs_tick, TICK_CHANNEL) != LUX_OK) {
         LUX_LOG("failed to send tick");
     }
+    SizeT constexpr samples_num = 16;
+    static U32 rx_sum = 0;
+    static U32 tx_sum = 0;
+    static U32 count  = 0;
+    static U32 max_rx = 0;
+    static U32 max_tx = 0;
+    static U32 rx_avg = 0;
+    static U32 tx_avg = 0;
+    U32 rx = client.host->totalReceivedData;
+    U32 tx = client.host->totalSentData;
+    max_rx = max(max_rx, rx);
+    max_tx = max(max_tx, tx);
+    rx_sum += rx;
+    tx_sum += rx;
+    count++;
+    if(count >= samples_num) {
+        rx_avg = round((F64)rx_sum / (F64)count);
+        tx_avg = round((F64)tx_sum / (F64)count);
+        rx_sum = 0;
+        tx_sum = 0;
+        count  = 0;
+    }
+    ImGui::Begin("network status");
+    ImGui::Text("(%zu tick avg.)", samples_num);
+    ImGui::Text("tx: %uKiB", tx_avg >> 10);
+    ImGui::Text("rx: %uKiB", rx_avg >> 10);
+    ImGui::End();
+    client.host->totalReceivedData = 0;
+    client.host->totalSentData = 0;
     return LUX_OK;
 }
 

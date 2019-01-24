@@ -16,8 +16,8 @@ struct EntityComps {
         Vec2F quad_sz;
     };
     struct Orientation {
-        Vec2F origin;
-        F32   angle; ///in radians
+        Vec3F origin;
+        Vec2F angles; ///in radians
     };
     struct Text {
         UiTextId text;

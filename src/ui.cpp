@@ -346,6 +346,14 @@ static void imgui_io_tick(U32, Transform const&, IoContext& context) {
     {   ImGui::Begin("debug info");
         ImGui::Text("pos: {%.2f, %.2f, %.2f}",
             last_player_pos.x, last_player_pos.y, last_player_pos.z);
+        ChkPos chk_pos = to_chk_pos(floor(last_player_pos));
+        ImGui::Text("chk_pos: {%d, %d, %d}",
+            chk_pos.x, chk_pos.y, chk_pos.z);
+        IdxPos idx_pos = to_idx_pos(floor(last_player_pos));
+        ImGui::Text("idx_pos: {%u, %u, %u}",
+            idx_pos.x, idx_pos.y, idx_pos.z);
+        ChkIdx chk_idx = to_chk_idx(idx_pos);
+        ImGui::Text("chk_idx: {%u}", chk_idx);
         ImGui::End();
     }
     {   ImGui::Begin("assembly editor");
@@ -481,9 +489,6 @@ void ui_io_tick() {
         }
         cursor_disabled = !cursor_disabled;
     }
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui_ImplGlfw_NewFrame();
-    ImGui::NewFrame();
     Vec2<F64> mouse_pos;
     glfwGetCursorPos(glfw_window, &mouse_pos.x, &mouse_pos.y);
     io_context.mouse_pos = (Vec2F)mouse_pos;
@@ -494,8 +499,6 @@ void ui_io_tick() {
     io_context.mouse_events.clear();
     io_context.scroll_events.clear();
     io_context.key_events.clear();
-    ImGui::Render();
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
 LUX_MAY_FAIL ui_add_rasen_label(NetRasenLabel const& label) {
@@ -505,6 +508,12 @@ LUX_MAY_FAIL ui_add_rasen_label(NetRasenLabel const& label) {
 
 bool ui_has_rasen_label(Str const& str_id) {
     return rasen_labels_id.count(str_id) > 0;
+}
+
+void ui_do_action(Str const& str_id, Slice<U8> const& stack) {
+    LUX_ASSERT(ui_has_rasen_label(str_id));
+    auto id = rasen_labels_id[str_id];
+    cs_tick.actions.push({stack, id});
 }
 
 void ui_add_continuous_binding(Str const& str_id, int key, Slice<U8> const& stack) {

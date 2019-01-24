@@ -87,6 +87,7 @@ UiPaneId ui_pane_create(UiId parent, Transform const& tr, Vec4F const& bg_col);
 
 LUX_MAY_FAIL ui_add_rasen_label(NetRasenLabel const& label);
 bool ui_has_rasen_label(Str const& str_id);
+void ui_do_action(Str const& str_id, Slice<U8> const& stack);
 void ui_add_discrete_binding(Str const& str_id, int key, Slice<U8> const& stack);
 void ui_add_continuous_binding(Str const& str_id, int key, Slice<U8> const& stack);
 void ui_window_sz_cb(Vec2U const& old_window_sz, Vec2U const& window_sz);

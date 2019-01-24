@@ -18,7 +18,7 @@ void add_block(BlockBp &&block_bp) {
 void db_init() {
     add_block({"void"_l       , "Void"_l       , {0, 0}, false});
     add_block({"stone_floor"_l, "Stone Floor"_l, {1, 0}, false});
-    add_block({"stone_wall"_l , "Stone Wall"_l , {0, 2}, true });
+    add_block({"stone_wall"_l , "Stone Wall"_l , {2, 0}, true });
     add_block({"raw_stone"_l  , "Raw Stone"_l  , {0, 2}, true });
     add_block({"dirt"_l       , "Dirt"_l       , {3, 0}, false});
     add_block({"grass"_l      , "Grass"_l      , {0, 1}, false});
