@@ -620,14 +620,7 @@ static void build_mesh(Mesh& mesh, ChkPos const& chk_pos) {
 }
 
 Block get_block(MapPos const& pos) {
-    static ChkPos cached_chk_pos = to_chk_pos(pos);
-    static Chunk *cached_chunk = &get_chunk(cached_chk_pos);
-    ChkPos current_chk_pos = to_chk_pos(pos);
-    if(cached_chk_pos != current_chk_pos) {
-        cached_chunk   = &get_chunk(current_chk_pos);
-        cached_chk_pos = current_chk_pos;
-    }
-    return cached_chunk->blocks[to_chk_idx(pos)];
+    return get_chunk(to_chk_pos(pos)).blocks[to_chk_idx(pos)];
 }
 
 BlockBp const& get_block_bp(MapPos const& pos) {
