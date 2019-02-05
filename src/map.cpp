@@ -306,7 +306,11 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
 
     glCullFace(GL_FRONT);
     glEnable(GL_CULL_FACE);
-    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+    static bool wireframe = false;
+    if(wireframe) {
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    }
     glEnable(GL_DEPTH_TEST);
     glBindTexture(GL_TEXTURE_2D, tileset);
     struct {
@@ -360,7 +364,9 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
         glDrawElements(GL_TRIANGLES, mesh->trigs_num * 3, GL_UNSIGNED_INT, 0);
     }
     glDisable(GL_DEPTH_TEST);
-    //glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    if(wireframe) {
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    }
 
     static F64 avg = 0.0;
     static U32 denom = 0;
@@ -390,6 +396,9 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
     ImGui::Text("delta: %.2F", last_avg * 1000.0);
     ImGui::PlotHistogram("", last_delta, plot_sz, 0,
                          nullptr, 0.f, FLT_MAX, {200, 80});
+    if(ImGui::Button("wireframe mode")) {
+        wireframe = !wireframe;
+    }
     ImGui::Text("fps: %d", (int)fps);
     ImGui::Text("render dist: %d", render_dist);
     ImGui::Text("pending chunks num: %zu", chunk_requests.size());
