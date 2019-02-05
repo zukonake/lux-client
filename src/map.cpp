@@ -559,13 +559,13 @@ static void build_mesh(Mesh& mesh, ChkPos const& chk_pos) {
         MapPos map_pos = to_map_pos(chk_pos, i);
         Vec3F rel_pos = (Vec3F)to_idx_pos(i) + 0.5f;
         BlockBp const* bp = &void_bp;
-        int sign = s_norm((F32)get_block(map_pos).lvl / 255.f);
+        int sign = s_norm((F32)get_block(map_pos).lvl / 15.f);
         bool has_face = false;
         F32 max_lvl = -1.f;
         for(Uns j = 0; j < 8; ++j) {
             MapPos abs_pos = map_pos + cell_verts[j];
             BlockLvl lvl = get_block(abs_pos).lvl;
-            grid_cell.val[j] = s_norm((F32)lvl / 255.f);
+            grid_cell.val[j] = s_norm((F32)lvl / 15.f);
             if(grid_cell.val[j] >= max_lvl) {
                 bp = &get_block_bp(abs_pos);
                 max_lvl = grid_cell.val[j];
@@ -577,7 +577,6 @@ static void build_mesh(Mesh& mesh, ChkPos const& chk_pos) {
         if(!has_face) continue;
         Triangle cell_trigs[5];
         int cell_trigs_num = polygonise(grid_cell, 0.f, cell_trigs);
-        constexpr Vec2F bob[3] = {{0.001,0.001}, {0.001,0.999}, {0.999,0.001}};
         for(Uns j = 0; j < cell_trigs_num; ++j) {
             for(Uns k = 0; k < 3; ++k) {
                 idxs[ trigs_num * 3 + k] = trigs_num * 3 + k;
