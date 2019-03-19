@@ -272,9 +272,10 @@ LUX_MAY_FAIL static handle_signal(ENetPacket* in_pack) {
                     client.sent_requests.erase(chunk.first);
                 }
             } break;
-            case NetSsSgnl::CHUNK_UPDATE: {
-                map_update_chunks(ss_sgnl.chunk_update);
-            } break;
+            /*case NetSsSgnl::CHUNK_UPDATE: {
+                LUX_UNIMPLEMENTED();
+                //map_update_chunks(ss_sgnl.chunk_update);
+            } break;*/
             case NetSsSgnl::MSG: {
                 LUX_UNIMPLEMENTED();
             } break;
@@ -293,7 +294,7 @@ LUX_MAY_FAIL client_tick(GLFWwindow* glfw_window) {
         if(glfwWindowShouldClose(glfw_window)) client_quit();
         ENetEvent event;
         //@TODO time
-        while(enet_host_service(client.host, &event, 10) > 0) {
+        while(enet_host_service(client.host, &event, 5) > 0) {
             if(event.type == ENET_EVENT_TYPE_DISCONNECT) {
                 LUX_LOG("connection closed by server");
                 client.should_close = true;
@@ -338,18 +339,18 @@ LUX_MAY_FAIL client_tick(GLFWwindow* glfw_window) {
     if(send_net_data(client.peer, &cs_tick, TICK_CHANNEL) != LUX_OK) {
         LUX_LOG("failed to send tick");
     }
-    SizeT constexpr samples_num = 16;
+    SizeT constexpr samples_num = 128;
     static U32 rx_sum = 0;
     static U32 tx_sum = 0;
     static U32 count  = 0;
-    static U32 max_rx = 0;
-    static U32 max_tx = 0;
+    static U32 rx_max = 0;
+    static U32 tx_max = 0;
     static U32 rx_avg = 0;
     static U32 tx_avg = 0;
     U32 rx = client.host->totalReceivedData;
     U32 tx = client.host->totalSentData;
-    max_rx = max(max_rx, rx);
-    max_tx = max(max_tx, tx);
+    rx_max = max(rx_max, rx);
+    tx_max = max(tx_max, tx);
     rx_sum += rx;
     tx_sum += rx;
     count++;
@@ -358,12 +359,17 @@ LUX_MAY_FAIL client_tick(GLFWwindow* glfw_window) {
         tx_avg = round((F64)tx_sum / (F64)count);
         rx_sum = 0;
         tx_sum = 0;
+        rx_max = 0;
+        tx_max = 0;
         count  = 0;
     }
     ImGui::Begin("network status");
     ImGui::Text("(%zu tick avg.)", samples_num);
-    ImGui::Text("tx: %uKiB", tx_avg >> 10);
-    ImGui::Text("rx: %uKiB", rx_avg >> 10);
+    ImGui::Text("tx: %uB", tx_avg);
+    ImGui::Text("rx: %uB", rx_avg);
+    ImGui::Text("(%zu tick max)", samples_num);
+    ImGui::Text("tx: %uB", tx_max);
+    ImGui::Text("rx: %uB", rx_max);
     ImGui::End();
     client.host->totalReceivedData = 0;
     client.host->totalSentData = 0;

@@ -146,6 +146,32 @@ GLuint load_program(char const* vert_path, char const* frag_path) {
     return id;
 }
 
+GLuint load_program(char const* vert_path, char const* frag_path, char const* geom_path) {
+    GLuint vert_id = load_shader(GL_VERTEX_SHADER  , vert_path);
+    GLuint frag_id = load_shader(GL_FRAGMENT_SHADER, frag_path);
+    GLuint geom_id = load_shader(GL_GEOMETRY_SHADER, geom_path);
+
+    GLuint id = glCreateProgram();
+    glAttachShader(id, vert_id);
+    glAttachShader(id, frag_id);
+    glAttachShader(id, geom_id);
+    glLinkProgram(id);
+    glDeleteShader(vert_id);
+    glDeleteShader(frag_id);
+    glDeleteShader(geom_id);
+
+    {   int success;
+        glGetProgramiv(id, GL_LINK_STATUS, &success);
+        if(!success) {
+            static constexpr SizeT OPENGL_LOG_SIZE = 512;
+            char log[OPENGL_LOG_SIZE];
+            glGetProgramInfoLog(id, OPENGL_LOG_SIZE, nullptr, log);
+            LUX_FATAL("program linking error: \n%s", log);
+        }
+    }
+    return id;
+}
+
 GLuint load_texture(char const* path, Vec2U& size_out) {
     GLuint id;
     glGenTextures(1, &id);

@@ -15,6 +15,7 @@ Vec2D get_mouse_pos();
 void check_opengl_error();
 GLuint load_shader(GLenum type, char const* path);
 GLuint load_program(char const* vert_path, char const* frag_path);
+GLuint load_program(char const* vert_path, char const* frag_path, char const* geom_path);
 GLuint load_texture(char const* path, Vec2U& size_out);
 
 template<typename F, typename... Args>
@@ -51,7 +52,6 @@ struct IdxBuff : Buff {
 };
 
 struct AttribDef {
-    char const* ident;
     Uns    num;
     GLenum type;
     bool   normalize;
@@ -70,7 +70,7 @@ struct Attrib {
 
 struct VertFmt {
     template<SizeT defs_len>
-    void init(GLuint program_id, Arr<AttribDef, defs_len> const& attrib_defs);
+    void init(Arr<AttribDef, defs_len> const& attrib_defs);
     DynArr<Attrib> attribs;
     SizeT vert_sz;
 };
@@ -106,15 +106,13 @@ void IdxBuff::write(SizeT len, T const* data, GLenum usage) {
 }
 
 template<SizeT defs_len>
-void VertFmt::init(GLuint program_id,
-                   Arr<AttribDef, defs_len> const& attrib_defs) {
+void VertFmt::init(Arr<AttribDef, defs_len> const& attrib_defs) {
     Uns off = 0;
     attribs.resize(defs_len);
     for(Uns i = 0; i < defs_len; i++) {
         auto&    attrib = attribs[i];
         auto const& def = attrib_defs[i];
-        //@TODO this might fail if the attrib is optimized away
-        attrib.pos  = glGetAttribLocation(program_id, def.ident);
+        attrib.pos  = i;
         attrib.num  = def.num;
         attrib.type = def.type;
         attrib.normalize = def.normalize ? GL_TRUE : GL_FALSE;

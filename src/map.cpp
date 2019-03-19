@@ -7,6 +7,7 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/component_wise.hpp>
 #include <glm/gtx/rotate_vector.hpp>
+#include <glm/gtx/fast_square_root.hpp>
 //
 #include <lux_shared/common.hpp>
 #include <lux_shared/map.hpp>
@@ -20,62 +21,82 @@
 #include <ui.hpp>
 #include "map.hpp"
 
-UiId ui_map;
+static UiId        ui_map;
+static gl::VertFmt vert_fmt;
+static GLuint      program;
+static GLuint      tileset;
 
-GLuint block_program;
-GLuint tileset;
-
-gl::VertFmt block_vert_fmt;
+struct {
+    GLuint      program;
+    gl::VertFmt vert_fmt;
+} norm_renderer;
 
 struct Mesh {
 #pragma pack(push, 1)
     struct Vert {
         Vec3F pos;
-        Vec2F layer_tex;
         Vec3F norm;
+        Vec3<U8> tex_idx; //indices for textures of 3 vertices of that triangle
     };
 #pragma pack(pop)
-    gl::VertBuff    v_buff;
-    gl::IdxBuff     i_buff;
+
+    gl::VertBuff v_buff;
     gl::VertContext context;
-    U32             trigs_num;
-    enum State {
-        NOT_ALLOCATED,
-        NEEDS_REBUILD,
-        BUILT
-    } state = NOT_ALLOCATED;
+    DynArr<Vert> verts;
+    bool is_allocated = false;
+
+    void alloc() {
+        LUX_ASSERT(not is_allocated);
+        v_buff.init();
+        context.init({v_buff}, vert_fmt);
+        is_allocated = true;
+    }
+
+    void dealloc() {
+        LUX_ASSERT(is_allocated);
+        context.deinit();
+        v_buff.deinit();
+        is_allocated = false;
+    }
+
+    void operator=(Mesh&& that) {
+        v_buff  = move(that.v_buff);
+        context = move(that.context);
+        verts   = move(that.verts);
+        is_allocated = move(that.is_allocated);
+        that.is_allocated = false;
+    }
+    Mesh() = default;
+    Mesh(Mesh&& that) { *this = move(that); }
 };
 
 static Mesh debug_mesh_0;
 static Mesh debug_mesh_1;
 
-DynArr<Chunk>  chunks;
-DynArr<Mesh>   meshes;
-VecSet<ChkPos> chunk_requests;
+static DynArr<Mesh>   meshes;
+VecSet<ChkPos>        chunk_requests;
 
 static ChkCoord render_dist = 2;
 static ChkPos   last_player_chk_pos = to_chk_pos(glm::floor(last_player_pos));
 
-static void mesh_destroy(Mesh* mesh);
-static bool try_guarantee_chunks_for_mesh(ChkPos const& pos);
-static bool try_build_mesh(Mesh& mesh, ChkPos const& pos);
-static void build_mesh(Mesh& mesh, ChkPos const& pos);
-
 static void map_load_programs() {
     char const* tileset_path = "tileset.png";
     Vec2U const block_size = {8, 8};
-    block_program  = load_program("glsl/block.vert" , "glsl/block.frag");
+    program  = load_program("glsl/block.vert" , "glsl/block.frag");
     Vec2U tileset_size;
     tileset = load_texture(tileset_path, tileset_size);
     Vec2F tex_scale = (Vec2F)block_size / (Vec2F)tileset_size;
 
-    glUseProgram(block_program);
-    set_uniform("tex_scale", block_program, glUniform2fv,
+    glUseProgram(program);
+    set_uniform("tex_scale", program, glUniform2fv,
                 1, glm::value_ptr(tex_scale));
-    block_vert_fmt.init(block_program,
-        {{"pos"    , 3, GL_FLOAT, false, false},
-         {"tex_pos", 2, GL_FLOAT, false, false},
-         {"norm"   , 3, GL_FLOAT, false, false}});
+    vert_fmt.init(
+        {{3, GL_FLOAT, false, false},
+         {3, GL_FLOAT, false, false},
+         {3, GL_UNSIGNED_BYTE, false, false}});
+
+    norm_renderer.program = load_program("glsl/block_norm.vert" ,
+        "glsl/block_norm.frag", "glsl/block_norm.geom");
 }
 
 static void map_io_tick(  U32, Transform const&, IoContext&);
@@ -87,48 +108,31 @@ void map_init() {
     ui_nodes[ui_map].io_tick = &map_io_tick;
 
     gl::VertContext::unbind_all();
-    debug_mesh_0.v_buff.init();
-    debug_mesh_0.i_buff.init();
-    debug_mesh_0.context.init({debug_mesh_0.v_buff}, block_vert_fmt);
+    debug_mesh_0.alloc();
+    debug_mesh_0.context.init({debug_mesh_0.v_buff}, vert_fmt);
 
     auto const& dbg_block_0 = db_block_bp("dbg_block_0"_l);
-    Arr<Mesh::Vert, 4> verts;
-    Arr<U32, 12> idxs;
+    debug_mesh_0.verts.resize(4);
     for(Uns i = 0; i < 4; ++i) {
-        verts[i].pos = Vec3F(u_quad<F32>[i] * (F32)CHK_SIZE, 0);
-        verts[i].layer_tex = u_quad<F32>[i] + (Vec2F)dbg_block_0.tex_pos;;
-        verts[i].norm = Vec3F(sqrt(3.f));
+        debug_mesh_0.verts[i].pos = Vec3F(u_quad<F32>[i] * (F32)CHK_SIZE, 0);
+        debug_mesh_0.verts[i].norm = Vec3F(sqrt(3.f));
+        //debug_mesh_0.verts[i].tex_i = u_quad<F32>[i] + (Vec2F)dbg_block_0.tex_pos;;
     }
-    for(Uns i = 0; i < 6; ++i) {
-        idxs[i] = quad_idxs<U32>[i];
-    }
-    for(Uns i = 0; i < 6; ++i) {
-        idxs[6 + i] = quad_idxs<U32>[5 - i];
-    }
-
-    debug_mesh_0.v_buff.bind();
-    debug_mesh_0.v_buff.write(4, verts, GL_DYNAMIC_DRAW);
-    debug_mesh_0.i_buff.bind();
-    debug_mesh_0.i_buff.write(12, idxs, GL_DYNAMIC_DRAW);
-    debug_mesh_0.trigs_num = 4;
-    debug_mesh_0.state = Mesh::BUILT;
 
     gl::VertContext::unbind_all();
-    debug_mesh_1.v_buff.init();
-    debug_mesh_1.i_buff.init();
-    debug_mesh_1.context.init({debug_mesh_1.v_buff}, block_vert_fmt);
+    debug_mesh_0.v_buff.bind();
+    debug_mesh_0.v_buff.write(4, debug_mesh_0.verts.beg, GL_STATIC_DRAW);
+}
 
-    auto const& dbg_block_1 = db_block_bp("dbg_block_1"_l);
-    for(Uns i = 0; i < 4; ++i) {
-        verts[i].layer_tex = u_quad<F32>[i] + (Vec2F)dbg_block_1.tex_pos;;
+void map_deinit() {
+    for(auto& mesh : meshes) {
+        if(mesh.is_allocated) {
+            mesh.dealloc();
+        }
     }
-
-    debug_mesh_1.v_buff.bind();
-    debug_mesh_1.v_buff.write(4, verts, GL_DYNAMIC_DRAW);
-    debug_mesh_1.i_buff.bind();
-    debug_mesh_1.i_buff.write(12, idxs, GL_DYNAMIC_DRAW);
-    debug_mesh_1.trigs_num = 4;
-    debug_mesh_1.state = Mesh::BUILT;
+    meshes.dealloc_all();
+    debug_mesh_0.dealloc();
+    debug_mesh_1.dealloc();
 }
 
 static void map_io_tick(U32, Transform const& tr, IoContext& context) {
@@ -143,14 +147,6 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
             render_dist--;
         }
     }
-    for(auto const& event : context.scroll_events) {
-        //@TODO this shouldn't be exponential/hyperbolic like it is now
-        //world.tr.scale.y += event.off * 0.01f;
-        bob -= event.off * 1.f;
-        //world.tr.scale.y = glm::clamp(world.tr.scale.y, 1.f / 50.f, 1.f);
-        //world.tr.scale.x = world.tr.scale.y * old_ratio;
-    }
-    context.scroll_events.clear();
     for(Uns i = 0; i < context.mouse_events.len; ++i) {
         //@TODO erase event
         auto const& event = context.mouse_events[i];
@@ -180,47 +176,18 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
     ChkCoord render_dist_diff = render_dist - last_render_dist;
     chk_diff -= render_dist_diff;
     if(chk_diff != ChkPos(0)) {
-        //@TODO toroidal addresing
-        SizeT chunks_num = glm::pow(load_size, 3);
         SizeT meshes_num = glm::pow(mesh_load_size, 3);
-        DynArr<Chunk> new_chunks(chunks_num);
         auto get_idx = [&](ChkPos pos, ChkCoord size) {
             return pos.x +
                    pos.y * size +
                    pos.z * size * size;
         };
-        for(ChkCoord z =  chk_diff.z > 0 ? chk_diff.z : 0;
-                     z < (chk_diff.z < 0 ? chk_diff.z : 0) + last_load_size;
-                   ++z) {
-            for(ChkCoord y =  chk_diff.y > 0 ? chk_diff.y : 0;
-                         y < (chk_diff.y < 0 ? chk_diff.y : 0) + last_load_size;
-                       ++y) {
-                for(ChkCoord x =  chk_diff.x > 0 ? chk_diff.x : 0;
-                             x < (chk_diff.x < 0 ? chk_diff.x : 0) + last_load_size;
-                           ++x) {
-                    ChkPos src(x, y, z);
-                    SizeT src_idx = get_idx(src, last_load_size);
-                    if(src_idx >= chunks.len || !chunks[src_idx].loaded) {
-                        continue;
-                    }
-                    ChkPos dst = src - chk_diff;
-                    SizeT dst_idx = get_idx(dst, load_size);
-                    if(dst_idx >= new_chunks.len) {
-                        continue;
-                    }
-                    new_chunks[dst_idx] = std::move(chunks[src_idx]);
-                    chunks[src_idx].loaded = false;
-                }
-            }
+        //@TODO send unload signal to server
+        static DynArr<Mesh> new_meshes;
+        for(auto& mesh : new_meshes) { //@TODO temp workaround
+            if(mesh.is_allocated) mesh.dealloc();
         }
-        //@TODO dtor (needed for exit)
-        //@TODO unload chunks 
-        //@TODO swap instead (we would have 2 buffers)
-        chunks = std::move(new_chunks);
-        //@TODO unite loops?
-        //we could do 8 loops for each outer edge, and then do the interior
-        //in a single loop for both meshes and chunks
-        DynArr<Mesh> new_meshes(meshes_num);
+        new_meshes.resize(meshes_num);
         for(ChkCoord z =  chk_diff.z > 0 ? chk_diff.z : 0;
                      z < (chk_diff.z < 0 ? chk_diff.z : 0) + last_mesh_load_size;
                    ++z) {
@@ -232,37 +199,32 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
                            ++x) {
                     ChkPos src(x, y, z);
                     SizeT src_idx = get_idx(src, last_mesh_load_size);
-                    if(src_idx >= meshes.len ||
-                       meshes[src_idx].state == Mesh::NOT_ALLOCATED) {
-                        continue;
-                    }
                     ChkPos dst = src - chk_diff;
                     SizeT dst_idx = get_idx(dst, mesh_load_size);
-                    if(dst_idx >= new_meshes.len) {
+                    if(src_idx >= meshes.len ||
+                       not meshes[src_idx].is_allocated) {
+                        if(dst_idx < new_meshes.len &&
+                           new_meshes[dst_idx].is_allocated) {
+                            new_meshes[dst_idx].dealloc();
+                        }
                         continue;
                     }
-                    new_meshes[dst_idx] = std::move(meshes[src_idx]);
-                    meshes[src_idx].state = Mesh::NOT_ALLOCATED;
+                    if(dst_idx >= new_meshes.len) {
+                        if(meshes[src_idx].is_allocated) {
+                            meshes[src_idx].dealloc();
+                        }
+                        continue;
+                    }
+                    new_meshes[dst_idx] = move(meshes[src_idx]);
                 }
             }
         }
-        for(Uns i = 0; i < meshes.len; ++i) {
-            if(meshes[i].state != Mesh::NOT_ALLOCATED) {
-                mesh_destroy(&meshes[i]);
-            }
-        }
-        //@TODO swap instead (we would have 2 buffers)
-        meshes = std::move(new_meshes);
+        swap(meshes, new_meshes);
     }
 
     last_player_chk_pos = chk_pos;
     last_render_dist    = render_dist;
 
-    glUseProgram(block_program);
-    set_uniform("scale", block_program, glUniform3fv,
-                1, glm::value_ptr(tr.scale));
-    set_uniform("camera_pos", block_program, glUniform3fv,
-                1, glm::value_ptr(camera_pos));
     //@TODO
     static Vec2F last_mouse_pos = {0, 0};
     static Vec2F prot = {0, 0};
@@ -292,36 +254,18 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
     F32 temp = camera_pos.z;
     camera_pos.z = camera_pos.y;
     camera_pos.y = temp;
-    //@TODO Z_FAR
-    mvp = glm::perspective(glm::radians(90.f), 16.f/9.f, 0.1f, 1024.f) *
-          glm::lookAt(camera_pos, camera_pos + direction, Vec3F(0, 0.1, 0)) * mvp;
+    F32 z_far = (F32)render_dist * (F32)CHK_SIZE;
+    //@TODO apect ratio
+    mvp = glm::perspective(glm::radians(90.f), 16.f/9.f, 0.1f, z_far) *
+          glm::lookAt(camera_pos, camera_pos + direction, Vec3F(0, 1, 0)) * mvp;
 
-    Vec3F ambient_light =
-        glm::mix(Vec3F(0.01f, 0.015f, 0.02f), Vec3F(1.f, 1.f, 0.9f),
-                 (ss_tick.day_cycle + 1.f) / 2.f);
-    set_uniform("ambient_light", block_program, glUniform3fv,
-                1, glm::value_ptr(ambient_light));
-    set_uniform("mvp", block_program, glUniformMatrix4fv,
-                1, GL_FALSE, glm::value_ptr(mvp));
-
-    glCullFace(GL_FRONT);
-    glEnable(GL_CULL_FACE);
-
-    static bool wireframe = false;
-    if(wireframe) {
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-    }
-    glEnable(GL_DEPTH_TEST);
-    glBindTexture(GL_TEXTURE_2D, tileset);
-    struct {
-        U64 chunks_num = 0;
-        U64 real_chunks_num = 0;
-        U64 trigs_num  = 0;
-    } status;
-    U32 constexpr max_mesh_builds_per_frame = 16;
-    U32 meshes_built = 0;
+    struct DrawData {
+        U32 mesh_idx;
+        Vec3F pos;
+    };
+    static DynArr<DrawData> draw_queue;
+    draw_queue.clear();
     for(Uns i = 0; i < meshes.len; ++i) {
-        Mesh* mesh = &meshes[i];
         ChkPos pos = { i % mesh_load_size,
                       (i / mesh_load_size) % mesh_load_size,
                        i / (mesh_load_size * mesh_load_size)};
@@ -340,29 +284,75 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
         F32 c_chk_rad = chk_rad / glm::abs(c_center.w);
         if(glm::abs(c_center.x) > 1.f + c_chk_rad ||
            glm::abs(c_center.y) > 1.f + c_chk_rad) continue;
-        if(mesh->state != Mesh::BUILT) {
-            if(meshes_built < max_mesh_builds_per_frame &&
-               try_build_mesh(*mesh, pos)) {
-                meshes_built++;
-            } else if(is_chunk_loaded(pos)) {
-                mesh = &debug_mesh_1;
-            } else mesh = &debug_mesh_0;
-        }
-        if(mesh->trigs_num <= 0) continue;
+        Mesh* mesh = &meshes[i];
+        if(mesh->is_allocated && mesh->verts.len <= 0) continue;
 
+        draw_queue.push({i, pos});
+    }
+    {
+        Vec3F f_pos = chk_pos;
+        std::sort(draw_queue.begin(), draw_queue.end(),
+            [&](DrawData const& a, DrawData const& b) {
+                return glm::fastDistance(a.pos, f_pos) <
+                       glm::fastDistance(b.pos, f_pos);
+            });
+    }
+    static bool wireframe = false;
+    static bool render_normals = false;
+    if(wireframe) {
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    }
+    struct {
+        U64 chunks_num = 0;
+        U64 real_chunks_num = 0;
+        U64 trigs_num  = 0;
+    } status;
+    Vec3F ambient_light =
+        glm::mix(Vec3F(0.01f, 0.015f, 0.02f), Vec3F(1.f, 1.f, 0.9f),
+                 (ss_tick.day_cycle + 1.f) / 2.f);
+
+    glEnable(GL_DEPTH_TEST);
+    glCullFace(GL_FRONT);
+    glEnable(GL_CULL_FACE);
+    glUseProgram(program);
+    glBindTexture(GL_TEXTURE_2D, tileset);
+    set_uniform("time", program, glUniform1f, glfwGetTime());
+    set_uniform("ambient_light", program, glUniform3fv,
+                1, glm::value_ptr(ambient_light));
+    set_uniform("mvp", program, glUniformMatrix4fv,
+                1, GL_FALSE, glm::value_ptr(mvp));
+    glUseProgram(norm_renderer.program);
+    set_uniform("mvp", norm_renderer.program, glUniformMatrix4fv,
+                1, GL_FALSE, glm::value_ptr(mvp));
+
+    for(auto const& draw_data : draw_queue) {
+        Mesh* mesh = &meshes[draw_data.mesh_idx];
+        auto const& pos = draw_data.pos;
+        if(not mesh->is_allocated) {
+            chunk_requests.emplace(pos);
+            mesh = &debug_mesh_0;
+        }
         if(mesh != &debug_mesh_0 && mesh != &debug_mesh_1) {
             status.real_chunks_num++;
         }
         status.chunks_num++;
-        status.trigs_num += mesh->trigs_num;
-        Vec3F chk_translation = (Vec3F)(pos * ChkPos(CHK_SIZE));
-        set_uniform("chk_pos", block_program, glUniform3fv, 1,
-            glm::value_ptr(chk_translation));
+        status.trigs_num += mesh->verts.len / 3;
+        Vec3F chk_translation = pos * (F32)CHK_SIZE;
 
         mesh->context.bind();
-        mesh->i_buff.bind();
-        glDrawElements(GL_TRIANGLES, mesh->trigs_num * 3, GL_UNSIGNED_INT, 0);
+        glUseProgram(program);
+        set_uniform("chk_pos", program, glUniform3fv, 1,
+            glm::value_ptr(chk_translation));
+        //@TODO multi draw
+        glDrawArrays(GL_TRIANGLES, 0, mesh->verts.len);
+        if(render_normals) {
+            glUseProgram(norm_renderer.program);
+            set_uniform("chk_pos", norm_renderer.program, glUniform3fv, 1,
+                glm::value_ptr(chk_translation));
+            glDrawArrays(GL_TRIANGLES, 0, mesh->verts.len);
+        }
     }
+
     glDisable(GL_DEPTH_TEST);
     if(wireframe) {
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -399,6 +389,9 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
     if(ImGui::Button("wireframe mode")) {
         wireframe = !wireframe;
     }
+    if(ImGui::Button("toggle normals")) {
+        render_normals = !render_normals;
+    }
     ImGui::Text("fps: %d", (int)fps);
     ImGui::Text("render dist: %d", render_dist);
     ImGui::Text("pending chunks num: %zu", chunk_requests.size());
@@ -412,7 +405,7 @@ void map_reload_program() {
     //@TODO we need to reload attrib locations here
     LUX_LOG("reloading map program");
     glDeleteTextures(1, &tileset);
-    glDeleteProgram(block_program);
+    glDeleteProgram(program);
     map_load_programs();
 }
 
@@ -420,52 +413,61 @@ void map_reload_program() {
 static Int get_fov_idx(ChkPos const& pos, ChkCoord dist) {
     ChkPos idx_pos = (pos - last_player_chk_pos) + dist;
     ChkCoord size = dist * 2 + 1;
-    for(Uns i = 0; i < 3; ++i) {
-        if(idx_pos[i] < 0 || idx_pos[i] >= size) {
-            return -1;
-        }
-    }
+    if(clamp(idx_pos, ChkPos(0), ChkPos(size)) != idx_pos) return -1;
     Int idx = idx_pos.x + idx_pos.y * size + idx_pos.z * size * size;
     return idx;
 }
 
-bool is_chunk_loaded(ChkPos const& pos) {
-    Int idx = get_fov_idx(pos, render_dist + 1);
-    if(idx < 0) return false;
-    return chunks[idx].loaded;
-}
-
-Chunk& get_chunk(ChkPos const& pos) {
-    Int idx = get_fov_idx(pos, render_dist + 1);
-    LUX_ASSERT(idx >= 0);
-    return chunks[idx];
-}
-
-static Mesh& get_mesh(ChkPos const& pos) {
-    Int idx = get_fov_idx(pos, render_dist);
-    LUX_ASSERT(idx >= 0);
-    return meshes[idx];
-}
-
 void map_load_chunks(NetSsSgnl::ChunkLoad const& net_chunks) {
     for(auto const& pair : net_chunks.chunks) {
-        ChkPos pos = pair.first;
+        ChkPos chk_pos = pair.first;
         auto const& net_chunk = pair.second;
-        LUX_LOG("loading chunk {%zd, %zd, %zd}", pos.x, pos.y, pos.z);
-        Int idx = get_fov_idx(pos, render_dist + 1);
+        LUX_LOG("loading chunk {%zd, %zd, %zd}", chk_pos.x, chk_pos.y, chk_pos.z);
+        Int idx = get_fov_idx(chk_pos, render_dist);
         if(idx < 0) {
             LUX_LOG_WARN("received chunk {%zd, %zd, %zd} out of load range",
-                pos.x, pos.y, pos.z);
+                chk_pos.x, chk_pos.y, chk_pos.z);
             continue;
         }
-        Chunk& chunk = chunks[idx];
-        std::memcpy(chunk.blocks, net_chunk.blocks, sizeof(chunk.blocks));
-        chunk.loaded = true;
-        chunk_requests.erase(pos);
+        if(meshes[idx].is_allocated) {
+            LUX_LOG_WARN("received chunk {%zd, %zd, %zd} alread loaded",
+                chk_pos.x, chk_pos.y, chk_pos.z);
+            continue;
+        }
+        Mesh& mesh = meshes[idx];
+        //if(net_chunk.idxs.len <= 0) continue;
+        mesh.verts.resize(net_chunk.idxs.len);
+        static DynArr<U8> ids;
+        ids.resize(mesh.verts.len);
+        for(Uns i = 0; i < net_chunk.idxs.len; ++i) {
+            auto idx = net_chunk.idxs[i];
+            auto const& n_vert = net_chunk.verts[idx];
+            auto& vert = mesh.verts[i];
+            vert.pos  = fixed_to_float<4, U16, 3>(n_vert.pos);
+            vert.norm = (Vec3F)(n_vert.norm & (U8)0x7f) / Vec3F(0x7f);
+            for(Uns j = 0; j < 3; ++j) {
+                if(n_vert.norm[j] & (U8)0x80) {
+                    vert.norm[j] = -vert.norm[j];
+                }
+            }
+            //@TODO make sure normals are normalized
+            ids[i] = n_vert.id;
+        }
+        for(Uns i = 0; i < mesh.verts.len; i += 3) {
+            auto idxs = Vec3<U8>(ids[i + 0], ids[i + 1], ids[i + 2]);
+            for(Uns j = 0; j < 3; ++j) {
+                mesh.verts[i + j].tex_idx = idxs;
+            }
+        }
+        mesh.alloc();
+        mesh.v_buff.bind();
+        mesh.v_buff.write(mesh.verts.len, mesh.verts.beg, GL_DYNAMIC_DRAW);
+        chunk_requests.erase(chk_pos);
     }
+    LUX_UNIMPLEMENTED();
 }
 
-void map_update_chunks(NetSsSgnl::ChunkUpdate const& net_chunks) {
+/*void map_update_chunks(NetSsSgnl::ChunkUpdate const& net_chunks) {
     for(auto const& pair : net_chunks.chunks) {
         U8 updated_sides = 0b000000;
         ChkPos pos = pair.first;
@@ -500,128 +502,5 @@ void map_update_chunks(NetSsSgnl::ChunkUpdate const& net_chunks) {
         };
         update_chunks_around(update_mesh, updated_sides);
     }
-}
+}*/
 
-static bool try_build_mesh(Mesh& mesh, ChkPos const& pos) {
-    LUX_ASSERT(mesh.state != Mesh::BUILT);
-    if(mesh.state == Mesh::NOT_ALLOCATED) {
-        if(!try_guarantee_chunks_for_mesh(pos)) {
-            return false;
-        }
-        mesh.v_buff.init();
-        mesh.i_buff.init();
-        mesh.context.init({mesh.v_buff}, block_vert_fmt);
-    }
-    build_mesh(mesh, pos);
-    mesh.state = Mesh::BUILT;
-    return true;
-}
-
-static void mesh_destroy(Mesh* mesh) {
-    mesh->v_buff.deinit();
-    mesh->i_buff.deinit();
-    mesh->context.deinit();
-    mesh->state = Mesh::NOT_ALLOCATED;
-}
-
-static bool try_guarantee_chunks_for_mesh(ChkPos const& pos) {
-    bool can_build = true;
-    for(auto const& offset : chebyshev<ChkCoord>) {
-        ChkPos off_pos = pos + offset;
-        if(!is_chunk_loaded(off_pos)) {
-            chunk_requests.emplace(off_pos);
-            ///we don't return here, because we want to request all the chunks
-            can_build = false;
-        }
-    }
-    return can_build;
-}
-
-static void build_mesh(Mesh& mesh, ChkPos const& chk_pos) {
-    LUX_LOG("building mesh {%zd, %zd, %zd}", chk_pos.x, chk_pos.y, chk_pos.z);
-    static DynArr<Mesh::Vert> verts(CHK_VOL * 5 * 3);
-    static DynArr<U32>        idxs( CHK_VOL * 5 * 3);
-
-    U32 trigs_num = 0;
-    MapPos constexpr axis_off[6] =
-        {{-1, 0, 0}, {1, 0, 0}, {0, -1, 0}, {0, 1, 0}, {0, 0, -1}, {0, 0, 1}};
-    Chunk const& chunk = get_chunk(chk_pos);
-    static BlockBp const& void_bp = db_block_bp("void"_l);
-
-    constexpr MapPos cell_verts[8] = {
-        {0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0},
-        {0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 1, 1}};
-    GridCell grid_cell;
-    for(Uns i = 0; i < 8; ++i) {
-        grid_cell.p[i] = (Vec3F)cell_verts[i];
-    }
-    for(ChkIdx i = 0; i < CHK_VOL; ++i) {
-        MapPos map_pos = to_map_pos(chk_pos, i);
-        Vec3F rel_pos = (Vec3F)to_idx_pos(i) + 0.5f;
-        BlockBp const* bp = &void_bp;
-        int sign = s_norm((F32)get_block(map_pos).lvl / 15.f);
-        bool has_face = false;
-        F32 max_lvl = -1.f;
-        for(Uns j = 0; j < 8; ++j) {
-            MapPos abs_pos = map_pos + cell_verts[j];
-            BlockLvl lvl = get_block(abs_pos).lvl;
-            grid_cell.val[j] = s_norm((F32)lvl / 15.f);
-            if(grid_cell.val[j] >= max_lvl) {
-                bp = &get_block_bp(abs_pos);
-                max_lvl = grid_cell.val[j];
-            }
-            if((grid_cell.val[j] >= 0.f) != sign) {
-                has_face = true;
-            }
-        }
-        if(!has_face) continue;
-        Triangle cell_trigs[5];
-        int cell_trigs_num = polygonise(grid_cell, 0.f, cell_trigs);
-        for(Uns j = 0; j < cell_trigs_num; ++j) {
-            for(Uns k = 0; k < 3; ++k) {
-                idxs[ trigs_num * 3 + k] = trigs_num * 3 + k;
-                verts[trigs_num * 3 + k].pos =
-                    cell_trigs[j].p[k] + rel_pos; 
-            }
-            auto const& v0 = verts[trigs_num * 3 + 0].pos;
-            auto const& v1 = verts[trigs_num * 3 + 1].pos;
-            auto const& v2 = verts[trigs_num * 3 + 2].pos;
-            for(Uns k = 0; k < 3; ++k) {
-                Vec3F norm = glm::cross(v1 - v0, v2 - v0);
-                verts[trigs_num * 3 + k].norm = norm;
-                norm = glm::abs(norm);
-                F32 max = glm::compMax(norm);
-                if(max == norm.x) {
-                    verts[trigs_num * 3 + k].layer_tex =
-                        (Vec2F)bp->tex_pos + Vec2F(cell_trigs[j].p[k].y,
-                                                   cell_trigs[j].p[k].z);
-                } else if(max == norm.y) {
-                    verts[trigs_num * 3 + k].layer_tex =
-                        (Vec2F)bp->tex_pos + Vec2F(cell_trigs[j].p[k].x,
-                                                   cell_trigs[j].p[k].z);
-                } else if(max == norm.z) {
-                    verts[trigs_num * 3 + k].layer_tex =
-                        (Vec2F)bp->tex_pos + Vec2F(cell_trigs[j].p[k].x,
-                                                   cell_trigs[j].p[k].y);
-                }
-            }
-            ++trigs_num;
-        }
-    }
-    if(trigs_num != 0) {
-        gl::VertContext::unbind_all();
-        mesh.v_buff.bind();
-        mesh.v_buff.write(trigs_num * 3, verts.beg, GL_DYNAMIC_DRAW);
-        mesh.i_buff.bind();
-        mesh.i_buff.write(trigs_num * 3, idxs.beg, GL_DYNAMIC_DRAW);
-        mesh.trigs_num = trigs_num;
-    }
-}
-
-Block get_block(MapPos const& pos) {
-    return get_chunk(to_chk_pos(pos)).blocks[to_chk_idx(pos)];
-}
-
-BlockBp const& get_block_bp(MapPos const& pos) {
-    return db_block_bp(get_block(pos).id);
-}

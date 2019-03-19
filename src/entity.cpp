@@ -36,13 +36,13 @@ void entity_init() {
     char const* tileset_path = "entity_tileset.png";
     program = load_program("glsl/entity.vert", "glsl/entity.frag");
 
-    glUseProgram(program);
-    vert_fmt.init(program,
-        {{"pos"    , 2, GL_FLOAT        , false, false},
-         {"tex_pos", 2, GL_UNSIGNED_BYTE, false, false}});
+    vert_fmt.init(
+        {{2, GL_FLOAT        , false, false},
+         {2, GL_UNSIGNED_BYTE, false, false}});
     Vec2U tileset_sz;
     tileset = load_texture(tileset_path, tileset_sz);
     Vec2F tex_scale = (Vec2F)tile_sz / (Vec2F)tileset_sz;
+    glUseProgram(program);
     set_uniform("tex_scale", program, glUniform2fv, 1,
                 glm::value_ptr(tex_scale));
 

@@ -23,10 +23,8 @@ void db_init() {
     add_block({"dirt"_l       , "Dirt"_l       , {3, 0}, false});
     add_block({"grass"_l      , "Grass"_l      , {0, 1}, false});
     add_block({"dark_grass"_l , "Dark grass"_l , {1, 1}, false});
-    add_block({"tree_trunk"_l , "Tree trunk"_l , {4, 0}, false});
-    add_block({"tree_leaves"_l, "Tree leaves"_l, {4, 2}, true });
+    add_block({"snow"_l, "Snow"_l, {4, 2}, true });
     add_block({"dbg_block_0"_l, "Debug Block 0"_l, {2, 1}, false});
-    add_block({"dbg_block_1"_l, "Debug Block 1"_l, {3, 1}, false});
     entities.push({{0, 0}, {1, 1}});
     entities.push({{0, 2}, {1, 1}});
     entities.push({{1, 0}, {1, 1}});

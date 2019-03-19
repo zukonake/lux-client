@@ -175,18 +175,17 @@ void ui_init() {
     set_uniform("font_pos_scale", text_system.program,
                 glUniform2fv, 1, glm::value_ptr(font_pos_scale));
 
-    text_system.vert_fmt.init(text_system.program, {
-        {"pos"     , 2, GL_FLOAT        , false, false},
-        {"font_pos", 2, GL_UNSIGNED_BYTE, false, false},
-        {"fg_col"  , 4, GL_UNSIGNED_BYTE, true , false},
-        {"bg_col"  , 4, GL_UNSIGNED_BYTE, true , false}});
+    text_system.vert_fmt.init({
+        {2, GL_FLOAT        , false, false},
+        {2, GL_UNSIGNED_BYTE, false, false},
+        {4, GL_UNSIGNED_BYTE, true , false},
+        {4, GL_UNSIGNED_BYTE, true , false}});
 
     pane_system.program = load_program("glsl/pane.vert", "glsl/pane.frag");
-    glUseProgram(pane_system.program);
 
-    pane_system.vert_fmt.init(pane_system.program, {
-        {"pos"     , 2, GL_FLOAT, false, false},
-        {"bg_col"  , 4, GL_FLOAT, true , false}});
+    pane_system.vert_fmt.init({
+        {2, GL_FLOAT, false, false},
+        {4, GL_FLOAT, true , false}});
 
     ui_screen = ui_nodes.emplace();
     ui_nodes[ui_screen].tr.scale = {1.f, -1.f, 1.f};
