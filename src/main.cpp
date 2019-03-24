@@ -111,7 +111,7 @@ int main(int argc, char** argv) {
 
             Vec3F sky_col =
                 glm::mix(Vec3F(0.01f, 0.015f, 0.02f),
-                         Vec3F(0.6f, 0.8f, 1.f),
+                         Vec3F(1.f, 1.f, 0.9f),
                          (ss_tick.day_cycle + 1.f) / 2.f);
 
             //@TODO move this

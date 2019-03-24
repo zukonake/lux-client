@@ -294,7 +294,7 @@ LUX_MAY_FAIL client_tick(GLFWwindow* glfw_window) {
         if(glfwWindowShouldClose(glfw_window)) client_quit();
         ENetEvent event;
         //@TODO time
-        while(enet_host_service(client.host, &event, 5) > 0) {
+        while(enet_host_service(client.host, &event, 0) > 0) {
             if(event.type == ENET_EVENT_TYPE_DISCONNECT) {
                 LUX_LOG("connection closed by server");
                 client.should_close = true;

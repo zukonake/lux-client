@@ -1,8 +1,5 @@
 in vec3 f_map_pos;
-in vec2 f_tex_pos0;
-in vec2 f_tex_pos1;
-in vec2 f_tex_pos2;
-in vec3 f_tex_w;
+in vec2 f_tex_pos;
 in vec3 f_norm;
 
 //#define RENDER_BLOCK_GRID
@@ -16,7 +13,6 @@ uniform sampler2D tileset;
 
 void main()
 {
-    const vec4 fogcolor = vec4(0.6, 0.8, 1.0, 1.0);
     const float fogdensity = .00001;
 
     float z = gl_FragCoord.z / gl_FragCoord.w;
@@ -27,15 +23,9 @@ void main()
     vec2 uvx = tex_scale * fract(f_map_pos.yz);
     vec2 uvy = tex_scale * fract(f_map_pos.xz);
     vec2 uvz = tex_scale * fract(f_map_pos.xy);
-    texel = ((vec3(texture2D(tileset, f_tex_pos0 + uvx)) * f_tex_w.x +
-              vec3(texture2D(tileset, f_tex_pos1 + uvx)) * f_tex_w.y +
-              vec3(texture2D(tileset, f_tex_pos2 + uvx)) * f_tex_w.z) * anorm.x +
-             (vec3(texture2D(tileset, f_tex_pos0 + uvy)) * f_tex_w.x +
-              vec3(texture2D(tileset, f_tex_pos1 + uvy)) * f_tex_w.y +
-              vec3(texture2D(tileset, f_tex_pos2 + uvy)) * f_tex_w.z) * anorm.y +
-             (vec3(texture2D(tileset, f_tex_pos0 + uvz)) * f_tex_w.x +
-              vec3(texture2D(tileset, f_tex_pos1 + uvz)) * f_tex_w.y +
-              vec3(texture2D(tileset, f_tex_pos2 + uvz)) * f_tex_w.z) * anorm.z) /
+    texel = (vec3(texture2D(tileset, f_tex_pos + uvx)) * anorm.x +
+             vec3(texture2D(tileset, f_tex_pos + uvy)) * anorm.y +
+             vec3(texture2D(tileset, f_tex_pos + uvz)) * anorm.z) /
              (anorm.x + anorm.y + anorm.z);
 #else
     texel = vec3(1.0);
@@ -45,8 +35,7 @@ void main()
 #endif
     float r_n = max(dot(f_norm, normalize(vec3(-10.0+cos(time * 0.9) * 50.0, 10.0+sin(time * 0.9) * 50.0, 100.0) - f_map_pos)), 0.0);
     float n = r_n * 0.9 + 0.1;
-    gl_FragColor =
-        mix(fogcolor, vec4(texel * ambient_light * n, 0.0), fog);
+    gl_FragColor = vec4(mix(ambient_light, vec3(texel * ambient_light * n), fog), 1.0);
 #ifdef RENDER_BLOCK_GRID
     vec3 fr_map = fract(vec3(f_map_pos));
     fr_map -= 0.5;

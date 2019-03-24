@@ -1,12 +1,9 @@
-layout(location = 0) in vec3 pos;
-layout(location = 1) in vec3 norm;
-layout(location = 2) in vec3 tex_idx; //@TODO ivec
+layout(location = 0) in vec3  pos;
+layout(location = 1) in float norm;
+layout(location = 2) in float tex;
 
 out vec3 f_map_pos;
-out vec2 f_tex_pos0;
-out vec2 f_tex_pos1;
-out vec2 f_tex_pos2;
-out vec3 f_tex_w;
+out vec2 f_tex_pos;
 out vec3 f_norm;
 
 uniform vec3 chk_pos;
@@ -17,12 +14,9 @@ void main()
 {
     vec3 map_pos = pos + chk_pos;
     gl_Position  = mvp * vec4(map_pos, 1.0);
-    f_norm       = norm;
-    f_tex_pos0   = (vec2(tex_idx.x, 0.0)) * tex_scale;
-    f_tex_pos1   = (vec2(tex_idx.y, 0.0)) * tex_scale;
-    f_tex_pos2   = (vec2(tex_idx.z, 0.0)) * tex_scale;
-    vec3 tex_w = vec3(0.0);
-    tex_w[gl_VertexID % 3] = 1.0;
+    f_norm = vec3(0.);
+    f_norm[(int(norm) & 6) >> 1] = 1.;
+    if((int(norm) & 1) == 0) f_norm *= -1.;
+    f_tex_pos = (vec2(tex, 0.0)) * tex_scale;
     f_map_pos = map_pos;
-    f_tex_w = tex_w;
 }

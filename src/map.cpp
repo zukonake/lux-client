@@ -12,7 +12,6 @@
 #include <lux_shared/common.hpp>
 #include <lux_shared/map.hpp>
 #include <lux_shared/util/packer.hpp>
-#include <lux_shared/marching_cubes.hpp>
 //
 #include <imgui/imgui.h>
 #include <rendering.hpp>
@@ -26,28 +25,26 @@ static gl::VertFmt vert_fmt;
 static GLuint      program;
 static GLuint      tileset;
 
-struct {
-    GLuint      program;
-    gl::VertFmt vert_fmt;
-} norm_renderer;
-
 struct Mesh {
 #pragma pack(push, 1)
     struct Vert {
-        Vec3F pos;
-        Vec3F norm;
-        Vec3<U8> tex_idx; //indices for textures of 3 vertices of that triangle
+        Vec3<U8> pos;
+        U8       norm;
+        U8       tex;
     };
 #pragma pack(pop)
 
     gl::VertBuff v_buff;
+    gl::IdxBuff i_buff;
     gl::VertContext context;
     DynArr<Vert> verts;
+    DynArr<U16>  idxs;
     bool is_allocated = false;
 
     void alloc() {
         LUX_ASSERT(not is_allocated);
         v_buff.init();
+        i_buff.init();
         context.init({v_buff}, vert_fmt);
         is_allocated = true;
     }
@@ -55,14 +52,17 @@ struct Mesh {
     void dealloc() {
         LUX_ASSERT(is_allocated);
         context.deinit();
+        i_buff.deinit();
         v_buff.deinit();
         is_allocated = false;
     }
 
     void operator=(Mesh&& that) {
         v_buff  = move(that.v_buff);
+        i_buff  = move(that.i_buff);
         context = move(that.context);
         verts   = move(that.verts);
+        idxs    = move(that.idxs);
         is_allocated = move(that.is_allocated);
         that.is_allocated = false;
     }
@@ -81,7 +81,7 @@ static ChkPos   last_player_chk_pos = to_chk_pos(glm::floor(last_player_pos));
 
 static void map_load_programs() {
     char const* tileset_path = "tileset.png";
-    Vec2U const block_size = {8, 8};
+    Vec2U const block_size = {1, 1};
     program  = load_program("glsl/block.vert" , "glsl/block.frag");
     Vec2U tileset_size;
     tileset = load_texture(tileset_path, tileset_size);
@@ -91,12 +91,9 @@ static void map_load_programs() {
     set_uniform("tex_scale", program, glUniform2fv,
                 1, glm::value_ptr(tex_scale));
     vert_fmt.init(
-        {{3, GL_FLOAT, false, false},
-         {3, GL_FLOAT, false, false},
-         {3, GL_UNSIGNED_BYTE, false, false}});
-
-    norm_renderer.program = load_program("glsl/block_norm.vert" ,
-        "glsl/block_norm.frag", "glsl/block_norm.geom");
+        {{3, GL_UNSIGNED_BYTE, false, false},
+         {1, GL_UNSIGNED_BYTE, false, false},
+         {1, GL_UNSIGNED_BYTE, false, false}});
 }
 
 static void map_io_tick(  U32, Transform const&, IoContext&);
@@ -109,17 +106,23 @@ void map_init() {
 
     gl::VertContext::unbind_all();
     debug_mesh_0.alloc();
-    debug_mesh_0.context.init({debug_mesh_0.v_buff}, vert_fmt);
 
     auto const& dbg_block_0 = db_block_bp("dbg_block_0"_l);
     debug_mesh_0.verts.resize(4);
+    debug_mesh_0.idxs.resize(6);
+    for(Uns i = 0; i < 6; ++i) {
+        debug_mesh_0.idxs[i] = quad_idxs<U16>[i];
+    }
     for(Uns i = 0; i < 4; ++i) {
-        debug_mesh_0.verts[i].pos = Vec3F(u_quad<F32>[i] * (F32)CHK_SIZE, 0);
-        debug_mesh_0.verts[i].norm = Vec3F(sqrt(3.f));
-        //debug_mesh_0.verts[i].tex_i = u_quad<F32>[i] + (Vec2F)dbg_block_0.tex_pos;;
+        debug_mesh_0.verts[i].pos  = Vec3<U8>(u_quad<U32>[i] * (U32)CHK_SIZE, 0);
+        LUX_LOG("%u %u", debug_mesh_0.verts[i].pos.x, debug_mesh_0.verts[i].pos.y);
+        debug_mesh_0.verts[i].norm = 0b101;
+        debug_mesh_0.verts[i].tex  = 0;
     }
 
     gl::VertContext::unbind_all();
+    debug_mesh_0.i_buff.bind();
+    debug_mesh_0.i_buff.write(6, debug_mesh_0.idxs.beg, GL_STATIC_DRAW);
     debug_mesh_0.v_buff.bind();
     debug_mesh_0.v_buff.write(4, debug_mesh_0.verts.beg, GL_STATIC_DRAW);
 }
@@ -132,7 +135,7 @@ void map_deinit() {
     }
     meshes.dealloc_all();
     debug_mesh_0.dealloc();
-    debug_mesh_1.dealloc();
+//    debug_mesh_1.dealloc();
 }
 
 static void map_io_tick(U32, Transform const& tr, IoContext& context) {
@@ -185,7 +188,9 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
         //@TODO send unload signal to server
         static DynArr<Mesh> new_meshes;
         for(auto& mesh : new_meshes) { //@TODO temp workaround
-            if(mesh.is_allocated) mesh.dealloc();
+            if(mesh.is_allocated) {
+                mesh.dealloc();
+            }
         }
         new_meshes.resize(meshes_num);
         for(ChkCoord z =  chk_diff.z > 0 ? chk_diff.z : 0;
@@ -298,7 +303,6 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
             });
     }
     static bool wireframe = false;
-    static bool render_normals = false;
     if(wireframe) {
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     }
@@ -321,14 +325,12 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
                 1, glm::value_ptr(ambient_light));
     set_uniform("mvp", program, glUniformMatrix4fv,
                 1, GL_FALSE, glm::value_ptr(mvp));
-    glUseProgram(norm_renderer.program);
-    set_uniform("mvp", norm_renderer.program, glUniformMatrix4fv,
-                1, GL_FALSE, glm::value_ptr(mvp));
 
     for(auto const& draw_data : draw_queue) {
         Mesh* mesh = &meshes[draw_data.mesh_idx];
         auto const& pos = draw_data.pos;
         if(not mesh->is_allocated) {
+            //@TODO don't request here? do it earlier
             chunk_requests.emplace(pos);
             mesh = &debug_mesh_0;
         }
@@ -336,21 +338,15 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
             status.real_chunks_num++;
         }
         status.chunks_num++;
-        status.trigs_num += mesh->verts.len / 3;
+        status.trigs_num += mesh->idxs.len / 3;
         Vec3F chk_translation = pos * (F32)CHK_SIZE;
 
-        mesh->context.bind();
-        glUseProgram(program);
         set_uniform("chk_pos", program, glUniform3fv, 1,
             glm::value_ptr(chk_translation));
         //@TODO multi draw
-        glDrawArrays(GL_TRIANGLES, 0, mesh->verts.len);
-        if(render_normals) {
-            glUseProgram(norm_renderer.program);
-            set_uniform("chk_pos", norm_renderer.program, glUniform3fv, 1,
-                glm::value_ptr(chk_translation));
-            glDrawArrays(GL_TRIANGLES, 0, mesh->verts.len);
-        }
+        mesh->context.bind();
+        mesh->i_buff.bind();
+        glDrawElements(GL_TRIANGLES, mesh->idxs.len, GL_UNSIGNED_SHORT, 0);
     }
 
     glDisable(GL_DEPTH_TEST);
@@ -361,8 +357,10 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
     static F64 avg = 0.0;
     static U32 denom = 0;
     static F64 timer = glfwGetTime();
+    static F64 delta_max = 0;
     F64 now = glfwGetTime();
     F64 delta = now - timer;
+    if(delta > delta_max) delta_max = delta;
     timer = now;
 
     SizeT constexpr plot_sz = 512;
@@ -384,13 +382,11 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
 
     ImGui::Begin("render status");
     ImGui::Text("delta: %.2F", last_avg * 1000.0);
+    ImGui::Text("delta_max: %.2F", delta_max * 1000.0);
     ImGui::PlotHistogram("", last_delta, plot_sz, 0,
                          nullptr, 0.f, FLT_MAX, {200, 80});
     if(ImGui::Button("wireframe mode")) {
         wireframe = !wireframe;
-    }
-    if(ImGui::Button("toggle normals")) {
-        render_normals = !render_normals;
     }
     ImGui::Text("fps: %d", (int)fps);
     ImGui::Text("render dist: %d", render_dist);
@@ -403,6 +399,7 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
 
 void map_reload_program() {
     //@TODO we need to reload attrib locations here
+    //@TODO remove this func
     LUX_LOG("reloading map program");
     glDeleteTextures(1, &tileset);
     glDeleteProgram(program);
@@ -419,6 +416,7 @@ static Int get_fov_idx(ChkPos const& pos, ChkCoord dist) {
 }
 
 void map_load_chunks(NetSsSgnl::ChunkLoad const& net_chunks) {
+    gl::VertContext::unbind_all();
     for(auto const& pair : net_chunks.chunks) {
         ChkPos chk_pos = pair.first;
         auto const& net_chunk = pair.second;
@@ -436,35 +434,49 @@ void map_load_chunks(NetSsSgnl::ChunkLoad const& net_chunks) {
         }
         Mesh& mesh = meshes[idx];
         //if(net_chunk.idxs.len <= 0) continue;
-        mesh.verts.resize(net_chunk.idxs.len);
-        static DynArr<U8> ids;
-        ids.resize(mesh.verts.len);
-        for(Uns i = 0; i < net_chunk.idxs.len; ++i) {
-            auto idx = net_chunk.idxs[i];
-            auto const& n_vert = net_chunk.verts[idx];
-            auto& vert = mesh.verts[i];
-            vert.pos  = fixed_to_float<4, U16, 3>(n_vert.pos);
-            vert.norm = (Vec3F)(n_vert.norm & (U8)0x7f) / Vec3F(0x7f);
-            for(Uns j = 0; j < 3; ++j) {
-                if(n_vert.norm[j] & (U8)0x80) {
-                    vert.norm[j] = -vert.norm[j];
+        //@TODO assert/skip empty
+        SizeT faces_num = 0;
+        faces_num += net_chunk.faces.len;
+        mesh.verts.resize(faces_num * 4);
+        mesh.idxs.resize(faces_num * 6);
+        Arr<Vec3<U8>, 3 * 4> vert_offs = {
+            {0, 0, 0}, {0, 1, 0}, {0, 0, 1}, {0, 1, 1},
+            {0, 0, 0}, {0, 0, 1}, {1, 0, 0}, {1, 0, 1},
+            {0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {1, 1, 0},
+        };
+        for(Uns i = 0; i < net_chunk.faces.len; ++i) {
+            auto const& n_face = net_chunk.faces[i];
+            ChkIdx idx = n_face.idx;
+            U8 axis = (n_face.orientation & 0b110) >> 1;
+            LUX_ASSERT(axis != 0b11);
+            U8 sign = (n_face.orientation & 1);
+            Vec3<U8> face_off(0);
+            face_off[axis] = 1;
+            if(sign) {
+                for(Uns j = 0; j < 6; ++j) {
+                    mesh.idxs[i * 6 + j] = quad_idxs<U16>[j] + i * 4;
+                }
+            } else {
+                for(Uns j = 0; j < 6; ++j) {
+                    mesh.idxs[i * 6 + j] = quad_idxs<U16>[5 - j] + i * 4;
                 }
             }
-            //@TODO make sure normals are normalized
-            ids[i] = n_vert.id;
-        }
-        for(Uns i = 0; i < mesh.verts.len; i += 3) {
-            auto idxs = Vec3<U8>(ids[i + 0], ids[i + 1], ids[i + 2]);
-            for(Uns j = 0; j < 3; ++j) {
-                mesh.verts[i + j].tex_idx = idxs;
+            for(Uns j = 0; j < 4; ++j) {
+                auto& vert = mesh.verts[i * 4 + j];
+                vert.pos  = (Vec3<U8>)to_idx_pos(idx) + face_off +
+                    vert_offs[axis * 4 + j];
+                vert.norm = n_face.orientation;
+                vert.tex  = n_face.id;
             }
         }
         mesh.alloc();
         mesh.v_buff.bind();
         mesh.v_buff.write(mesh.verts.len, mesh.verts.beg, GL_DYNAMIC_DRAW);
+        mesh.i_buff.bind();
+        mesh.i_buff.write(mesh.idxs.len, mesh.idxs.beg, GL_DYNAMIC_DRAW);
+        LUX_LOG("%zu", mesh.idxs.len);
         chunk_requests.erase(chk_pos);
     }
-    LUX_UNIMPLEMENTED();
 }
 
 /*void map_update_chunks(NetSsSgnl::ChunkUpdate const& net_chunks) {
