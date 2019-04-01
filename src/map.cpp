@@ -115,7 +115,6 @@ void map_init() {
     }
     for(Uns i = 0; i < 4; ++i) {
         debug_mesh_0.verts[i].pos  = Vec3<U8>(u_quad<U32>[i] * (U32)CHK_SIZE, 0);
-        LUX_LOG("%u %u", debug_mesh_0.verts[i].pos.x, debug_mesh_0.verts[i].pos.y);
         debug_mesh_0.verts[i].norm = 0b101;
         debug_mesh_0.verts[i].tex  = 0;
     }
@@ -261,7 +260,7 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
     camera_pos.y = temp;
     F32 z_far = (F32)render_dist * (F32)CHK_SIZE;
     //@TODO apect ratio
-    mvp = glm::perspective(glm::radians(90.f), 16.f/9.f, 0.1f, z_far) *
+    mvp = glm::perspective(glm::radians(70.f), 16.f/9.f, 0.1f, z_far) *
           glm::lookAt(camera_pos, camera_pos + direction, Vec3F(0, 1, 0)) * mvp;
 
     struct DrawData {
@@ -270,6 +269,11 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
     };
     static DynArr<DrawData> draw_queue;
     draw_queue.clear();
+    struct {
+        U64 chunks_num = 0;
+        U64 real_chunks_num = 0;
+        U64 trigs_num  = 0;
+    } status;
     for(Uns i = 0; i < meshes.len; ++i) {
         ChkPos pos = { i % mesh_load_size,
                       (i / mesh_load_size) % mesh_load_size,
@@ -290,6 +294,7 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
         if(glm::abs(c_center.x) > 1.f + c_chk_rad ||
            glm::abs(c_center.y) > 1.f + c_chk_rad) continue;
         Mesh* mesh = &meshes[i];
+        status.chunks_num++;
         if(mesh->is_allocated && mesh->verts.len <= 0) continue;
 
         draw_queue.push({i, pos});
@@ -306,18 +311,13 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
     if(wireframe) {
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     }
-    struct {
-        U64 chunks_num = 0;
-        U64 real_chunks_num = 0;
-        U64 trigs_num  = 0;
-    } status;
     Vec3F ambient_light =
         glm::mix(Vec3F(0.01f, 0.015f, 0.02f), Vec3F(1.f, 1.f, 0.9f),
                  (ss_tick.day_cycle + 1.f) / 2.f);
 
     glEnable(GL_DEPTH_TEST);
     glCullFace(GL_FRONT);
-    glEnable(GL_CULL_FACE);
+    //glEnable(GL_CULL_FACE);
     glUseProgram(program);
     glBindTexture(GL_TEXTURE_2D, tileset);
     set_uniform("time", program, glUniform1f, glfwGetTime());
@@ -332,12 +332,12 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
         if(not mesh->is_allocated) {
             //@TODO don't request here? do it earlier
             chunk_requests.emplace(pos);
+            continue;
             mesh = &debug_mesh_0;
         }
         if(mesh != &debug_mesh_0 && mesh != &debug_mesh_1) {
             status.real_chunks_num++;
         }
-        status.chunks_num++;
         status.trigs_num += mesh->idxs.len / 3;
         Vec3F chk_translation = pos * (F32)CHK_SIZE;
 
@@ -406,6 +406,7 @@ void map_reload_program() {
     map_load_programs();
 }
 
+//@TODO dist is redundant now
 ///returns -1 if out of bounds
 static Int get_fov_idx(ChkPos const& pos, ChkCoord dist) {
     ChkPos idx_pos = (pos - last_player_chk_pos) + dist;
@@ -474,45 +475,74 @@ void map_load_chunks(NetSsSgnl::ChunkLoad const& net_chunks) {
         mesh.v_buff.write(mesh.verts.len, mesh.verts.beg, GL_DYNAMIC_DRAW);
         mesh.i_buff.bind();
         mesh.i_buff.write(mesh.idxs.len, mesh.idxs.beg, GL_DYNAMIC_DRAW);
-        LUX_LOG("%zu", mesh.idxs.len);
         chunk_requests.erase(chk_pos);
     }
 }
 
-/*void map_update_chunks(NetSsSgnl::ChunkUpdate const& net_chunks) {
+void map_update_chunks(NetSsSgnl::ChunkUpdate const& net_chunks) {
+    gl::VertContext::unbind_all();
     for(auto const& pair : net_chunks.chunks) {
-        U8 updated_sides = 0b000000;
         ChkPos pos = pair.first;
         auto const& net_chunk = pair.second;
         LUX_LOG("updating chunk {%zd, %zd, %zd}", pos.x, pos.y, pos.z);
-        Int idx = get_fov_idx(pos, render_dist + 1);
-        if(idx < 0 || !chunks[idx].loaded) {
+        Int idx = get_fov_idx(pos, render_dist);
+        if(idx < 0 || not meshes[idx].is_allocated) {
             LUX_LOG_WARN("received chunk update for unloaded chunk"
                 " {%zd, %zd, %zd}", pos.x, pos.y, pos.z);
             continue;
         }
-        Chunk& chunk = chunks[idx];
-        for(auto const& block_update : net_chunk.blocks) {
-            //@TODO bound check?
-            ChkIdx idx = block_update.first;
-            chunk.blocks[idx].id  = block_update.second.id;
-            chunk.blocks[idx].lvl = block_update.second.lvl;
-            IdxPos idx_pos = to_idx_pos(idx);
-            for(Uns a = 0; a < 3; ++a) {
-                if(idx_pos[a] == 0) {
-                    updated_sides |= (0b000001 << (a * 2));
-                } else if(idx_pos[a] == CHK_SIZE - 1) {
-                    updated_sides |= (0b000010 << (a * 2));
-                }
+        Mesh& mesh = meshes[idx];
+        Uns co = mesh.idxs.len;
+        for(auto const& removed_face : net_chunk.removed_faces) {
+            //@TODO erase(many)
+            for(Uns i = (removed_face + 1) * 6; i < mesh.idxs.len; ++i) {
+                mesh.idxs[i] -= 4;
+            }
+            for(Uns i = 0; i < 6; ++i) {
+                mesh.idxs.erase(removed_face * 6);
+            }
+            for(Uns i = 0; i < 4; ++i) {
+                mesh.verts.erase(removed_face * 4);
             }
         }
-        auto update_mesh = [&](ChkPos r_pos) {
-            Int mesh_idx = get_fov_idx(r_pos + pos, render_dist);
-            if(mesh_idx >= 0 && meshes[mesh_idx].state == Mesh::BUILT) {
-                meshes[mesh_idx].state = Mesh::NEEDS_REBUILD;
-            }
+        Arr<Vec3<U8>, 3 * 4> vert_offs = {
+            {0, 0, 0}, {0, 1, 0}, {0, 0, 1}, {0, 1, 1},
+            {0, 0, 0}, {0, 0, 1}, {1, 0, 0}, {1, 0, 1},
+            {0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {1, 1, 0},
         };
-        update_chunks_around(update_mesh, updated_sides);
+        Uns off = mesh.verts.len / 4;
+        mesh.idxs.resize(mesh.idxs.len + net_chunk.added_faces.len * 6);
+        mesh.verts.resize(mesh.verts.len + net_chunk.added_faces.len * 4);
+        for(Uns i = 0; i < net_chunk.added_faces.len; ++i) {
+            auto const& n_face = net_chunk.added_faces[i];
+            ChkIdx idx = n_face.idx;
+            U8 axis = (n_face.orientation & 0b110) >> 1;
+            LUX_ASSERT(axis != 0b11);
+            U8 sign = (n_face.orientation & 1);
+            Vec3<U8> face_off(0);
+            face_off[axis] = 1;
+            if(sign) {
+                for(Uns j = 0; j < 6; ++j) {
+                    mesh.idxs[off * 6 + j] = quad_idxs<U16>[j] + off * 4;
+                }
+            } else {
+                for(Uns j = 0; j < 6; ++j) {
+                    mesh.idxs[off * 6 + j] = quad_idxs<U16>[5 - j] + off * 4;
+                }
+            }
+            for(Uns j = 0; j < 4; ++j) {
+                auto& vert = mesh.verts[off * 4 + j];
+                vert.pos  = (Vec3<U8>)to_idx_pos(idx) + face_off +
+                    vert_offs[axis * 4 + j];
+                vert.norm = n_face.orientation;
+                vert.tex  = n_face.id;
+            }
+            ++off;
+        }
+        mesh.i_buff.bind();
+        mesh.i_buff.write(mesh.idxs.len, mesh.idxs.beg, GL_DYNAMIC_DRAW);
+        mesh.v_buff.bind();
+        mesh.v_buff.write(mesh.verts.len, mesh.verts.beg, GL_DYNAMIC_DRAW);
     }
-}*/
+}
 

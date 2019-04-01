@@ -2,7 +2,7 @@ in vec3 f_map_pos;
 in vec2 f_tex_pos;
 in vec3 f_norm;
 
-//#define RENDER_BLOCK_GRID
+#define RENDER_BLOCK_GRID
 //#define RENDER_NO_TEX
 //#define RENDER_NORMAL_COLOR
 
@@ -13,7 +13,7 @@ uniform sampler2D tileset;
 
 void main()
 {
-    const float fogdensity = .00001;
+    const float fogdensity = .000001;
 
     float z = gl_FragCoord.z / gl_FragCoord.w;
     float fog = clamp(exp(-fogdensity * z * z), 0.2, 1);
@@ -33,11 +33,11 @@ void main()
 #ifdef RENDER_NORMAL_COLOR
     texel = abs(f_norm);
 #endif
-    float r_n = max(dot(f_norm, normalize(vec3(-10.0+cos(time * 0.9) * 50.0, 10.0+sin(time * 0.9) * 50.0, 100.0) - f_map_pos)), 0.0);
-    float n = r_n * 0.9 + 0.1;
+    float r_n = max(dot(f_norm, normalize(vec3(1000., 2000., 3000.0) - f_map_pos)), 0.0);
+    float n = r_n * 0.7 + 0.3;
     gl_FragColor = vec4(mix(ambient_light, vec3(texel * ambient_light * n), fog), 1.0);
 #ifdef RENDER_BLOCK_GRID
-    vec3 fr_map = fract(vec3(f_map_pos));
+    vec3 fr_map = fract(vec3(f_map_pos) / vec3(32.0));
     fr_map -= 0.5;
     fr_map = abs(fr_map) * 2.;
     fr_map = step(fr_map, vec3(0.95));
