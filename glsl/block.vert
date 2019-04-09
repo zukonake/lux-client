@@ -1,6 +1,6 @@
-layout(location = 0) in vec3  pos;
-layout(location = 1) in float norm;
-layout(location = 2) in float tex;
+layout (location = 0) in vec3  pos;
+layout (location = 1) in float norm;
+layout (location = 2) in float tex;
 
 out vec3 f_map_pos;
 out vec2 f_tex_pos;
@@ -15,8 +15,17 @@ void main()
     vec3 map_pos = pos + chk_pos;
     gl_Position  = mvp * vec4(map_pos, 1.0);
     f_norm = vec3(0.);
-    f_norm[(int(norm) & 6) >> 1] = 1.;
+    int n_a = (int(norm) & 6) >> 1;
+    f_norm[n_a] = 1.;
     if((int(norm) & 1) == 0) f_norm *= -1.;
-    f_tex_pos = (vec2(tex, 0.0)) * tex_scale;
+    vec2 uv;
+    //if(n_a == 0) {
+    //    uv = map_pos.yz;
+    //} else if(n_a == 1) {
+    //    uv = map_pos.xz;
+    //} else if(n_a == 2) {
+        uv = map_pos.xy;
+    //}
+    f_tex_pos = (vec2(tex, 0.0) + fract(uv)) * tex_scale;
     f_map_pos = map_pos;
 }

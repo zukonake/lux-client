@@ -66,6 +66,28 @@ struct Mesh {
     Mesh(Mesh&& that) { *this = move(that); }
 };
 
+struct Renderer {
+#pragma pack(push, 1)
+    struct Vert {
+        Vec2F pos;
+        Vec2F tex_pos;
+    };
+#pragma pack(pop)
+
+    gl::IdxBuff     i_buff;
+    gl::VertBuff    v_buff;
+    gl::VertFmt     vert_fmt;
+    gl::VertContext context;
+
+    GLuint g_buff;
+    GLuint g_pos;
+    GLuint g_norm;
+    GLuint g_col;
+    GLuint rbo;
+
+    GLuint program;
+} static renderer;
+
 static Mesh debug_mesh_0;
 static Mesh debug_mesh_1;
 
@@ -75,7 +97,9 @@ VecSet<ChkPos>        chunk_requests;
 static ChkCoord render_dist = 2;
 static ChkPos   last_player_chk_pos = to_chk_pos(glm::floor(last_player_pos));
 
-static void map_load_programs() {
+static void map_io_tick(  U32, Transform const&, IoContext&);
+
+void map_init() {
     char const* tileset_path = "tileset.png";
     Vec2U const block_size = {1, 1};
     program  = load_program("glsl/block.vert" , "glsl/block.frag");
@@ -88,14 +112,8 @@ static void map_load_programs() {
                 1, glm::value_ptr(tex_scale));
     vert_fmt.init(
         {{3, GL_UNSIGNED_BYTE, false, false},
-         {1, GL_UNSIGNED_BYTE, false, false},
-         {1, GL_UNSIGNED_BYTE, false, false}});
-}
-
-static void map_io_tick(  U32, Transform const&, IoContext&);
-
-void map_init() {
-    map_load_programs();
+         {1, GL_UNSIGNED_BYTE, false, false},   //@TODO this should be unsigned
+         {1, GL_UNSIGNED_BYTE, false, false}}); //~this as well
 
     ui_map = ui_create(ui_camera);
     ui_nodes[ui_map].io_tick = &map_io_tick;
@@ -119,9 +137,79 @@ void map_init() {
     debug_mesh_0.i_buff.write(6, debug_mesh_0.idxs.beg, GL_STATIC_DRAW);
     debug_mesh_0.v_buff.bind();
     debug_mesh_0.v_buff.write(4, debug_mesh_0.verts.beg, GL_STATIC_DRAW);
+
+    glGenFramebuffers(1, &renderer.g_buff);
+    glBindFramebuffer(GL_FRAMEBUFFER, renderer.g_buff);
+
+    glGenTextures(1, &renderer.g_pos);
+    glBindTexture(GL_TEXTURE_2D, renderer.g_pos);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, 1600, 900, //@TODO screen sz
+                 0, GL_RGB, GL_FLOAT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                           renderer.g_pos, 0);
+
+    glGenTextures(1, &renderer.g_norm);
+    glBindTexture(GL_TEXTURE_2D, renderer.g_norm);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, 1600, 900, //@TODO screen sz
+                 0, GL_RGB, GL_FLOAT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D,
+                           renderer.g_norm, 0);
+
+    glGenTextures(1, &renderer.g_col);
+    glBindTexture(GL_TEXTURE_2D, renderer.g_col);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, 1600, 900, //@TODO screen sz
+                 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D,
+                           renderer.g_col, 0);
+
+    glGenRenderbuffers(1, &renderer.rbo);
+    glBindRenderbuffer(GL_RENDERBUFFER, renderer.rbo);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, 1600, 900); //@TODO screen sz
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+                              GL_RENDERBUFFER, renderer.rbo);
+    if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+        LUX_FATAL("failed to create framebuffer for map deferred shading");
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glBindRenderbuffer(GL_RENDERBUFFER, 0);
+
+    Arr<Renderer::Vert, 4> verts;
+    for(Uns i = 0; i < 4; ++i) {
+        verts[i].pos     = quad<F32>[i];
+        verts[i].tex_pos = u_quad<F32>[i];
+    }
+    renderer.v_buff.init();
+    renderer.v_buff.bind();
+    renderer.v_buff.write(4, verts, GL_STATIC_DRAW);
+
+    Arr<U32, 6> idxs;
+    for(Uns i = 0; i < 6; ++i) {
+        idxs[i] = quad_idxs<F32>[5 - i];
+    }
+    renderer.i_buff.init();
+    renderer.i_buff.bind();
+    renderer.i_buff.write(6, idxs, GL_STATIC_DRAW);
+
+    renderer.program = load_program("glsl/map_deferred.vert",
+                                    "glsl/map_deferred.frag");
+    renderer.vert_fmt.init(
+        {{2, GL_FLOAT, false, false},
+         {2, GL_FLOAT, false, false}});
+    renderer.context.init({renderer.v_buff}, renderer.vert_fmt);
 }
 
 void map_deinit() {
+    //@TODO destroy more stuff from renderer?
+    renderer.context.deinit();
+    renderer.i_buff.deinit();
+    renderer.v_buff.deinit();
+
     for(auto& mesh : meshes) {
         if(mesh.is_allocated) {
             mesh.dealloc();
@@ -285,6 +373,8 @@ static void map_io_tick(U32, Transform const&, IoContext& context) {
         U64 trigs_num  = 0;
     } status;
     for(Uns i = 0; i < meshes.len; ++i) {
+        Mesh* mesh = &meshes[i];
+        if(mesh->is_allocated && mesh->verts.len <= 0) continue;
         ChkPos pos = { i % mesh_load_size,
                       (i / mesh_load_size) % mesh_load_size,
                        i / (mesh_load_size * mesh_load_size)};
@@ -302,10 +392,8 @@ static void map_io_tick(U32, Transform const&, IoContext& context) {
         F32 c_chk_rad = chk_rad / glm::abs(c_center.w);
         if(glm::abs(c_center.x) > 1.f + c_chk_rad ||
            glm::abs(c_center.y) > 1.f + c_chk_rad) continue;
-        Mesh* mesh = &meshes[i];
-        status.chunks_num++;
-        if(mesh->is_allocated && mesh->verts.len <= 0) continue;
 
+        status.chunks_num++;
         draw_queue.push({i, pos});
     }
     {
@@ -320,23 +408,32 @@ static void map_io_tick(U32, Transform const&, IoContext& context) {
     if(wireframe) {
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     }
-    Vec3F ambient_light =
-        glm::mix(Vec3F(0.01f, 0.015f, 0.02f), Vec3F(1.f, 1.f, 0.9f),
-                 (ss_tick.day_cycle + 1.f) / 2.f);
+    Vec3F ambient_light = Vec3F(0.f);
+        /*glm::mix(Vec3F(0.01f, 0.015f, 0.02f), Vec3F(1.f, 1.f, 0.9f),
+                 (ss_tick.day_cycle + 1.f) / 2.f);*/
 
-    glClearColor(ambient_light.r, ambient_light.g, ambient_light.b, 1);
+    //glClearColor(ambient_light.r, ambient_light.g, ambient_light.b, 1);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    //@TODO remove one of clear color
+    glBindFramebuffer(GL_FRAMEBUFFER, renderer.g_buff);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glEnable(GL_DEPTH_TEST);
     glCullFace(GL_FRONT);
     glEnable(GL_CULL_FACE);
     glUseProgram(program);
+    set_uniform("tileset" , program, glUniform1i, 0);
+    glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, tileset);
     set_uniform("time", program, glUniform1f, glfwGetTime());
     set_uniform("ambient_light", program, glUniform3fv,
                 1, glm::value_ptr(ambient_light));
     set_uniform("mvp", program, glUniformMatrix4fv,
                 1, GL_FALSE, glm::value_ptr(mvp));
+    constexpr GLenum buffers[3] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1,
+        GL_COLOR_ATTACHMENT2};
+    glDrawBuffers(3, buffers);
 
     for(auto const& draw_data : draw_queue) {
         Mesh* mesh = &meshes[draw_data.mesh_idx];
@@ -361,11 +458,37 @@ static void map_io_tick(U32, Transform const&, IoContext& context) {
         mesh->i_buff.bind();
         glDrawElements(GL_TRIANGLES, mesh->idxs.len, GL_UNSIGNED_SHORT, 0);
     }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     glDisable(GL_DEPTH_TEST);
     if(wireframe) {
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     }
+
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glUseProgram(renderer.program);
+
+    set_uniform("g_pos" , renderer.program, glUniform1i, 0);
+    set_uniform("g_norm", renderer.program, glUniform1i, 1);
+    set_uniform("g_col" , renderer.program, glUniform1i, 2);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, renderer.g_pos);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, renderer.g_norm);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, renderer.g_col);
+
+    renderer.context.bind();
+    renderer.i_buff.bind();
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+    //@TODO is this needed?
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, renderer.g_buff);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+    glBlitFramebuffer(0, 0, 1600, 900, 0, 0, 1600, 900, GL_DEPTH_BUFFER_BIT,
+                      GL_NEAREST); //@TODO screen sz
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     static F64 avg = 0.0;
     static U32 denom = 0;
