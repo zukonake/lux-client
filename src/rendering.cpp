@@ -1,10 +1,8 @@
-#include <config.hpp>
-//
 #include <cstring>
 #include <vector>
 #include <fstream>
 //
-#include <include_opengl.hpp>
+#include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <glm/gtc/constants.hpp>
 #include <lodepng/lodepng.h>

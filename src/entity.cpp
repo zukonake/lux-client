@@ -1,7 +1,4 @@
-#include <config.hpp>
-//
 #include <glm/gtc/type_ptr.hpp>
-#include <glm/gtx/rotate_vector.hpp>
 //
 #include <db.hpp>
 #include <rendering.hpp>
@@ -147,23 +144,14 @@ static void entity_io_tick(U32, Transform const& tr, IoContext&) {
 void set_net_entity_comps(NetSsTick::EntityComps const& net_comps) {
     comps.pos.clear();
     comps.name.clear();
-    comps.visible.clear();
-    comps.orientation.clear();
+    comps.model.clear();
     for(auto const& pos : net_comps.pos) {
         comps.pos[pos.first] = pos.second;
     }
     for(auto const& name : net_comps.name) {
         comps.name[name.first] = name.second;
     }
-    for(auto const& visible : net_comps.visible) {
-        comps.visible[visible.first] =
-            {visible.second.visible_id, {1.f, 1.f}}; //@TODO quad_sz
-    }
-    for(auto const& orientation : net_comps.orientation) {
-        comps.orientation[orientation.first] =
-            {orientation.second.origin, orientation.second.angles};
-    }
-    for(auto const& parent : net_comps.parent) {
-        comps.parent[parent.first] = parent.second;
+    for(auto const& model : net_comps.model) {
+        comps.model[model.first] = {model.second.id};
     }
 }

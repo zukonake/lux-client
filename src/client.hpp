@@ -1,7 +1,5 @@
 #pragma once
 
-#include <config.hpp>
-//
 #include <lux_shared/common.hpp>
 #include <lux_shared/entity.hpp>
 #include <lux_shared/net/data.hpp>
@@ -19,4 +17,3 @@ void client_deinit();
 LUX_MAY_FAIL client_tick(GLFWwindow* glfw_window);
 void client_quit();
 bool client_should_close();
-LUX_MAY_FAIL client_send_assembly(Str const& label, Str const& contents);

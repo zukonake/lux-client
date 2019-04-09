@@ -1,7 +1,5 @@
 #pragma once
 
-#include <config.hpp>
-//
 #include <lux_shared/common.hpp>
 #include <lux_shared/entity.hpp>
 #include <lux_shared/net/data.hpp>
@@ -11,13 +9,8 @@
 struct EntityComps {
     typedef EntityVec Pos;
     typedef DynArr<char> Name;
-    struct Visible {
-        U32   visible_id;
-        Vec2F quad_sz;
-    };
-    struct Orientation {
-        Vec3F origin;
-        Vec2F angles; ///in radians
+    struct Model {
+        U32   id;
     };
     struct Text {
         UiTextId text;
@@ -25,9 +18,7 @@ struct EntityComps {
 
     IdMap<EntityId, Pos>         pos;
     IdMap<EntityId, Name>        name;
-    IdMap<EntityId, Visible>     visible;
-    IdMap<EntityId, Orientation> orientation;
-    IdMap<EntityId, EntityId>    parent;
+    IdMap<EntityId, Model>       model;
     IdMap<EntityId, Text>        text;
 };
 

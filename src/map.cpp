@@ -1,12 +1,8 @@
-#include <config.hpp>
-//
 #include <cstring>
 //
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
-#include <glm/gtx/component_wise.hpp>
-#include <glm/gtx/rotate_vector.hpp>
 #include <glm/gtx/fast_square_root.hpp>
 //
 #include <lux_shared/common.hpp>
@@ -107,7 +103,6 @@ void map_init() {
     gl::VertContext::unbind_all();
     debug_mesh_0.alloc();
 
-    auto const& dbg_block_0 = db_block_bp("dbg_block_0"_l);
     debug_mesh_0.verts.resize(4);
     debug_mesh_0.idxs.resize(6);
     for(Uns i = 0; i < 6; ++i) {
@@ -134,50 +129,75 @@ void map_deinit() {
     }
     meshes.dealloc_all();
     debug_mesh_0.dealloc();
-//    debug_mesh_1.dealloc();
 }
 
-static void map_io_tick(U32, Transform const& tr, IoContext& context) {
-    auto& world = ui_nodes[ui_world];
-    F32 old_ratio = world.tr.scale.x / world.tr.scale.y;
-    static F32 bob = 1.4f;
-    for(auto const& event : context.key_events) {
-        if(event.key == GLFW_KEY_1 && event.action == GLFW_PRESS) {
-            render_dist++;
-        } else if(event.key == GLFW_KEY_2 && event.action == GLFW_PRESS &&
-                  render_dist > 1) {
-            render_dist--;
-        }
-    }
+static void map_io_tick(U32, Transform const&, IoContext& context) {
     for(Uns i = 0; i < context.mouse_events.len; ++i) {
         //@TODO erase event
         auto const& event = context.mouse_events[i];
         if(event.button == GLFW_MOUSE_BUTTON_LEFT &&
            event.action == GLFW_PRESS) {
-            ui_do_action("entity_break_block"_l, {nullptr, 0});
+            LUX_UNIMPLEMENTED();
         } else if(event.button == GLFW_MOUSE_BUTTON_RIGHT &&
            event.action == GLFW_PRESS) {
-            ui_do_action("entity_place_block"_l, {nullptr, 0});
+            LUX_UNIMPLEMENTED();
         }
     }
+    F32 render_dist_change = 0.f;
+    for(Uns i = 0; i < context.scroll_events.len; ++i) {
+        //@TODO erase event
+        auto const& event = context.scroll_events[i];
+        render_dist_change += event.off;
+    }
+    render_dist = round(max((F32)render_dist + render_dist_change, 0.f));
+    //@TODO glfwGetKey?
+    Vec3F dir(0.f);
+    if(glfwGetKey(context.win, GLFW_KEY_W)) {
+        dir.x += 1.f;
+    }
+    if(glfwGetKey(context.win, GLFW_KEY_S)) {
+        dir.x -= 1.f;
+    }
+    if(glfwGetKey(context.win, GLFW_KEY_D)) {
+        dir.y += 1.f;
+    }
+    if(glfwGetKey(context.win, GLFW_KEY_A)) {
+        dir.y -= 1.f;
+    }
+    F32 len = length(dir);
+    if(len != 0.f) {
+        dir /= len;
+        cs_tick.is_moving = true;
+        cs_tick.move_dir = dir;
+    } else {
+        cs_tick.is_moving = false;
+    }
+
+    //@TODO
+    static Vec2F last_mouse_pos = {0, 0};
+    static Vec2F prot = {0, 0};
+    Vec2F diff = (last_mouse_pos - context.mouse_pos) * 0.005f;
+    last_mouse_pos = context.mouse_pos;
+    prot += diff;
+    prot.x = s_mod_clamp(prot.x, tau / 2.f);
+    prot.y = clamp(prot.y, -tau / 4.f + .001f, tau / 4.f - .001f);
+    Vec2F s_prot = {s_mod_clamp((prot.x + tau / 4.f) / (-tau / 2.f), 1.f),
+                    prot.y / (tau / 2.f)};
+    cs_tick.yaw_pitch = s_prot;
 
     EntityVec camera_pos = -ui_nodes[ui_camera].tr.pos;
-    camera_pos.z += bob;
+    camera_pos.z += 1.4f; //@TODO camera height
 
-    ChkCoord load_size      = 2 * (render_dist + 1) + 1;
     ChkCoord mesh_load_size = 2 * render_dist + 1;
-
     ChkPos chk_pos = to_chk_pos(glm::floor(camera_pos));
-
     static ChkCoord last_render_dist = 0;
-
-    ChkCoord last_load_size      = 2 * (last_render_dist + 1) + 1;
     ChkCoord last_mesh_load_size = 2 * last_render_dist + 1;
 
     ChkPos chk_diff           = chk_pos - last_player_chk_pos;
     ChkCoord render_dist_diff = render_dist - last_render_dist;
     chk_diff -= render_dist_diff;
     if(chk_diff != ChkPos(0)) {
+        //@XXX downsizing render distance crashed in the past
         SizeT meshes_num = glm::pow(mesh_load_size, 3);
         auto get_idx = [&](ChkPos pos, ChkCoord size) {
             return pos.x +
@@ -229,21 +249,6 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
     last_player_chk_pos = chk_pos;
     last_render_dist    = render_dist;
 
-    //@TODO
-    static Vec2F last_mouse_pos = {0, 0};
-    static Vec2F prot = {0, 0};
-    Vec2F diff = (last_mouse_pos - context.mouse_pos) * 0.005f;
-    last_mouse_pos = context.mouse_pos;
-    prot += diff;
-    prot.x = s_mod_clamp(prot.x, tau / 2.f);
-    prot.y = clamp(prot.y, -tau / 4.f + .001f, tau / 4.f - .001f);
-    Vec2F s_prot = {s_mod_clamp((prot.x + tau / 4.f) / (-tau / 2.f), 1.f),
-                    prot.y / (tau / 2.f)};
-    U8 stack[2];
-    stack[1] = (I8)clamp(s_prot.x * 128.f, -128.f, 127.f);
-    stack[0] = (I8)clamp(s_prot.y * 128.f, -128.f, 127.f);
-    ui_do_action("entity_rotate"_l, stack);
-
     glm::mat4 mvp =
         {1, 0, 0, 0,
          0, 0, 1, 0,
@@ -259,8 +264,13 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
     camera_pos.z = camera_pos.y;
     camera_pos.y = temp;
     F32 z_far = (F32)render_dist * (F32)CHK_SIZE;
-    //@TODO apect ratio
-    mvp = glm::perspective(glm::radians(70.f), 16.f/9.f, 0.1f, z_far) *
+
+    int win_w, win_h;
+    //@TODO we probably should use something more universal, like our local
+    //ui size
+    glfwGetWindowSize(context.win, &win_w, &win_h);
+    F32 aspect_ratio = (F32)win_w / (F32)win_h;
+    mvp = glm::perspective(glm::radians(70.f), aspect_ratio, 0.1f, z_far) *
           glm::lookAt(camera_pos, camera_pos + direction, Vec3F(0, 1, 0)) * mvp;
 
     struct DrawData {
@@ -287,8 +297,7 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
         Vec4F c_center = mvp * Vec4F(center, 1.f);
         c_center.x /= c_center.w;
         c_center.y /= c_center.w;
-        //@TODO in rare cases this is too small
-        F32 constexpr chk_rad = glm::sqrt(CHK_SIZE * CHK_SIZE * 3) / 2.f;
+        F32 constexpr chk_rad = CHK_SIZE * glm::sqrt(3);
         if(c_center.z < -chk_rad) continue;
         F32 c_chk_rad = chk_rad / glm::abs(c_center.w);
         if(glm::abs(c_center.x) > 1.f + c_chk_rad ||
@@ -315,9 +324,12 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
         glm::mix(Vec3F(0.01f, 0.015f, 0.02f), Vec3F(1.f, 1.f, 0.9f),
                  (ss_tick.day_cycle + 1.f) / 2.f);
 
+    glClearColor(ambient_light.r, ambient_light.g, ambient_light.b, 1);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
     glEnable(GL_DEPTH_TEST);
     glCullFace(GL_FRONT);
-    //glEnable(GL_CULL_FACE);
+    glEnable(GL_CULL_FACE);
     glUseProgram(program);
     glBindTexture(GL_TEXTURE_2D, tileset);
     set_uniform("time", program, glUniform1f, glfwGetTime());
@@ -330,10 +342,11 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
         Mesh* mesh = &meshes[draw_data.mesh_idx];
         auto const& pos = draw_data.pos;
         if(not mesh->is_allocated) {
-            //@TODO don't request here? do it earlier
+            //@NOTE we request the chunk here, because we want to request them
+            //in a priority sorted by distance to player, i.e. closer chunks
+            //are requested earlier
             chunk_requests.emplace(pos);
             continue;
-            mesh = &debug_mesh_0;
         }
         if(mesh != &debug_mesh_0 && mesh != &debug_mesh_1) {
             status.real_chunks_num++;
@@ -389,7 +402,7 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
         wireframe = !wireframe;
     }
     ImGui::Text("fps: %d", (int)fps);
-    ImGui::Text("render dist: %d", render_dist);
+    ImGui::Text("render dist: %zu", (Uns)render_dist);
     ImGui::Text("pending chunks num: %zu", chunk_requests.size());
     ImGui::Text("chunks num: %zu", status.chunks_num);
     ImGui::Text("real chunks num: %zu", status.real_chunks_num);
@@ -397,20 +410,10 @@ static void map_io_tick(U32, Transform const& tr, IoContext& context) {
     ImGui::End();
 }
 
-void map_reload_program() {
-    //@TODO we need to reload attrib locations here
-    //@TODO remove this func
-    LUX_LOG("reloading map program");
-    glDeleteTextures(1, &tileset);
-    glDeleteProgram(program);
-    map_load_programs();
-}
-
-//@TODO dist is redundant now
 ///returns -1 if out of bounds
-static Int get_fov_idx(ChkPos const& pos, ChkCoord dist) {
-    ChkPos idx_pos = (pos - last_player_chk_pos) + dist;
-    ChkCoord size = dist * 2 + 1;
+static Int get_fov_idx(ChkPos const& pos) {
+    ChkPos idx_pos = (pos - last_player_chk_pos) + render_dist;
+    ChkCoord size = render_dist * 2 + 1;
     if(clamp(idx_pos, ChkPos(0), ChkPos(size)) != idx_pos) return -1;
     Int idx = idx_pos.x + idx_pos.y * size + idx_pos.z * size * size;
     return idx;
@@ -420,9 +423,11 @@ void map_load_chunks(NetSsSgnl::ChunkLoad const& net_chunks) {
     gl::VertContext::unbind_all();
     for(auto const& pair : net_chunks.chunks) {
         ChkPos chk_pos = pair.first;
+        if(chunk_requests.count(chk_pos) > 0) {
+            chunk_requests.erase(chk_pos);
+        }
         auto const& net_chunk = pair.second;
-        LUX_LOG("loading chunk {%zd, %zd, %zd}", chk_pos.x, chk_pos.y, chk_pos.z);
-        Int idx = get_fov_idx(chk_pos, render_dist);
+        Int idx = get_fov_idx(chk_pos);
         if(idx < 0) {
             LUX_LOG_WARN("received chunk {%zd, %zd, %zd} out of load range",
                 chk_pos.x, chk_pos.y, chk_pos.z);
@@ -434,8 +439,6 @@ void map_load_chunks(NetSsSgnl::ChunkLoad const& net_chunks) {
             continue;
         }
         Mesh& mesh = meshes[idx];
-        //if(net_chunk.idxs.len <= 0) continue;
-        //@TODO assert/skip empty
         SizeT faces_num = 0;
         faces_num += net_chunk.faces.len;
         mesh.verts.resize(faces_num * 4);
@@ -475,7 +478,6 @@ void map_load_chunks(NetSsSgnl::ChunkLoad const& net_chunks) {
         mesh.v_buff.write(mesh.verts.len, mesh.verts.beg, GL_DYNAMIC_DRAW);
         mesh.i_buff.bind();
         mesh.i_buff.write(mesh.idxs.len, mesh.idxs.beg, GL_DYNAMIC_DRAW);
-        chunk_requests.erase(chk_pos);
     }
 }
 
@@ -485,25 +487,20 @@ void map_update_chunks(NetSsSgnl::ChunkUpdate const& net_chunks) {
         ChkPos pos = pair.first;
         auto const& net_chunk = pair.second;
         LUX_LOG("updating chunk {%zd, %zd, %zd}", pos.x, pos.y, pos.z);
-        Int idx = get_fov_idx(pos, render_dist);
+        Int idx = get_fov_idx(pos);
         if(idx < 0 || not meshes[idx].is_allocated) {
             LUX_LOG_WARN("received chunk update for unloaded chunk"
                 " {%zd, %zd, %zd}", pos.x, pos.y, pos.z);
             continue;
         }
         Mesh& mesh = meshes[idx];
-        Uns co = mesh.idxs.len;
         for(auto const& removed_face : net_chunk.removed_faces) {
-            //@TODO erase(many)
             for(Uns i = (removed_face + 1) * 6; i < mesh.idxs.len; ++i) {
                 mesh.idxs[i] -= 4;
             }
-            for(Uns i = 0; i < 6; ++i) {
-                mesh.idxs.erase(removed_face * 6);
-            }
-            for(Uns i = 0; i < 4; ++i) {
-                mesh.verts.erase(removed_face * 4);
-            }
+            //@XXX this crashed in the past
+            mesh.idxs.erase(removed_face * 6, 6);
+            mesh.verts.erase(removed_face * 4, 4);
         }
         Arr<Vec3<U8>, 3 * 4> vert_offs = {
             {0, 0, 0}, {0, 1, 0}, {0, 0, 1}, {0, 1, 1},

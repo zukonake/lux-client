@@ -1,5 +1,3 @@
-#include <config.hpp>
-//
 #include <functional>
 //
 #include "db.hpp"

@@ -12,7 +12,8 @@ if(CYGWIN)
 endif()
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR})
 set(THREADS_PREFER_PTHREAD_FLAG ON)
-set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wundef -fno-exceptions")
+set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wundef -fno-exceptions -Wno-narrowing \
+    -include ${PROJECT_BINARY_DIR}/config.hpp")
 set(CMAKE_CXX_FLAGS_DEBUG "-g -Og -pipe -fasynchronous-unwind-tables \
     -fstack-protector-strong -D_GLIBCXX_ASSERTIONS -ftrapv")
 set(CMAKE_CXX_FLAGS_RELEASE "-Ofast -flto -DNDEBUG")

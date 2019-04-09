@@ -1,11 +1,8 @@
-#include <config.hpp>
 #include <cstdint>
 #include <cstring>
-#include <string.h>
 //
-#include <include_opengl.hpp>
+#include <glad/glad.h>
 #include <glm/gtc/type_ptr.hpp>
-#include <glm/gtx/rotate_vector.hpp>
 //
 #include <lux_shared/common.hpp>
 //
@@ -17,10 +14,6 @@
 #include <imgui/imgui_impl_glfw.h>
 
 static IoContext io_context;
-
-static HashMap<StrBuff, U16>   rasen_labels_id;
-static HashMap<int, NetAction> rasen_tick_bindings;
-static HashMap<int, NetAction> rasen_sgnl_bindings;
 
 UiId ui_screen;
 UiId ui_world;
@@ -217,7 +210,7 @@ void ui_deinit() {
     LUX_ASSERT(ui_panes.size() == 0);
 }
 
-static void text_io_tick(U32 id, Transform const& tr, IoContext& context) {
+static void text_io_tick(U32 id, Transform const& tr, IoContext&) {
     auto& text = ui_texts[id];
     static DynArr<TextSystem::Vert> verts;
     static DynArr<U32>               idxs;
@@ -305,7 +298,7 @@ static void text_io_tick(U32 id, Transform const& tr, IoContext& context) {
     glDisable(GL_BLEND);
 }
 
-static void pane_io_tick(U32 id, Transform const& tr, IoContext& context) {
+static void pane_io_tick(U32 id, Transform const& tr, IoContext&) {
     Arr<PaneSystem::Vert, 4> verts;
     Arr<U32             , 6> idxs;
     auto& pane = ui_panes[id];
@@ -328,125 +321,18 @@ static void pane_io_tick(U32 id, Transform const& tr, IoContext& context) {
     glDisable(GL_BLEND);
 }
 
-static void imgui_io_tick(U32, Transform const&, IoContext& context) {
-    for(Uns i = 0; i < context.key_events.len;) {
-        auto const& event = context.key_events[i];
-        if(event.action == GLFW_PRESS &&
-           rasen_sgnl_bindings.count(event.key) > 0) {
-            cs_sgnl.actions.emplace(rasen_sgnl_bindings.at(event.key));
-            context.key_events.erase(i);
-        } else ++i;
-    }
-    for(auto const& binding : rasen_tick_bindings) {
-        if(glfwGetKey(glfw_window, binding.first)) {
-            cs_tick.actions.emplace(binding.second);
-        }
-    }
+static void imgui_io_tick(U32, Transform const&, IoContext&) {
     {   ImGui::Begin("debug info");
         ImGui::Text("pos: {%.2f, %.2f, %.2f}",
             last_player_pos.x, last_player_pos.y, last_player_pos.z);
         ChkPos chk_pos = to_chk_pos(floor(last_player_pos));
-        ImGui::Text("chk_pos: {%d, %d, %d}",
+        ImGui::Text("chk_pos: {%zd, %zd, %zd}",
             chk_pos.x, chk_pos.y, chk_pos.z);
         IdxPos idx_pos = to_idx_pos(floor(last_player_pos));
         ImGui::Text("idx_pos: {%u, %u, %u}",
             idx_pos.x, idx_pos.y, idx_pos.z);
         ChkIdx chk_idx = to_chk_idx(idx_pos);
         ImGui::Text("chk_idx: {%u}", chk_idx);
-        ImGui::End();
-    }
-    {   ImGui::Begin("assembly editor");
-        static char label[32] = {};
-        ImGui::InputText("label", label, arr_len(label));
-        static char text[256] = {};
-        ImGui::InputTextMultiline("", text, arr_len(text), {0, 256});
-        if(ImGui::Button("assemble")) {
-            Str label_str = {label, strnlen(label, arr_len(label))};
-            Str text_str  = {text , strnlen(text , arr_len(text ))};
-            if(client_send_assembly(label_str, text_str) != LUX_OK) {
-                //@TODO
-            }
-        }
-        ImGui::End();
-    }
-    {   ImGui::Begin("bindings");
-
-        static char label[32] = {};
-        static int stack_val;
-        static DynArr<U8> stack;
-        static int key = GLFW_KEY_UNKNOWN;
-        static bool continuous = false;
-
-        ImGui::InputText("label", label, arr_len(label));
-        ImGui::Checkbox("continuous", &continuous);
-        if(ImGui::Button("add")) {
-            const char* c_str = glfwGetKeyName(key, 0);
-            if(c_str != nullptr) {
-                Str label_str = {label, strnlen(label, arr_len(label))};
-                if(rasen_labels_id.count(label_str) == 0) {
-                    LUX_LOG_ERR("undefined label \"%.*s\"", (int)arr_len(label),
-                                label);
-                } else {
-                    if(continuous) {
-                        ui_add_continuous_binding(label_str, key, stack);
-                    } else {
-                        ui_add_discrete_binding(label_str, key, stack);
-                    }
-                    stack.clear();
-                }
-                key = GLFW_KEY_UNKNOWN;
-            }
-        }
-        ImGui::SameLine();
-        ImGui::Button("key (hover)");
-        if(ImGui::IsItemHovered()) {
-            if(context.key_events.len > 0 &&
-               context.key_events.last().action == GLFW_PRESS) {
-                key = context.key_events.last().key;
-                context.key_events.pop();
-            }
-        }
-        const char* c_str = glfwGetKeyName(key, 0);
-        ImGui::SameLine();
-        ImGui::Text("current: %s", c_str);
-        ImGui::InputInt("val", &stack_val);
-        if(ImGui::Button("push")) {
-            stack.push(stack_val);
-        }
-        ImGui::SameLine();
-        if(ImGui::Button("pop") && stack.len > 0) {
-            stack.pop();
-        }
-        {   ImGui::BeginChild("info");
-            ImGui::Text("stack");
-            for(auto const& val : stack) {
-                ImGui::SameLine();
-                ImGui::Text("%d", val);
-            }
-            ImGui::Separator();
-            ImGui::Text("label list");
-            for(auto const& label : rasen_labels_id) {
-                ImGui::Text("%.*s -> 0x%03x", (int)label.first.len,
-                            label.first.beg, label.second);
-            }
-            ImGui::Separator();
-            ImGui::Text("bind list");
-            for(auto const& bind : rasen_tick_bindings) {
-                const char* c_str = glfwGetKeyName(bind.first, 0);
-                if(c_str != nullptr) {
-                    ImGui::Text("cont. %s -> 0x%03x",
-                        c_str, bind.second.id);
-                }
-            }
-            for(auto const& bind : rasen_sgnl_bindings) {
-                const char* c_str = glfwGetKeyName(bind.first, 0);
-                if(c_str != nullptr) {
-                    ImGui::Text("%s -> 0x%03x",
-                        c_str, bind.second.id);
-                }
-            }
-            ImGui::EndChild();
-        }
         ImGui::End();
     }
 }
@@ -491,6 +377,7 @@ void ui_io_tick() {
     Vec2<F64> mouse_pos;
     glfwGetCursorPos(glfw_window, &mouse_pos.x, &mouse_pos.y);
     io_context.mouse_pos = (Vec2F)mouse_pos;
+    io_context.win = glfw_window;
     ui_io_tick(ui_screen, {{0, 0, 0}, {1, 1, 1}});
     ui_nodes.free_slots();
     ui_texts.free_slots();
@@ -498,29 +385,4 @@ void ui_io_tick() {
     io_context.mouse_events.clear();
     io_context.scroll_events.clear();
     io_context.key_events.clear();
-}
-
-LUX_MAY_FAIL ui_add_rasen_label(NetRasenLabel const& label) {
-    rasen_labels_id[label.str_id] = label.id;
-    return LUX_OK;
-}
-
-bool ui_has_rasen_label(Str const& str_id) {
-    return rasen_labels_id.count(str_id) > 0;
-}
-
-void ui_do_action(Str const& str_id, Slice<U8> const& stack) {
-    LUX_ASSERT(ui_has_rasen_label(str_id));
-    auto id = rasen_labels_id[str_id];
-    cs_tick.actions.push({stack, id});
-}
-
-void ui_add_continuous_binding(Str const& str_id, int key, Slice<U8> const& stack) {
-    LUX_ASSERT(ui_has_rasen_label(str_id));
-    rasen_tick_bindings[key] = {stack, rasen_labels_id.at(str_id)};
-}
-
-void ui_add_discrete_binding(Str const& str_id, int key, Slice<U8> const& stack) {
-    LUX_ASSERT(ui_has_rasen_label(str_id));
-    rasen_sgnl_bindings[key] = {stack, rasen_labels_id.at(str_id)};
 }

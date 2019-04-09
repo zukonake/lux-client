@@ -1,5 +1,3 @@
-#include <config.hpp>
-//
 #include <cstdlib>
 #include <cmath>
 #include <cstring>
@@ -88,13 +86,9 @@ int main(int argc, char** argv) {
     glfwSetScrollCallback(glfw_window, scroll_cb);
     glfwSetKeyCallback(glfw_window, key_cb);
     glfwSetCharCallback(glfw_window, char_cb);
-    /*UiPaneId eq_pane =
-        ui_pane_create(ui_hud, {{-1.f, 0.f, 0.f}, {0.7f, 1.f, 1.f}},
-                       {0.5f, 0.5f, 0.5f, 0.5f});*/
-    //@TODO
-    UiPaneId crosshair =
-        ui_pane_create(ui_screen, {Vec3F(-0.025f), Vec3F(0.05f)},
-                       {0.5f, 0.5f, 0.5f, 0.5f});
+    //"crosshair"
+    ui_pane_create(ui_screen, {Vec3F(-0.025f), Vec3F(0.05f)},
+                   {0.5f, 0.5f, 0.5f, 0.5f});
 
     Vec2<int> win_size;
     glfwGetWindowSize(glfw_window, &win_size.x, &win_size.y);
@@ -109,14 +103,6 @@ int main(int argc, char** argv) {
             ImGui::NewFrame();
             glfwPollEvents();
 
-            Vec3F sky_col =
-                glm::mix(Vec3F(0.01f, 0.015f, 0.02f),
-                         Vec3F(1.f, 1.f, 0.9f),
-                         (ss_tick.day_cycle + 1.f) / 2.f);
-
-            //@TODO move this
-            glClearColor(sky_col.r, sky_col.g, sky_col.b, 1);
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             if(client_tick(glfw_window) != LUX_OK) {
                 LUX_FATAL("game state corrupted");
             }

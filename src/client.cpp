@@ -1,10 +1,8 @@
-#if defined(__unix__)
+#if   defined(LUX_OS_UNIX)
     #include <unistd.h>
-#elif defined(_WIN32)
+#elif defined(LUX_OS_WINDOWS)
     #include <windows.h>
 #endif
-#include <config.hpp>
-//
 #include <cstring>
 //
 #include <enet/enet.h>
@@ -51,12 +49,11 @@ static void get_user_name(char* buff) {
     constexpr char unknown[] = "unknown";
     static_assert(sizeof(unknown) - 1 <= CLIENT_NAME_LEN);
     std::memset(buff, 0, CLIENT_NAME_LEN);
-    //@TODO LUX_* defines
-#if defined(__unix__)
+#if defined(LUX_OS_UNIX)
     if(getlogin_r((char*)buff, CLIENT_NAME_LEN) != 0) {
         std::memcpy(buff, unknown, sizeof(unknown) - 1);
     }
-#elif defined(_WIN32)
+#elif defined(LUX_OS_WINDOWS)
     LPDWORD sz = CLIENT_NAME_LEN;
     if(GetUserName(buff, &sz) == 0) {
         std::memcpy(buff, unknown, sizeof(unknown) - 1);
@@ -206,41 +203,11 @@ LUX_MAY_FAIL static connect_to_server(char const* hostname, U16 port) {
 
             client.server_name = (Str)ss_init.name;
             tick_rate = ss_init.tick_rate;
-            for(auto const& label : ss_init.rasen_labels) {
-                LUX_RETHROW(ui_add_rasen_label(label));
-            }
         }
         LUX_LOG("successfully connected to server \"%.*s\"",
                 (int)client.server_name.len, client.server_name.beg);
         LUX_LOG("tick rate %2.f", tick_rate);
     }
-
-    //@TODO abstract this out
-    if(ui_has_rasen_label("entity_move"_l)) {
-        Arr<U8, 2> stack;
-        stack[0] = 1;
-        stack[1] = 0;
-        ui_add_continuous_binding("entity_move"_l, GLFW_KEY_W, stack);
-        stack[0] = -1;
-        ui_add_continuous_binding("entity_move"_l, GLFW_KEY_S, stack);
-        stack[0] = 0;
-        stack[1] = 1;
-        ui_add_continuous_binding("entity_move"_l, GLFW_KEY_A, stack);
-        stack[1] = -1;
-        ui_add_continuous_binding("entity_move"_l, GLFW_KEY_D, stack);
-    } else {
-        LUX_LOG_WARN("no \"entity_move\" label loaded, couldn't create default "
-            "key bindings");
-    }
-    /*if(ui_has_rasen_label("entity_rotate"_l)) {
-        Arr<U8, 1> stack = {1};
-        ui_add_continuous_binding("entity_rotate"_l, GLFW_KEY_D, stack);
-        stack[0] = -1;
-        ui_add_continuous_binding("entity_rotate"_l, GLFW_KEY_A, stack);
-    } else {
-        LUX_LOG_WARN("no \"entity_rotate\" label loaded, couldn't create "
-            "default key bindings");
-    }*/
 
     return LUX_OK;
 }
@@ -275,12 +242,6 @@ LUX_MAY_FAIL static handle_signal(ENetPacket* in_pack) {
             case NetSsSgnl::CHUNK_UPDATE: {
                 map_update_chunks(ss_sgnl.chunk_update);
             } break;
-            case NetSsSgnl::MSG: {
-                LUX_UNIMPLEMENTED();
-            } break;
-            case NetSsSgnl::RASEN_LABEL: {
-                ui_add_rasen_label(ss_sgnl.rasen_label);
-            } break;
             default: LUX_UNREACHABLE();
         }
     }
@@ -292,7 +253,6 @@ LUX_MAY_FAIL client_tick(GLFWwindow* glfw_window) {
     { ///handle events
         if(glfwWindowShouldClose(glfw_window)) client_quit();
         ENetEvent event;
-        //@TODO time
         while(enet_host_service(client.host, &event, 0) > 0) {
             if(event.type == ENET_EVENT_TYPE_DISCONNECT) {
                 LUX_LOG("connection closed by server");
@@ -324,7 +284,6 @@ LUX_MAY_FAIL client_tick(GLFWwindow* glfw_window) {
     {   cs_sgnl.tag = NetCsSgnl::MAP_REQUEST;
         for(auto const& pos : chunk_requests) {
             if(client.sent_requests.count(pos) == 0) {
-                LUX_LOG("requesting chunk {%zd, %zd}", pos.x, pos.y);
                 cs_sgnl.map_request.requests.emplace(pos);
                 client.sent_requests.emplace(pos);
             }
@@ -373,11 +332,4 @@ LUX_MAY_FAIL client_tick(GLFWwindow* glfw_window) {
     client.host->totalReceivedData = 0;
     client.host->totalSentData = 0;
     return LUX_OK;
-}
-
-LUX_MAY_FAIL client_send_assembly(Str const& label, Str const& contents) {
-    cs_sgnl.tag = NetCsSgnl::RASEN_ASM;
-    cs_sgnl.rasen_asm.str_id   = label;
-    cs_sgnl.rasen_asm.contents = contents;
-    return send_net_data(client.peer, &cs_sgnl, SGNL_CHANNEL);
 }
